@@ -41,24 +41,24 @@ public class HomeKpiPanel extends JPanel {
                 "Monthly Occupancy",
                 "82%",
                 "Across active accommodation",
-                HomeViewHelper.PRIMARY,
-                HomeViewHelper.KPI_GREEN_LIGHT,
+                HomeViewHelper.KPI_AMBER_DARK,
+                HomeViewHelper.KPI_AMBER_LIGHT,
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Avg Stay Duration",
                 "2.4 hrs",
                 "Guest stay average",
-                HomeViewHelper.KPI_STEEL_DARK,
-                HomeViewHelper.KPI_STEEL_LIGHT,
+                HomeViewHelper.KPI_SKY_DARK,
+                HomeViewHelper.KPI_SKY_LIGHT,
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Peak Arrival",
                 "11:00 AM",
                 "Highest check-in window",
-                HomeViewHelper.KPI_WARM_DARK,
-                HomeViewHelper.KPI_WARM_LIGHT,
+                HomeViewHelper.KPI_ROSE_DARK,
+                HomeViewHelper.KPI_ROSE_LIGHT,
                 false
         ));
 

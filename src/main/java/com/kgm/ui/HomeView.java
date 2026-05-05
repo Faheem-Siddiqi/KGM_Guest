@@ -121,7 +121,12 @@ public class HomeView extends JFrame {
         if (guestFilterPanel == null || guestRecordPanel == null) {
             return;
         }
-        guestRecordPanel.search(guestFilterPanel.getSearchText());
+        guestRecordPanel.search(
+                guestFilterPanel.getSearchText(),
+                guestFilterPanel.getStatusText(),
+                guestFilterPanel.getDepartmentText(),
+                guestFilterPanel.getDateText()
+        );
     }
 
     private void clearSearch() {

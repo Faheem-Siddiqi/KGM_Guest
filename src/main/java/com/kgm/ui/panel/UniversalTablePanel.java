@@ -13,13 +13,14 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 public class UniversalTablePanel extends JPanel {
     // UPDATE PAGINATION 
-    private static final int PAGE_SIZE = 2;
+    private static final int PAGE_SIZE = 7;
     private static final int MIN_VIEWPORT_HEIGHT = 118;
 
     private final JTable table;
@@ -51,6 +52,7 @@ public class UniversalTablePanel extends JPanel {
 
         AccommodationManagementHelper.styleTable(table);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.getTableHeader().addMouseWheelListener(this::forwardMouseWheel);
 
         table.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent event) {
@@ -75,6 +77,12 @@ public class UniversalTablePanel extends JPanel {
                 table.setCursor(Cursor.getPredefinedCursor(hoveringAction ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
             }
         });
+        table.addMouseListener(new MouseAdapter() {
+            public void mouseExited(MouseEvent event) {
+                table.setCursor(Cursor.getDefaultCursor());
+            }
+        });
+        table.addMouseWheelListener(this::forwardMouseWheel);
 
         previousButton.addActionListener(e -> goToPage(currentPage - 1));
         nextButton.addActionListener(e -> goToPage(currentPage + 1));
@@ -202,6 +210,9 @@ public class UniversalTablePanel extends JPanel {
         scrollPane.setBorder(new RoundedTableBorder());
         scrollPane.getViewport().setBackground(Color.WHITE);
         scrollPane.getViewport().setBorder(null);
+        scrollPane.setWheelScrollingEnabled(false);
+        scrollPane.addMouseWheelListener(this::forwardMouseWheel);
+        scrollPane.getViewport().addMouseWheelListener(this::forwardMouseWheel);
         scrollPane.setHorizontalScrollBarPolicy(shouldShowHorizontalScroll()
                 ? ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
                 : ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -215,6 +226,47 @@ public class UniversalTablePanel extends JPanel {
             container.add(createPagination(), BorderLayout.SOUTH);
         }
         return container;
+    }
+
+    private void forwardMouseWheel(MouseWheelEvent event) {
+        if (event.isShiftDown() && scrollInnerTableHorizontally(event)) {
+            return;
+        }
+
+        JScrollPane pageScroll = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, this);
+        if (pageScroll == null) {
+            return;
+        }
+
+        scrollBar(pageScroll.getVerticalScrollBar(), event);
+        event.consume();
+    }
+
+    private boolean scrollInnerTableHorizontally(MouseWheelEvent event) {
+        Component source = event.getComponent();
+        JScrollPane tableScroll = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, source);
+        if (tableScroll == null || !SwingUtilities.isDescendingFrom(tableScroll, this)) {
+            return false;
+        }
+
+        JScrollBar horizontalBar = tableScroll.getHorizontalScrollBar();
+        if (horizontalBar == null || !horizontalBar.isVisible()) {
+            return false;
+        }
+
+        scrollBar(horizontalBar, event);
+        event.consume();
+        return true;
+    }
+
+    private void scrollBar(JScrollBar scrollBar, MouseWheelEvent event) {
+        int direction = event.getWheelRotation() < 0 ? -1 : 1;
+        int amount = event.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL
+                ? event.getUnitsToScroll() * scrollBar.getUnitIncrement(direction)
+                : event.getWheelRotation() * scrollBar.getBlockIncrement(direction);
+        int max = scrollBar.getMaximum() - scrollBar.getVisibleAmount();
+        int value = Math.max(scrollBar.getMinimum(), Math.min(max, scrollBar.getValue() + amount));
+        scrollBar.setValue(value);
     }
 
     private JPanel createPagination() {

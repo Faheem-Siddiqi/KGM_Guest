@@ -4,6 +4,8 @@ import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -55,15 +57,30 @@ public class GuestRecordPanel extends JPanel {
     }
 
     public void search(String query) {
+        search(query, "All Status", "All Departments", "");
+    }
+
+    public void search(String query, String status, String department, String date) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
-        if (normalizedQuery.isEmpty()) {
+        String normalizedStatus = status == null ? "All Status" : status.trim();
+        String normalizedDepartment = department == null ? "All Departments" : department.trim();
+        String normalizedDate = date == null ? "" : date.trim();
+
+        boolean hasStatus = !normalizedStatus.equalsIgnoreCase("All Status");
+        boolean hasDepartment = !normalizedDepartment.equalsIgnoreCase("All Departments");
+        boolean hasDate = !normalizedDate.isEmpty();
+
+        if (normalizedQuery.isEmpty() && !hasStatus && !hasDepartment && !hasDate) {
             reset();
             return;
         }
 
         List<Object[]> filteredRecords = new ArrayList<>();
         for (Object[] record : allData) {
-            if (recordMatches(record, normalizedQuery)) {
+            if (recordMatches(record, normalizedQuery)
+                    && statusMatches(record, normalizedStatus)
+                    && departmentMatches(record, normalizedDepartment)
+                    && dateMatches(record, normalizedDate)) {
                 filteredRecords.add(record);
             }
         }
@@ -88,6 +105,49 @@ public class GuestRecordPanel extends JPanel {
             }
         }
         return false;
+    }
+
+    private boolean statusMatches(Object[] record, String status) {
+        if (status.equalsIgnoreCase("All Status")) {
+            return true;
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate arrival = parseDate(record[ARRIVAL]);
+        LocalDate departure = parseDate(record[DEPARTURE]);
+        if (arrival == null || departure == null) {
+            return false;
+        }
+
+        if (status.equalsIgnoreCase("Currently Staying")) {
+            return !today.isBefore(arrival) && !today.isAfter(departure);
+        }
+        if (status.equalsIgnoreCase("Departed")) {
+            return departure.isBefore(today);
+        }
+        if (status.equalsIgnoreCase("Upcoming")) {
+            return arrival.isAfter(today);
+        }
+        return true;
+    }
+
+    private boolean departmentMatches(Object[] record, String department) {
+        return department.equalsIgnoreCase("All Departments")
+                || String.valueOf(record[DEPARTMENT]).equalsIgnoreCase(department);
+    }
+
+    private boolean dateMatches(Object[] record, String date) {
+        return date.isEmpty()
+                || String.valueOf(record[ARRIVAL]).equals(date)
+                || String.valueOf(record[DEPARTURE]).equals(date);
+    }
+
+    private LocalDate parseDate(Object value) {
+        try {
+            return LocalDate.parse(String.valueOf(value));
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
     }
 
     private List<Object[]> allRows() {

@@ -11,12 +11,16 @@ import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 
 public final class HomeViewHelper {
     public static final Color PAGE_BACKGROUND = Color.WHITE;
     public static final Color PRIMARY = new Color(0, 112, 210);
     public static final Color PRIMARY_DARK = new Color(0, 62, 122);
     public static final Color PRIMARY_LIGHT = new Color(0, 157, 225);
+    public static final Color SECONDARY_TAB = new Color(238, 246, 253);
     public static final Color VACANT_DARK = new Color(0, 136, 112);
     public static final Color VACANT_LIGHT = new Color(0, 188, 212);
     public static final Color OCCUPIED_DARK = new Color(73, 76, 162);
@@ -31,6 +35,8 @@ public final class HomeViewHelper {
     public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
     public static final Color BORDER = new Color(220, 226, 232);
     public static final Color ROW_SELECTION = new Color(229, 242, 255);
+    public static final String DATE_PATTERN = "yyyy-MM-dd";
+    private static final SimpleDateFormat FILTER_DATE_FORMAT = new SimpleDateFormat(DATE_PATTERN);
 
     private HomeViewHelper() {
     }
@@ -54,8 +60,8 @@ public final class HomeViewHelper {
     }
 
     public static void styleTabs(JTabbedPane tabs) {
-        tabs.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
-        tabs.setBackground(Color.WHITE);
+        tabs.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        tabs.setBackground(SECONDARY_TAB);
         tabs.setForeground(TEXT_SECONDARY);
         tabs.setOpaque(true);
         tabs.setBorder(new MatteBorder(1, 0, 0, 0, BORDER));
@@ -65,8 +71,8 @@ public final class HomeViewHelper {
                 super.installDefaults();
                 tabInsets = new Insets(12, 26, 11, 26);
                 selectedTabPadInsets = new Insets(0, 0, 0, 0);
-                contentBorderInsets = new Insets(0, 0, 0, 0);
-                tabAreaInsets = new Insets(8, 28, 0, 28);
+                contentBorderInsets = new Insets(18, 0, 0, 0);
+                tabAreaInsets = new Insets(8, 28, 18, 28);
             }
 
             protected void paintTabBackground(
@@ -79,8 +85,11 @@ public final class HomeViewHelper {
                     int height,
                     boolean isSelected
             ) {
-                graphics.setColor(Color.WHITE);
-                graphics.fillRect(x, y, width, height);
+                Graphics2D g2 = (Graphics2D) graphics.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isSelected ? PRIMARY : SECONDARY_TAB);
+                g2.fillRoundRect(x + 3, y + 4, width - 6, height - 10, 10, 10);
+                g2.dispose();
             }
 
             protected void paintTabBorder(
@@ -93,13 +102,35 @@ public final class HomeViewHelper {
                     int height,
                     boolean isSelected
             ) {
-                if (!isSelected) {
-                    return;
+            }
+
+            protected void paintTabArea(Graphics graphics, int tabPlacement, int selectedIndex) {
+                super.paintTabArea(graphics, tabPlacement, selectedIndex);
+                int lineY = 0;
+                if (rects != null) {
+                    for (Rectangle rect : rects) {
+                        if (rect != null && rect.height > 0) {
+                            lineY = Math.max(lineY, rect.y + rect.height - 2);
+                        }
+                    }
+                }
+                if (lineY <= 0) {
+                    lineY = 42;
                 }
 
                 Graphics2D g2 = (Graphics2D) graphics.create();
-                g2.setColor(PRIMARY);
-                g2.fillRoundRect(x + 16, y + height - 4, width - 32, 3, 3, 3);
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BORDER);
+                g2.drawLine(tabAreaInsets.left, lineY, tabPane.getWidth() - tabAreaInsets.right, lineY);
+
+                if (selectedIndex >= 0 && rects != null && selectedIndex < rects.length) {
+                    Rectangle selected = rects[selectedIndex];
+                    if (selected != null) {
+                        int underlineWidth = Math.max(24, selected.width - 32);
+                        g2.setColor(PRIMARY);
+                        g2.fillRoundRect(selected.x + 16, lineY - 1, underlineWidth, 3, 3, 3);
+                    }
+                }
                 g2.dispose();
             }
 
@@ -128,7 +159,7 @@ public final class HomeViewHelper {
                     boolean isSelected
             ) {
                 graphics.setFont(font);
-                graphics.setColor(isSelected ? PRIMARY : TEXT_SECONDARY);
+                graphics.setColor(isSelected ? Color.WHITE : PRIMARY_DARK);
                 graphics.drawString(title, textRect.x, textRect.y + metrics.getAscent());
             }
         });
@@ -207,6 +238,10 @@ public final class HomeViewHelper {
     }
 
     public static JPanel filterField(String labelText, JComponent field) {
+        return filterField(labelText, field, 190);
+    }
+
+    public static JPanel filterField(String labelText, JComponent field, int width) {
         JPanel block = new JPanel();
         block.setOpaque(false);
         block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
@@ -214,7 +249,7 @@ public final class HomeViewHelper {
         JLabel label = label(labelText);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JComponent styledField = styleField(field);
+        JComponent styledField = styleField(field, width);
         styledField.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         block.add(label);
@@ -231,9 +266,13 @@ public final class HomeViewHelper {
     }
 
     public static JComponent styleField(JComponent component) {
-        component.setPreferredSize(new Dimension(190, 34));
-        component.setMinimumSize(new Dimension(150, 34));
-        component.setMaximumSize(new Dimension(260, 34));
+        return styleField(component, 190);
+    }
+
+    public static JComponent styleField(JComponent component, int width) {
+        component.setPreferredSize(new Dimension(width, 34));
+        component.setMinimumSize(new Dimension(Math.min(width, 150), 34));
+        component.setMaximumSize(new Dimension(Math.max(width, 260), 34));
         component.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         component.setBackground(Color.WHITE);
         component.setBorder(new CompoundBorder(
@@ -244,6 +283,33 @@ public final class HomeViewHelper {
             styleComboBox((JComboBox<?>) component);
         }
         return component;
+    }
+
+    public static JSpinner dateSpinner(Date value) {
+        JSpinner spinner = new JSpinner(new SpinnerDateModel(value, null, null, Calendar.DAY_OF_MONTH));
+        JSpinner.DateEditor editor = new JSpinner.DateEditor(spinner, DATE_PATTERN);
+        spinner.setEditor(editor);
+        editor.getTextField().setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        editor.getTextField().setHorizontalAlignment(JTextField.LEFT);
+        return spinner;
+    }
+
+    public static String dateText(JSpinner spinner) {
+        Object value = spinner.getValue();
+        if (!(value instanceof Date)) {
+            return "";
+        }
+        return FILTER_DATE_FORMAT.format((Date) value);
+    }
+
+    public static JCheckBox checkBox(String text) {
+        JCheckBox checkBox = new JCheckBox(text);
+        checkBox.setOpaque(false);
+        checkBox.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        checkBox.setForeground(TEXT_SECONDARY);
+        checkBox.setFocusPainted(false);
+        checkBox.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return checkBox;
     }
 
     public static JComboBox<String> combo(String... items) {

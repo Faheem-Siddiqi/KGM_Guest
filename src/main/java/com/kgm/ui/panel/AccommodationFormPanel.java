@@ -26,6 +26,7 @@ public class AccommodationFormPanel extends JPanel {
     private final JPanel amenitiesListPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
     private final List<String> amenities = new ArrayList<>();
     private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
+    private final JButton saveButton = AccommodationManagementHelper.textButton("SAVE");
 
     private final Consumer<AccommodationRecord> onSave;
     private final BiConsumer<Integer, AccommodationRecord> onUpdate;
@@ -97,10 +98,9 @@ public class AccommodationFormPanel extends JPanel {
 
         JPanel actions = AccommodationManagementHelper.textActionsPanel();
         JButton cancel = AccommodationManagementHelper.textButton("CANCEL");
-        JButton save = AccommodationManagementHelper.textButton("SAVE");
         actions.add(cancel);
         actions.add(updateButton);
-        actions.add(save);
+        actions.add(saveButton);
 
         gbc.gridy = 4;
         gbc.gridwidth = 2;
@@ -108,7 +108,7 @@ public class AccommodationFormPanel extends JPanel {
         body.add(actions, gbc);
 
         cancel.addActionListener(e -> clearForm());
-        save.addActionListener(e -> saveAccommodation());
+        saveButton.addActionListener(e -> saveAccommodation());
         updateButton.addActionListener(e -> updateAccommodation());
         setEditMode(false);
         return body;
@@ -260,6 +260,7 @@ public class AccommodationFormPanel extends JPanel {
 
     private void setEditMode(boolean editing) {
         AccommodationManagementHelper.setTextButtonEnabled(updateButton, editing);
+        AccommodationManagementHelper.setTextButtonEnabled(saveButton, !editing);
     }
 
     private String roomNameValue(String value) {

@@ -12,14 +12,21 @@ import java.util.function.BiConsumer;
 public class AccommodationTablePanel extends JPanel {
     private final AccommodationTableModel tableModel = new AccommodationTableModel();
     private final JTable table = new JTable(tableModel);
+    private final JPanel card;
+    private final JPanel content = new JPanel(new BorderLayout());
     private final BiConsumer<Integer, AccommodationRecord> onEdit;
 
     public AccommodationTablePanel(BiConsumer<Integer, AccommodationRecord> onEdit) {
         this.onEdit = onEdit;
         setLayout(new BorderLayout());
-        setBackground(Color.WHITE);
+        setOpaque(false);
 
-        seedDummyData();
+        card = AccommodationManagementHelper.sectionCard(
+                "Accommodation List",
+                "All created accommodations appear here with quick edit access."
+        );
+        content.setOpaque(false);
+
         AccommodationManagementHelper.styleTable(table);
         styleActionsColumn();
         table.addMouseListener(new MouseAdapter() {
@@ -34,27 +41,32 @@ public class AccommodationTablePanel extends JPanel {
             }
         });
 
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        card.add(content, BorderLayout.CENTER);
+        add(card, BorderLayout.CENTER);
+        refreshContent();
     }
 
     public void addAccommodation(AccommodationRecord accommodation) {
         tableModel.addAccommodation(accommodation);
+        refreshContent();
     }
 
     public void updateAccommodation(int row, AccommodationRecord accommodation) {
         tableModel.updateAccommodation(row, accommodation);
+        refreshContent();
     }
 
-    private void seedDummyData() {
-        tableModel.addAccommodation(new AccommodationRecord(
-                "Room I", "Rooms", 2, "Available", "Ground Floor", "Standard guest room near reception"
-        ));
-        tableModel.addAccommodation(new AccommodationRecord(
-                "Executive Suite", "Suites", 4, "Reserved", "First Floor", "Large suite for senior visitors"
-        ));
-        tableModel.addAccommodation(new AccommodationRecord(
-                "Guest House A", "Guest House", 8, "Under Maintenance", "North Block", "Independent unit with lounge"
-        ));
+    private void refreshContent() {
+        content.removeAll();
+        if (tableModel.getRowCount() == 0) {
+            content.add(AccommodationManagementHelper.emptyState("No accommodation records yet. Save the form above to create one."), BorderLayout.CENTER);
+        } else {
+            JScrollPane scrollPane = new JScrollPane(table);
+            scrollPane.getViewport().setBackground(Color.WHITE);
+            content.add(scrollPane, BorderLayout.CENTER);
+        }
+        content.revalidate();
+        content.repaint();
     }
 
     private void styleActionsColumn() {
@@ -77,6 +89,6 @@ public class AccommodationTablePanel extends JPanel {
             }
         };
         table.getColumnModel().getColumn(table.getColumnCount() - 1).setCellRenderer(renderer);
-        table.getColumnModel().getColumn(table.getColumnCount() - 1).setPreferredWidth(90);
+        table.getColumnModel().getColumn(table.getColumnCount() - 1).setPreferredWidth(80);
     }
 }

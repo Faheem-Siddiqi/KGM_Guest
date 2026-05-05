@@ -11,14 +11,9 @@ public class AccommodationManagementPanel extends JPanel {
 
     public AccommodationManagementPanel(Runnable onBack) {
         setLayout(new BorderLayout());
-        setBackground(Color.WHITE);
+        setBackground(AccommodationManagementHelper.PAGE_BACKGROUND);
 
         JPanel page = AccommodationManagementHelper.pagePanel();
-        JPanel card = AccommodationManagementHelper.cardPanel();
-        GridBagConstraints gbc = AccommodationManagementHelper.formConstraints();
-        int y = 0;
-
-        y = AccommodationManagementHelper.addFormHeader(card, gbc, y, onBack);
 
         accommodationTablePanel = new AccommodationTablePanel((row, accommodation) ->
                 accommodationFormPanel.editAccommodation(row, accommodation)
@@ -31,30 +26,21 @@ public class AccommodationManagementPanel extends JPanel {
                 accommodationFormPanel.setCategories(categories)
         );
 
-        y = AccommodationManagementHelper.addSectionTitle(card, gbc, y, "Accommodation Categories");
-        gbc.gridx = 0;
-        gbc.gridy = y++;
-        gbc.gridwidth = 4;
-        card.add(categoryPanel, gbc);
+        GridBagConstraints headerGbc = AccommodationManagementHelper.pageConstraints(0);
+        page.add(AccommodationManagementHelper.screenHeader(onBack), headerGbc);
 
-        y = AccommodationManagementHelper.addSectionTitle(card, gbc, y, "Accommodation Form");
-        gbc.gridx = 0;
-        gbc.gridy = y++;
-        gbc.gridwidth = 4;
-        card.add(accommodationFormPanel, gbc);
+        GridBagConstraints categoryGbc = AccommodationManagementHelper.pageConstraints(1);
+        page.add(categoryPanel, categoryGbc);
 
-        y = AccommodationManagementHelper.addSectionTitle(card, gbc, y, "All Accommodations");
-        gbc.gridx = 0;
-        gbc.gridy = y;
-        gbc.gridwidth = 4;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.weighty = 1.0;
-        card.add(accommodationTablePanel, gbc);
+        GridBagConstraints formGbc = AccommodationManagementHelper.pageConstraints(2);
+        page.add(accommodationFormPanel, formGbc);
 
-        page.add(card);
+        GridBagConstraints tableGbc = AccommodationManagementHelper.pageConstraints(3);
+        page.add(accommodationTablePanel, tableGbc);
 
         JScrollPane scroll = new JScrollPane(page);
         scroll.setBorder(null);
+        scroll.getViewport().setBackground(Color.WHITE);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         add(scroll, BorderLayout.CENTER);
 

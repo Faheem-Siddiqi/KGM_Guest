@@ -5,7 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AccommodationTableModel extends AbstractTableModel {
-    private static final String[] COLUMNS = {"Name", "Category", "Capacity", "Status", "Location", "Actions"};
+    private static final String[] COLUMNS = {
+            "Name", "Category", "Capacity", "Status", "Assigned Staff", "Amenities", "Actions"
+    };
     private final List<AccommodationRecord> accommodations = new ArrayList<>();
 
     public void addAccommodation(AccommodationRecord accommodation) {
@@ -50,7 +52,10 @@ public class AccommodationTableModel extends AbstractTableModel {
             return accommodation.getStatus();
         }
         if (columnIndex == 4) {
-            return accommodation.getLocation();
+            return accommodation.getAssignedStaff();
+        }
+        if (columnIndex == 5) {
+            return accommodation.getAmenitiesText();
         }
         return "Edit";
     }

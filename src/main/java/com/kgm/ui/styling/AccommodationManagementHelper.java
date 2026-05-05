@@ -12,11 +12,13 @@ import javax.swing.table.JTableHeader;
 import java.awt.*;
 
 public final class AccommodationManagementHelper {
+    public static final int CONTENT_WIDTH = 860;
     public static final Color PAGE_BACKGROUND = Color.WHITE;
-    public static final Color TEXT_PRIMARY = new Color(35, 35, 35);
-    public static final Color TEXT_SECONDARY = new Color(100, 100, 100);
-    public static final Color BORDER = new Color(220, 220, 220);
-    public static final Color TABLE_HEADER = new Color(246, 248, 250);
+    public static final Color CARD_BACKGROUND = Color.WHITE;
+    public static final Color TEXT_PRIMARY = new Color(35, 43, 54);
+    public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
+    public static final Color BORDER = new Color(220, 226, 232);
+    public static final Color TABLE_HEADER = Color.WHITE;
     public static final Color ROW_SELECTION = new Color(229, 242, 255);
     public static final Color PRIMARY = new Color(0, 112, 210);
     public static final Color DANGER = new Color(180, 60, 45);
@@ -31,93 +33,122 @@ public final class AccommodationManagementHelper {
         return page;
     }
 
-    public static JPanel cardPanel() {
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBackground(Color.WHITE);
+    public static JPanel sectionCard(String title, String subtitle) {
+        JPanel card = new JPanel(new BorderLayout(0, 18)) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+
+            public Dimension getMinimumSize() {
+                Dimension size = super.getMinimumSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        card.setBackground(CARD_BACKGROUND);
         card.setBorder(new CompoundBorder(
                 new RoundedBorder(16),
                 new EmptyBorder(24, 24, 24, 24)
         ));
+
+        JPanel heading = new JPanel();
+        heading.setOpaque(false);
+        heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel subtitleLabel = new JLabel(subtitle);
+        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        subtitleLabel.setForeground(TEXT_SECONDARY);
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        heading.add(titleLabel);
+        heading.add(Box.createVerticalStrut(4));
+        heading.add(subtitleLabel);
+        card.add(heading, BorderLayout.NORTH);
         return card;
+    }
+
+    public static JPanel screenHeader(Runnable onBack) {
+        JPanel header = new JPanel(new BorderLayout()) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new CompoundBorder(
+                new MatteBorder(0, 0, 1, 0, BORDER),
+                new EmptyBorder(0, 0, 16, 0)
+        ));
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setOpaque(false);
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("Accommodation Management");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        title.setForeground(TEXT_PRIMARY);
+
+        JLabel subtitle = new JLabel("Manage categories, rooms, staff assignments, and amenity details.");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        subtitle.setForeground(TEXT_SECONDARY);
+
+        titleBlock.add(title);
+        titleBlock.add(Box.createVerticalStrut(3));
+        titleBlock.add(subtitle);
+
+        JButton back = textButton("Back");
+        back.addActionListener(e -> onBack.run());
+
+        header.add(titleBlock, BorderLayout.WEST);
+        header.add(back, BorderLayout.EAST);
+        return header;
+    }
+
+    public static GridBagConstraints pageConstraints(int y) {
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = y;
+        gbc.insets = new Insets(0, 0, 18, 0);
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.NORTH;
+        gbc.weightx = 0;
+        return gbc;
     }
 
     public static GridBagConstraints formConstraints() {
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 12, 10, 12);
+        gbc.insets = new Insets(0, 0, 16, 16);
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.weightx = 1.0;
         return gbc;
     }
 
-    public static int addFormHeader(JPanel panel, GridBagConstraints gbc, int y, Runnable onBack) {
-        JPanel formHeader = new JPanel(new BorderLayout());
-        formHeader.setBackground(Color.WHITE);
-        formHeader.setBorder(new CompoundBorder(
-                new MatteBorder(0, 0, 1, 0, new Color(230, 230, 230)),
-                new EmptyBorder(4, 0, 12, 0)
-        ));
+    public static JPanel inlineField(String labelText, JComponent field) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        row.setOpaque(false);
 
-        JPanel titleBlock = new JPanel();
-        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
-        titleBlock.setBackground(Color.WHITE);
+        JLabel label = label(labelText);
+        label.setPreferredSize(new Dimension(105, 34));
+        label.setHorizontalAlignment(SwingConstants.RIGHT);
 
-        JLabel title = new JLabel("Accommodation Management");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        title.setForeground(TEXT_PRIMARY);
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel subtitle = new JLabel("Create, update, and manage accommodation inventory");
-        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        subtitle.setForeground(TEXT_SECONDARY);
-        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        titleBlock.add(title);
-        titleBlock.add(Box.createVerticalStrut(2));
-        titleBlock.add(subtitle);
-
-        JButton back = new JButton("Back");
-        styleBack(back);
-        back.addActionListener(e -> onBack.run());
-
-        formHeader.add(titleBlock, BorderLayout.WEST);
-        formHeader.add(back, BorderLayout.EAST);
-
-        gbc.gridx = 0;
-        gbc.gridy = y;
-        gbc.gridwidth = 4;
-        panel.add(formHeader, gbc);
-        gbc.gridwidth = 1;
-        return y + 1;
-    }
-
-    public static int addSectionTitle(JPanel panel, GridBagConstraints gbc, int y, String text) {
-        JLabel section = new JLabel(text);
-        section.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        section.setForeground(new Color(60, 60, 60));
-
-        gbc.gridx = 0;
-        gbc.gridy = y;
-        gbc.gridwidth = 4;
-        panel.add(section, gbc);
-        gbc.gridwidth = 1;
-        return y + 1;
-    }
-
-    public static void addField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
-        JPanel fieldBlock = fieldBlock(labelText, field);
-
-        gbc.gridx = xOffset;
-        gbc.gridy = y;
-        gbc.gridwidth = 2;
-        panel.add(fieldBlock, gbc);
-        gbc.gridwidth = 1;
+        row.add(label);
+        row.add(styleField(field));
+        return row;
     }
 
     public static JPanel fieldBlock(String labelText, JComponent field) {
         JPanel fieldBlock = new JPanel();
         fieldBlock.setLayout(new BoxLayout(fieldBlock, BoxLayout.Y_AXIS));
-        fieldBlock.setBackground(Color.WHITE);
+        fieldBlock.setOpaque(false);
 
         JLabel label = label(labelText);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -134,7 +165,7 @@ public final class AccommodationManagementHelper {
     public static JLabel label(String text) {
         JLabel label = new JLabel(text);
         label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        label.setForeground(new Color(70, 70, 70));
+        label.setForeground(new Color(70, 82, 96));
         return label;
     }
 
@@ -160,57 +191,39 @@ public final class AccommodationManagementHelper {
         return comboBox;
     }
 
-    public static JTextArea descriptionArea(String text) {
-        JTextArea area = new JTextArea(text);
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
-        area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        area.setBorder(new CompoundBorder(
-                new LineBorder(new Color(200, 200, 200)),
-                new EmptyBorder(8, 8, 8, 8)
-        ));
-        return area;
+    public static JButton textButton(String text) {
+        JButton button = new JButton(text);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setOpaque(false);
+        button.setForeground(PRIMARY);
+        button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setBorder(new EmptyBorder(8, 10, 8, 10));
+        return button;
     }
 
-    public static JPanel actionsPanel() {
+    public static JButton dangerTextButton(String text) {
+        JButton button = textButton(text);
+        button.setForeground(DANGER);
+        return button;
+    }
+
+    public static JPanel textActionsPanel() {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        actions.setBackground(Color.WHITE);
+        actions.setOpaque(false);
         return actions;
     }
 
-    public static void stylePrimary(JButton button) {
-        button.setBackground(PRIMARY);
-        button.setForeground(Color.WHITE);
-        button.setFocusPainted(false);
-        button.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        button.setBorder(new EmptyBorder(8, 16, 8, 16));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    }
-
-    public static void styleSecondary(JButton button) {
-        button.setBackground(new Color(245, 245, 245));
-        button.setForeground(new Color(80, 80, 80));
-        button.setFocusPainted(false);
-        button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        button.setBorder(new CompoundBorder(
-                new LineBorder(new Color(170, 170, 170)),
-                new EmptyBorder(8, 16, 8, 16)
-        ));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    }
-
-    public static void styleBack(JButton button) {
-        button.setForeground(PRIMARY);
-        button.setContentAreaFilled(false);
-        button.setFocusPainted(false);
-        button.setOpaque(false);
-        button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
-        button.setBorder(new EmptyBorder(7, 16, 7, 16));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    public static JPanel centeredTextActionsPanel() {
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        actions.setOpaque(false);
+        return actions;
     }
 
     public static void styleTable(JTable table) {
-        table.setRowHeight(40);
+        table.setRowHeight(42);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
@@ -220,7 +233,7 @@ public final class AccommodationManagementHelper {
 
         JTableHeader header = table.getTableHeader();
         header.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        header.setForeground(new Color(80, 80, 80));
+        header.setForeground(new Color(80, 90, 105));
         header.setBackground(TABLE_HEADER);
         header.setBorder(new MatteBorder(0, 0, 1, 0, BORDER));
 
@@ -229,6 +242,38 @@ public final class AccommodationManagementHelper {
         renderer.setBackground(Color.WHITE);
         renderer.setForeground(TEXT_PRIMARY);
         table.setDefaultRenderer(Object.class, renderer);
+    }
+
+    public static JLabel emptyState(String text) {
+        JLabel empty = new JLabel(text, SwingConstants.CENTER);
+        empty.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        empty.setForeground(TEXT_SECONDARY);
+        empty.setBorder(new CompoundBorder(
+                new LineBorder(BORDER),
+                new EmptyBorder(34, 20, 34, 20)
+        ));
+        return empty;
+    }
+
+    public static JPanel amenityChip(String text, Runnable onDelete) {
+        JPanel chip = new JPanel(new BorderLayout(8, 0));
+        chip.setBackground(Color.WHITE);
+        chip.setBorder(new CompoundBorder(
+                new RoundedBorder(12, BORDER),
+                new EmptyBorder(6, 10, 6, 6)
+        ));
+
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        label.setForeground(TEXT_PRIMARY);
+
+        JButton delete = dangerTextButton("Delete");
+        delete.setBorder(new EmptyBorder(2, 6, 2, 6));
+        delete.addActionListener(e -> onDelete.run());
+
+        chip.add(label, BorderLayout.CENTER);
+        chip.add(delete, BorderLayout.EAST);
+        return chip;
     }
 
     private static void styleComboBox(JComboBox<?> comboBox) {
@@ -261,15 +306,21 @@ public final class AccommodationManagementHelper {
 
     public static class RoundedBorder extends AbstractBorder {
         private final int radius;
+        private final Color color;
 
         public RoundedBorder(int radius) {
+            this(radius, BORDER);
+        }
+
+        public RoundedBorder(int radius, Color color) {
             this.radius = radius;
+            this.color = color;
         }
 
         public void paintBorder(Component component, Graphics g, int x, int y, int width, int height) {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(BORDER);
+            g2.setColor(color);
             g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
         }
 

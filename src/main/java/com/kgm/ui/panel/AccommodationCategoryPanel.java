@@ -3,20 +3,21 @@ package com.kgm.ui.panel;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 public class AccommodationCategoryPanel extends JPanel {
-    private final JTextField categoryNameField = new JTextField("");
-    private final DefaultTableModel categoryModel = new DefaultTableModel(new Object[]{"Category Name", "Actions"}, 0);
-    private final JTable categoryTable = new JTable(categoryModel);
+    private final JTextField categoryNameField = AccommodationManagementHelper.placeholderField("Category Name");
+    private final UniversalTablePanel categoryTable = new UniversalTablePanel(
+            new String[]{"Category Name", "Actions"},
+            "No categories added yet."
+    );
     private final Consumer<List<String>> onCategoriesChanged;
+    private final JButton saveButton = AccommodationManagementHelper.textButton("SAVE");
+    private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
+    private final JButton deleteButton = AccommodationManagementHelper.dangerTextButton("DELETE");
     private int editingRow = -1;
 
     public AccommodationCategoryPanel(Consumer<List<String>> onCategoriesChanged) {
@@ -31,8 +32,12 @@ public class AccommodationCategoryPanel extends JPanel {
         JPanel body = new JPanel(new BorderLayout(0, 16));
         body.setOpaque(false);
 
+        categoryTable.setHugRows(true);
+        categoryTable.setPaginationEnabled(false);
+        categoryTable.setActionColumn(1, "Edit", this::selectCategory);
+
         body.add(createInlineForm(), BorderLayout.NORTH);
-        body.add(createTable(), BorderLayout.CENTER);
+        body.add(categoryTable, BorderLayout.CENTER);
 
         card.add(body, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
@@ -40,55 +45,39 @@ public class AccommodationCategoryPanel extends JPanel {
         addCategory("Rooms");
         addCategory("Suites");
         addCategory("Guest House");
+        clearForm();
         notifyCategoriesChanged();
     }
 
     private JPanel createInlineForm() {
-        JPanel form = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.X_AXIS));
         form.setOpaque(false);
+        form.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JButton cancel = AccommodationManagementHelper.textButton("CANCEL");
-        JButton save = AccommodationManagementHelper.textButton("SAVE");
-        JButton update = AccommodationManagementHelper.textButton("UPDATE");
-        JButton delete = AccommodationManagementHelper.dangerTextButton("DELETE");
+        JButton cancelButton = AccommodationManagementHelper.textButton("CANCEL");
 
-        form.add(AccommodationManagementHelper.label("Category Name"));
         form.add(AccommodationManagementHelper.styleField(categoryNameField));
-        form.add(cancel);
-        form.add(save);
-        form.add(update);
-        form.add(delete);
+        form.add(Box.createHorizontalStrut(12));
+        form.add(cancelButton);
+        form.add(Box.createHorizontalStrut(2));
+        form.add(saveButton);
+        form.add(Box.createHorizontalStrut(2));
+        form.add(updateButton);
+        form.add(Box.createHorizontalStrut(2));
+        form.add(deleteButton);
 
-        cancel.addActionListener(e -> clearForm());
-        save.addActionListener(e -> saveCategory());
-        update.addActionListener(e -> updateCategory());
-        delete.addActionListener(e -> deleteCategory());
+        cancelButton.addActionListener(e -> clearForm());
+        saveButton.addActionListener(e -> saveCategory());
+        updateButton.addActionListener(e -> updateCategory());
+        deleteButton.addActionListener(e -> deleteCategory());
         return form;
     }
 
-    private JScrollPane createTable() {
-        AccommodationManagementHelper.styleTable(categoryTable);
-        styleActionsColumn();
-        categoryTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        updateTableHeight();
-        categoryTable.addMouseListener(new MouseAdapter() {
-            public void mouseClicked(MouseEvent event) {
-                int row = categoryTable.rowAtPoint(event.getPoint());
-                int column = categoryTable.columnAtPoint(event.getPoint());
-                if (row < 0) {
-                    return;
-                }
-
-                editingRow = categoryTable.convertRowIndexToModel(row);
-                categoryNameField.setText(String.valueOf(categoryModel.getValueAt(editingRow, 0)));
-                if (column == categoryTable.getColumnCount() - 1) {
-                    categoryTable.setRowSelectionInterval(row, row);
-                }
-            }
-        });
-        JScrollPane scrollPane = new JScrollPane(categoryTable);
-        scrollPane.getViewport().setBackground(Color.WHITE);
-        return scrollPane;
+    private void selectCategory(int row) {
+        editingRow = row;
+        categoryNameField.setText(String.valueOf(categoryTable.getValueAt(row, 0)));
+        setEditActionsEnabled(true);
     }
 
     private void saveCategory() {
@@ -98,7 +87,6 @@ public class AccommodationCategoryPanel extends JPanel {
         }
         addCategory(category);
         clearForm();
-        updateTableHeight();
         notifyCategoriesChanged();
     }
 
@@ -110,7 +98,7 @@ public class AccommodationCategoryPanel extends JPanel {
         if (category.isEmpty()) {
             return;
         }
-        categoryModel.setValueAt(category, editingRow, 0);
+        categoryTable.updateRow(editingRow, new Object[]{category, "Edit"});
         clearForm();
         notifyCategoriesChanged();
     }
@@ -119,61 +107,33 @@ public class AccommodationCategoryPanel extends JPanel {
         if (editingRow < 0) {
             return;
         }
-        categoryModel.removeRow(editingRow);
+        categoryTable.removeRow(editingRow);
         clearForm();
-        updateTableHeight();
         notifyCategoriesChanged();
     }
 
     private void addCategory(String category) {
-        categoryModel.addRow(new Object[]{category, "Edit"});
-        updateTableHeight();
+        categoryTable.addRow(new Object[]{category, "Edit"});
     }
 
     private void clearForm() {
         editingRow = -1;
         categoryNameField.setText("");
         categoryTable.clearSelection();
+        setEditActionsEnabled(false);
+    }
+
+    private void setEditActionsEnabled(boolean enabled) {
+        AccommodationManagementHelper.setTextButtonEnabled(saveButton, !enabled);
+        AccommodationManagementHelper.setTextButtonEnabled(updateButton, enabled);
+        AccommodationManagementHelper.setDangerTextButtonEnabled(deleteButton, enabled);
     }
 
     private void notifyCategoriesChanged() {
         List<String> categories = new ArrayList<>();
-        for (int i = 0; i < categoryModel.getRowCount(); i++) {
-            categories.add(String.valueOf(categoryModel.getValueAt(i, 0)));
+        for (int i = 0; i < categoryTable.getRowCount(); i++) {
+            categories.add(String.valueOf(categoryTable.getValueAt(i, 0)));
         }
         onCategoriesChanged.accept(categories);
-    }
-
-    private void styleActionsColumn() {
-        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
-            public Component getTableCellRendererComponent(
-                    JTable table,
-                    Object value,
-                    boolean isSelected,
-                    boolean hasFocus,
-                    int row,
-                    int column
-            ) {
-                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                label.setText("Edit");
-                label.setHorizontalAlignment(SwingConstants.CENTER);
-                label.setForeground(AccommodationManagementHelper.PRIMARY);
-                label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
-                return label;
-            }
-        };
-        categoryTable.getColumnModel().getColumn(1).setCellRenderer(renderer);
-        categoryTable.getColumnModel().getColumn(1).setPreferredWidth(90);
-    }
-
-    private void updateTableHeight() {
-        int rows = Math.max(1, categoryModel.getRowCount());
-        int headerHeight = categoryTable.getTableHeader().getPreferredSize().height;
-        int height = headerHeight + categoryTable.getRowHeight() * rows;
-        categoryTable.setPreferredScrollableViewportSize(new Dimension(
-                AccommodationManagementHelper.CONTENT_WIDTH - 80,
-                height
-        ));
-        revalidate();
     }
 }

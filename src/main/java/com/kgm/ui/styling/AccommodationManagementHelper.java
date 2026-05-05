@@ -83,10 +83,7 @@ public final class AccommodationManagementHelper {
             }
         };
         header.setOpaque(false);
-        header.setBorder(new CompoundBorder(
-                new MatteBorder(0, 0, 1, 0, BORDER),
-                new EmptyBorder(0, 0, 16, 0)
-        ));
+        header.setBorder(new EmptyBorder(0, 0, 4, 0));
 
         JPanel titleBlock = new JPanel();
         titleBlock.setOpaque(false);
@@ -191,6 +188,10 @@ public final class AccommodationManagementHelper {
         return comboBox;
     }
 
+    public static JTextField placeholderField(String placeholder) {
+        return new PlaceholderTextField(placeholder);
+    }
+
     public static JButton textButton(String text) {
         JButton button = new JButton(text);
         button.setContentAreaFilled(false);
@@ -210,6 +211,18 @@ public final class AccommodationManagementHelper {
         return button;
     }
 
+    public static void setTextButtonEnabled(JButton button, boolean enabled) {
+        button.setEnabled(enabled);
+        button.setForeground(enabled ? PRIMARY : new Color(155, 155, 155));
+        button.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    public static void setDangerTextButtonEnabled(JButton button, boolean enabled) {
+        button.setEnabled(enabled);
+        button.setForeground(enabled ? DANGER : new Color(155, 155, 155));
+        button.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
     public static JPanel textActionsPanel() {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         actions.setOpaque(false);
@@ -223,24 +236,73 @@ public final class AccommodationManagementHelper {
     }
 
     public static void styleTable(JTable table) {
-        table.setRowHeight(42);
+        Color cellDivider = new Color(232, 236, 240);
+
+        table.setRowHeight(44);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
         table.setSelectionBackground(ROW_SELECTION);
         table.setSelectionForeground(TEXT_PRIMARY);
         table.setFillsViewportHeight(true);
+        table.setDefaultEditor(Object.class, null);
+        table.setCellSelectionEnabled(false);
+        table.setColumnSelectionAllowed(false);
+        table.setRowSelectionAllowed(true);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setFocusable(false);
+        table.getTableHeader().setReorderingAllowed(false);
 
         JTableHeader header = table.getTableHeader();
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 42));
         header.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        header.setForeground(new Color(80, 90, 105));
-        header.setBackground(TABLE_HEADER);
-        header.setBorder(new MatteBorder(0, 0, 1, 0, BORDER));
+        header.setForeground(Color.WHITE);
+        header.setBackground(PRIMARY);
+        header.setBorder(new LineBorder(new Color(190, 204, 218)));
+        header.setDefaultRenderer(new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                label.setHorizontalAlignment(SwingConstants.CENTER);
+                label.setBackground(PRIMARY);
+                label.setForeground(Color.WHITE);
+                label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+                label.setBorder(new CompoundBorder(
+                        new MatteBorder(0, 0, 1, 1, Color.WHITE),
+                        new EmptyBorder(0, 14, 0, 14)
+                ));
+                label.setOpaque(true);
+                return label;
+            }
+        });
 
-        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer();
-        renderer.setBorder(new EmptyBorder(0, 12, 0, 12));
-        renderer.setBackground(Color.WHITE);
-        renderer.setForeground(TEXT_PRIMARY);
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                label.setHorizontalAlignment(SwingConstants.LEFT);
+                label.setBackground(isSelected ? ROW_SELECTION : Color.WHITE);
+                label.setForeground(TEXT_PRIMARY);
+                label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                label.setBorder(new CompoundBorder(
+                        new MatteBorder(0, 0, 1, 1, cellDivider),
+                        new EmptyBorder(0, 16, 0, 14)
+                ));
+                return label;
+            }
+        };
         table.setDefaultRenderer(Object.class, renderer);
     }
 
@@ -326,6 +388,30 @@ public final class AccommodationManagementHelper {
 
         public Insets getBorderInsets(Component component) {
             return new Insets(10, 10, 10, 10);
+        }
+    }
+
+    private static class PlaceholderTextField extends JTextField {
+        private final String placeholder;
+
+        private PlaceholderTextField(String placeholder) {
+            this.placeholder = placeholder;
+        }
+
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (!getText().isEmpty() || isFocusOwner()) {
+                return;
+            }
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setFont(getFont());
+            g2.setColor(new Color(145, 145, 145));
+            Insets insets = getInsets();
+            FontMetrics metrics = g2.getFontMetrics();
+            int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+            g2.drawString(placeholder, insets.left, y);
+            g2.dispose();
         }
     }
 }

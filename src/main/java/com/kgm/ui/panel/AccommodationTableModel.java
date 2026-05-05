@@ -37,6 +37,10 @@ public class AccommodationTableModel extends AbstractTableModel {
         return COLUMNS[column];
     }
 
+    public boolean isCellEditable(int rowIndex, int columnIndex) {
+        return false;
+    }
+
     public Object getValueAt(int rowIndex, int columnIndex) {
         AccommodationRecord accommodation = accommodations.get(rowIndex);
         if (columnIndex == 0) {
@@ -55,7 +59,7 @@ public class AccommodationTableModel extends AbstractTableModel {
             return accommodation.getAssignedStaff();
         }
         if (columnIndex == 5) {
-            return accommodation.getAmenitiesText();
+            return accommodation.getAmenities().size();
         }
         return "Edit";
     }

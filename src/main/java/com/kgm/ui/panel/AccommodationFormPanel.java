@@ -13,7 +13,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class AccommodationFormPanel extends JPanel {
-    private final JTextField nameField = new JTextField("");
+    private static final String ROOM_PREFIX = "Room-";
+
+    private final JTextField nameField = new JTextField(ROOM_PREFIX);
     private final JComboBox<String> categoryCombo = AccommodationManagementHelper.combo();
     private final JSpinner capacitySpinner = new JSpinner(new SpinnerNumberModel(2, 1, 100, 1));
     private final JComboBox<String> statusCombo = AccommodationManagementHelper.combo(
@@ -23,6 +25,7 @@ public class AccommodationFormPanel extends JPanel {
     private final JTextField amenityField = new JTextField("");
     private final JPanel amenitiesListPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
     private final List<String> amenities = new ArrayList<>();
+    private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
 
     private final Consumer<AccommodationRecord> onSave;
     private final BiConsumer<Integer, AccommodationRecord> onUpdate;
@@ -33,6 +36,11 @@ public class AccommodationFormPanel extends JPanel {
         this.onUpdate = onUpdate;
         setLayout(new BorderLayout());
         setOpaque(false);
+        nameField.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusLost(java.awt.event.FocusEvent event) {
+                nameField.setText(roomNameValue(nameField.getText()));
+            }
+        });
 
         JPanel card = AccommodationManagementHelper.sectionCard(
                 "Accommodation Form",
@@ -59,7 +67,7 @@ public class AccommodationFormPanel extends JPanel {
 
     public void editAccommodation(int row, AccommodationRecord accommodation) {
         editingRow = row;
-        nameField.setText(accommodation.getName());
+        nameField.setText(roomNameValue(accommodation.getName()));
         categoryCombo.setSelectedItem(accommodation.getCategory());
         capacitySpinner.setValue(accommodation.getCapacity());
         statusCombo.setSelectedItem(accommodation.getStatus());
@@ -67,6 +75,7 @@ public class AccommodationFormPanel extends JPanel {
         amenities.clear();
         amenities.addAll(accommodation.getAmenities());
         refreshAmenities();
+        setEditMode(true);
     }
 
     private JPanel createFormBody() {
@@ -87,10 +96,9 @@ public class AccommodationFormPanel extends JPanel {
 
         JPanel actions = AccommodationManagementHelper.textActionsPanel();
         JButton cancel = AccommodationManagementHelper.textButton("CANCEL");
-        JButton update = AccommodationManagementHelper.textButton("UPDATE");
         JButton save = AccommodationManagementHelper.textButton("SAVE");
         actions.add(cancel);
-        actions.add(update);
+        actions.add(updateButton);
         actions.add(save);
 
         gbc.gridy = 4;
@@ -100,7 +108,8 @@ public class AccommodationFormPanel extends JPanel {
 
         cancel.addActionListener(e -> clearForm());
         save.addActionListener(e -> saveAccommodation());
-        update.addActionListener(e -> updateAccommodation());
+        updateButton.addActionListener(e -> updateAccommodation());
+        setEditMode(false);
         return body;
     }
 
@@ -113,15 +122,25 @@ public class AccommodationFormPanel extends JPanel {
     }
 
     private JPanel createAmenitiesPanel() {
-        JPanel amenitiesPanel = new JPanel(new BorderLayout(0, 10));
+        JPanel amenitiesPanel = new JPanel();
+        amenitiesPanel.setLayout(new BoxLayout(amenitiesPanel, BoxLayout.Y_AXIS));
         amenitiesPanel.setOpaque(false);
 
-        JPanel addRow = new JPanel(new BorderLayout(10, 0));
+        JLabel amenitiesLabel = AccommodationManagementHelper.label("Amenities");
+        amenitiesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel addRow = new JPanel();
+        addRow.setLayout(new BoxLayout(addRow, BoxLayout.X_AXIS));
         addRow.setOpaque(false);
-        addRow.add(AccommodationManagementHelper.fieldBlock("Amenities", amenityField), BorderLayout.CENTER);
+        addRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComponent styledAmenityField = AccommodationManagementHelper.styleField(amenityField);
+        styledAmenityField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        addRow.add(styledAmenityField);
+        addRow.add(Box.createHorizontalStrut(10));
         JButton addAmenity = AccommodationManagementHelper.textButton("ADD");
         addAmenity.addActionListener(e -> addAmenity());
-        addRow.add(addAmenity, BorderLayout.EAST);
+        addRow.add(addAmenity);
 
         amenitiesListPanel.setOpaque(false);
         amenitiesListPanel.setBorder(new CompoundBorder(
@@ -129,8 +148,13 @@ public class AccommodationFormPanel extends JPanel {
                 new EmptyBorder(8, 8, 8, 8)
         ));
 
-        amenitiesPanel.add(addRow, BorderLayout.NORTH);
-        amenitiesPanel.add(amenitiesListPanel, BorderLayout.CENTER);
+        amenitiesListPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        amenitiesPanel.add(amenitiesLabel);
+        amenitiesPanel.add(Box.createVerticalStrut(6));
+        amenitiesPanel.add(addRow);
+        amenitiesPanel.add(Box.createVerticalStrut(10));
+        amenitiesPanel.add(amenitiesListPanel);
         return amenitiesPanel;
     }
 
@@ -190,14 +214,15 @@ public class AccommodationFormPanel extends JPanel {
 
     private AccommodationRecord collectAccommodation() {
         Object selectedCategory = categoryCombo.getSelectedItem();
-        String name = nameField.getText().trim();
+        String name = roomNameValue(nameField.getText().trim());
+        nameField.setText(name);
         String category = selectedCategory == null ? "" : String.valueOf(selectedCategory).trim();
         int capacity = (Integer) capacitySpinner.getValue();
         String status = String.valueOf(statusCombo.getSelectedItem()).trim();
         String assignedStaff = assignedStaffField.getText().trim();
 
         StringBuilder errors = new StringBuilder();
-        if (name.isEmpty()) {
+        if (name.equals(ROOM_PREFIX)) {
             errors.append("Name is required.\n");
         }
         if (category.isEmpty()) {
@@ -219,7 +244,7 @@ public class AccommodationFormPanel extends JPanel {
 
     private void clearForm() {
         editingRow = -1;
-        nameField.setText("");
+        nameField.setText(ROOM_PREFIX);
         if (categoryCombo.getItemCount() > 0) {
             categoryCombo.setSelectedIndex(0);
         }
@@ -229,5 +254,18 @@ public class AccommodationFormPanel extends JPanel {
         amenityField.setText("");
         amenities.clear();
         refreshAmenities();
+        setEditMode(false);
+    }
+
+    private void setEditMode(boolean editing) {
+        AccommodationManagementHelper.setTextButtonEnabled(updateButton, editing);
+    }
+
+    private String roomNameValue(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isEmpty()) {
+            return ROOM_PREFIX;
+        }
+        return text.startsWith(ROOM_PREFIX) ? text : ROOM_PREFIX + text;
     }
 }

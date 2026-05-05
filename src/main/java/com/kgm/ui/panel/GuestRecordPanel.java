@@ -6,6 +6,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -40,7 +41,7 @@ public class GuestRecordPanel extends JPanel {
     private final Consumer<Object[]> onViewGuest;
 
     private final UniversalTablePanel guestTable = new UniversalTablePanel(
-            new String[]{"Name", "Department", "Approved By", "Arrival", "Departure", "Actions"},
+            new String[]{"Guest Name", "Arrival", "Departure", "Status", "Tenure", "Actions"},
             "No guest records found."
     );
 
@@ -57,20 +58,18 @@ public class GuestRecordPanel extends JPanel {
     }
 
     public void search(String query) {
-        search(query, "All Status", "All Departments", "");
+        search(query, "All Status", "");
     }
 
-    public void search(String query, String status, String department, String date) {
+    public void search(String query, String status, String date) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
         String normalizedStatus = status == null ? "All Status" : status.trim();
-        String normalizedDepartment = department == null ? "All Departments" : department.trim();
         String normalizedDate = date == null ? "" : date.trim();
 
         boolean hasStatus = !normalizedStatus.equalsIgnoreCase("All Status");
-        boolean hasDepartment = !normalizedDepartment.equalsIgnoreCase("All Departments");
         boolean hasDate = !normalizedDate.isEmpty();
 
-        if (normalizedQuery.isEmpty() && !hasStatus && !hasDepartment && !hasDate) {
+        if (normalizedQuery.isEmpty() && !hasStatus && !hasDate) {
             reset();
             return;
         }
@@ -79,7 +78,6 @@ public class GuestRecordPanel extends JPanel {
         for (Object[] record : allData) {
             if (recordMatches(record, normalizedQuery)
                     && statusMatches(record, normalizedStatus)
-                    && departmentMatches(record, normalizedDepartment)
                     && dateMatches(record, normalizedDate)) {
                 filteredRecords.add(record);
             }
@@ -94,10 +92,10 @@ public class GuestRecordPanel extends JPanel {
     private boolean recordMatches(Object[] record, String query) {
         Object[] values = {
                 record[NAME],
-                record[DEPARTMENT],
-                record[APPROVED_BY],
-                record[ARRIVAL],
-                record[DEPARTURE]
+                dateTimeText(record[ARRIVAL]),
+                dateTimeText(record[DEPARTURE]),
+                statusText(record),
+                tenureText(record)
         };
         for (Object value : values) {
             if (String.valueOf(value).toLowerCase().contains(query)) {
@@ -131,11 +129,6 @@ public class GuestRecordPanel extends JPanel {
         return true;
     }
 
-    private boolean departmentMatches(Object[] record, String department) {
-        return department.equalsIgnoreCase("All Departments")
-                || String.valueOf(record[DEPARTMENT]).equalsIgnoreCase(department);
-    }
-
     private boolean dateMatches(Object[] record, String date) {
         return date.isEmpty()
                 || String.valueOf(record[ARRIVAL]).equals(date)
@@ -148,6 +141,36 @@ public class GuestRecordPanel extends JPanel {
         } catch (DateTimeParseException exception) {
             return null;
         }
+    }
+
+    private String dateTimeText(Object value) {
+        return String.valueOf(value) + " 09:00";
+    }
+
+    private String statusText(Object[] record) {
+        LocalDate today = LocalDate.now();
+        LocalDate arrival = parseDate(record[ARRIVAL]);
+        LocalDate departure = parseDate(record[DEPARTURE]);
+        if (arrival == null || departure == null) {
+            return "Unknown";
+        }
+        if (departure.isBefore(today)) {
+            return "Departed";
+        }
+        if (arrival.isAfter(today)) {
+            return "Upcoming";
+        }
+        return "Currently Staying";
+    }
+
+    private String tenureText(Object[] record) {
+        LocalDate arrival = parseDate(record[ARRIVAL]);
+        LocalDate departure = parseDate(record[DEPARTURE]);
+        if (arrival == null || departure == null) {
+            return "-";
+        }
+        long days = Math.max(1, ChronoUnit.DAYS.between(arrival, departure) + 1);
+        return days + (days == 1 ? " day" : " days");
     }
 
     private List<Object[]> allRows() {
@@ -175,10 +198,10 @@ public class GuestRecordPanel extends JPanel {
     private Object[] toTableRow(Object[] record) {
         return new Object[]{
                 record[NAME],
-                record[DEPARTMENT],
-                record[APPROVED_BY],
-                record[ARRIVAL],
-                record[DEPARTURE],
+                dateTimeText(record[ARRIVAL]),
+                dateTimeText(record[DEPARTURE]),
+                statusText(record),
+                tenureText(record),
                 "View"
         };
     }

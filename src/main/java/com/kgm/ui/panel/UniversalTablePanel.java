@@ -217,6 +217,7 @@ public class UniversalTablePanel extends JPanel {
                 ? ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
                 : ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+        scrollPane.getVerticalScrollBar().setEnabled(false);
         scrollPane.setPreferredSize(table.getPreferredScrollableViewportSize());
         scrollPane.getHorizontalScrollBar().setUnitIncrement(16);
         scrollPane.getHorizontalScrollBar().setBlockIncrement(96);
@@ -233,13 +234,40 @@ public class UniversalTablePanel extends JPanel {
             return;
         }
 
-        JScrollPane pageScroll = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, this);
+        JScrollPane pageScroll = findPageScrollPane();
         if (pageScroll == null) {
             return;
         }
 
-        scrollBar(pageScroll.getVerticalScrollBar(), event);
+        MouseWheelEvent pageEvent = new MouseWheelEvent(
+                pageScroll,
+                event.getID(),
+                event.getWhen(),
+                event.getModifiersEx(),
+                0,
+                0,
+                event.getXOnScreen(),
+                event.getYOnScreen(),
+                event.getClickCount(),
+                event.isPopupTrigger(),
+                event.getScrollType(),
+                event.getScrollAmount(),
+                event.getWheelRotation(),
+                event.getPreciseWheelRotation()
+        );
+        pageScroll.dispatchEvent(pageEvent);
         event.consume();
+    }
+
+    private JScrollPane findPageScrollPane() {
+        Container parent = getParent();
+        while (parent != null) {
+            if (parent instanceof JScrollPane) {
+                return (JScrollPane) parent;
+            }
+            parent = parent.getParent();
+        }
+        return null;
     }
 
     private boolean scrollInnerTableHorizontally(MouseWheelEvent event) {

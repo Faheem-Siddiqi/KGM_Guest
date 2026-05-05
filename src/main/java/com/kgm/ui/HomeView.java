@@ -62,9 +62,7 @@ public class HomeView extends JFrame {
         guestRecordPanel = new GuestRecordPanel(this::showGuestDetails);
         guestFilterPanel = new GuestFilterPanel(
                 this::performSearch,
-                this::clearSearch,
-                () -> tabs.setSelectedIndex(1),
-                () -> tabs.setSelectedIndex(2)
+                this::clearSearch
         );
 
         GridBagConstraints gbc = HomeViewHelper.pageConstraints(0);
@@ -124,7 +122,6 @@ public class HomeView extends JFrame {
         guestRecordPanel.search(
                 guestFilterPanel.getSearchText(),
                 guestFilterPanel.getStatusText(),
-                guestFilterPanel.getDepartmentText(),
                 guestFilterPanel.getDateText()
         );
     }

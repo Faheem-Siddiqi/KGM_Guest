@@ -20,7 +20,6 @@ public final class HomeViewHelper {
     public static final Color PRIMARY = new Color(0, 112, 210);
     public static final Color PRIMARY_DARK = new Color(0, 62, 122);
     public static final Color PRIMARY_LIGHT = new Color(0, 157, 225);
-    public static final Color SECONDARY_TAB = new Color(238, 246, 253);
     public static final Color VACANT_DARK = new Color(0, 136, 112);
     public static final Color VACANT_LIGHT = new Color(0, 188, 212);
     public static final Color OCCUPIED_DARK = new Color(73, 76, 162);
@@ -60,8 +59,8 @@ public final class HomeViewHelper {
     }
 
     public static void styleTabs(JTabbedPane tabs) {
-        tabs.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        tabs.setBackground(SECONDARY_TAB);
+        tabs.setFont(new Font("Tahoma", Font.BOLD, 13));
+        tabs.setBackground(Color.WHITE);
         tabs.setForeground(TEXT_SECONDARY);
         tabs.setOpaque(true);
         tabs.setBorder(new MatteBorder(1, 0, 0, 0, BORDER));
@@ -85,11 +84,8 @@ public final class HomeViewHelper {
                     int height,
                     boolean isSelected
             ) {
-                Graphics2D g2 = (Graphics2D) graphics.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(isSelected ? PRIMARY : SECONDARY_TAB);
-                g2.fillRoundRect(x + 3, y + 4, width - 6, height - 10, 10, 10);
-                g2.dispose();
+                graphics.setColor(Color.WHITE);
+                graphics.fillRect(x, y, width, height);
             }
 
             protected void paintTabBorder(
@@ -158,9 +154,12 @@ public final class HomeViewHelper {
                     Rectangle textRect,
                     boolean isSelected
             ) {
-                graphics.setFont(font);
-                graphics.setColor(isSelected ? Color.WHITE : PRIMARY_DARK);
-                graphics.drawString(title, textRect.x, textRect.y + metrics.getAscent());
+                Graphics2D g2 = (Graphics2D) graphics.create();
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+                g2.setFont(font);
+                g2.setColor(isSelected ? PRIMARY : TEXT_SECONDARY);
+                g2.drawString(title, textRect.x, textRect.y + metrics.getAscent());
+                g2.dispose();
             }
         });
     }

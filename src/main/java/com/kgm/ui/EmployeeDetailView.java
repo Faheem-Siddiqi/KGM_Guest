@@ -63,7 +63,7 @@ public class EmployeeDetailView extends JFrame {
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         left.setBackground(Color.WHITE);
 
-        backBtn = new JButton("Back");
+        backBtn = new JButton("BACK");
         backBtn.setBorderPainted(false);
         backBtn.setContentAreaFilled(false);
         backBtn.setFocusPainted(false);

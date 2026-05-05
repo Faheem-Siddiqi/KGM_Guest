@@ -18,10 +18,11 @@ public class AddGuest extends JFrame {
         GridBagConstraints gbc = AddGuestHelper.formConstraints();
         int y = 0;
 
-        y = AddGuestHelper.addFormHeader(card, gbc, y, () -> {
+        Runnable onBack = () -> {
             new HomeView();
             dispose();
-        });
+        };
+        page.add(AddGuestHelper.screenHeader(onBack), AddGuestHelper.pageConstraints(0));
 
         // Basic Info
         y = AddGuestHelper.addSectionTitle(card, gbc, y, "Basic Information");
@@ -202,7 +203,7 @@ public class AddGuest extends JFrame {
         gbc.gridy = y;
         gbc.gridwidth = 4;
         card.add(actions, gbc);
-        page.add(card);
+        page.add(card, AddGuestHelper.pageConstraints(1));
         // SCROLL ENABLED
         JScrollPane scroll = new JScrollPane(page);
         scroll.setBorder(null);

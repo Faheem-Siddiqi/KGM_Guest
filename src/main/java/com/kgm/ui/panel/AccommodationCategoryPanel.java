@@ -3,6 +3,8 @@ package com.kgm.ui.panel;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,13 +73,26 @@ public class AccommodationCategoryPanel extends JPanel {
         saveButton.addActionListener(e -> saveCategory());
         updateButton.addActionListener(e -> updateCategory());
         deleteButton.addActionListener(e -> deleteCategory());
+        categoryNameField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent event) {
+                updateActionStates();
+            }
+
+            public void removeUpdate(DocumentEvent event) {
+                updateActionStates();
+            }
+
+            public void changedUpdate(DocumentEvent event) {
+                updateActionStates();
+            }
+        });
         return form;
     }
 
     private void selectCategory(int row) {
         editingRow = row;
         categoryNameField.setText(String.valueOf(categoryTable.getValueAt(row, 0)));
-        setEditActionsEnabled(true);
+        updateActionStates();
     }
 
     private void saveCategory() {
@@ -120,13 +135,16 @@ public class AccommodationCategoryPanel extends JPanel {
         editingRow = -1;
         categoryNameField.setText("");
         categoryTable.clearSelection();
-        setEditActionsEnabled(false);
+        updateActionStates();
     }
 
-    private void setEditActionsEnabled(boolean enabled) {
-        AccommodationManagementHelper.setTextButtonEnabled(saveButton, !enabled);
-        AccommodationManagementHelper.setTextButtonEnabled(updateButton, enabled);
-        AccommodationManagementHelper.setDangerTextButtonEnabled(deleteButton, enabled);
+    private void updateActionStates() {
+        boolean hasCategoryName = !categoryNameField.getText().trim().isEmpty();
+        boolean editing = editingRow >= 0;
+
+        AccommodationManagementHelper.setTextButtonEnabled(saveButton, hasCategoryName && !editing);
+        AccommodationManagementHelper.setTextButtonEnabled(updateButton, hasCategoryName && editing);
+        AccommodationManagementHelper.setDangerTextButtonEnabled(deleteButton, editing);
     }
 
     private void notifyCategoriesChanged() {

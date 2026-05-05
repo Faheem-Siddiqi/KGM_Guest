@@ -41,6 +41,7 @@ public class AccommodationFormPanel extends JPanel {
                 nameField.setText(roomNameValue(nameField.getText()));
             }
         });
+        amenityField.addActionListener(e -> addAmenity());
 
         JPanel card = AccommodationManagementHelper.sectionCard(
                 "Accommodation Form",

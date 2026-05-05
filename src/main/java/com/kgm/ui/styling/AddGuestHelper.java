@@ -14,6 +14,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 
 public final class AddGuestHelper {
+    private static final int CONTENT_WIDTH = 860;
     private static final Color DROPDOWN_BACKGROUND = new Color(245, 245, 245);
     private static final Color DROPDOWN_SELECTION = new Color(224, 224, 224);
     private static final String AUTO_COMPLETE_ENABLED = "kgm.autoCompleteEnabled";
@@ -30,7 +31,19 @@ public final class AddGuestHelper {
     }
 
     public static JPanel cardPanel() {
-        JPanel card = new JPanel(new GridBagLayout());
+        JPanel card = new JPanel(new GridBagLayout()) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+
+            public Dimension getMinimumSize() {
+                Dimension size = super.getMinimumSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
         card.setBackground(Color.WHITE);
         card.setBorder(new CompoundBorder(
                 new RoundedBorder(16),
@@ -46,6 +59,53 @@ public final class AddGuestHelper {
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.weightx = 1.0;
         return gbc;
+    }
+
+    public static GridBagConstraints pageConstraints(int y) {
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = y;
+        gbc.insets = new Insets(0, 0, 18, 0);
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.NORTH;
+        return gbc;
+    }
+
+    public static JPanel screenHeader(Runnable onBack) {
+        JPanel header = new JPanel(new BorderLayout()) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        header.setBackground(Color.WHITE);
+        header.setBorder(new EmptyBorder(0, 0, 4, 0));
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+        titleBlock.setBackground(Color.WHITE);
+
+        JLabel title = new JLabel("Add Guest");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel subtitle = new JLabel("Enter guest information");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        subtitle.setForeground(new Color(100, 100, 100));
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        titleBlock.add(title);
+        titleBlock.add(Box.createVerticalStrut(3));
+        titleBlock.add(subtitle);
+
+        JButton back = new JButton("Back");
+        styleBack(back);
+        back.addActionListener(e -> onBack.run());
+
+        header.add(titleBlock, BorderLayout.WEST);
+        header.add(back, BorderLayout.EAST);
+        return header;
     }
 
     public static int addFormHeader(JPanel panel, GridBagConstraints gbc, int y, Runnable onBack) {

@@ -101,12 +101,75 @@ public final class AccommodationManagementHelper {
         titleBlock.add(Box.createVerticalStrut(3));
         titleBlock.add(subtitle);
 
-        JButton back = textButton("Back");
+        JButton back = textButton("BACK");
         back.addActionListener(e -> onBack.run());
 
         header.add(titleBlock, BorderLayout.WEST);
         header.add(back, BorderLayout.EAST);
         return header;
+    }
+
+    public static JPanel breadcrumb(String[] labels, Runnable[] actions) {
+        JPanel breadcrumb = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        breadcrumb.setOpaque(false);
+        breadcrumb.setBorder(new EmptyBorder(0, 0, 2, 0));
+
+        for (int index = 0; index < labels.length; index++) {
+            JButton link = breadcrumbLink(labels[index]);
+            if (index < actions.length && actions[index] != null) {
+                int actionIndex = index;
+                link.addActionListener(e -> actions[actionIndex].run());
+            }
+            breadcrumb.add(link);
+
+            if (index < labels.length - 1) {
+                breadcrumb.add(breadcrumbSlash());
+            }
+        }
+        return breadcrumb;
+    }
+
+    public static JPanel returnToTop(Runnable action) {
+        JPanel container = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0)) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        container.setOpaque(false);
+
+        JButton link = breadcrumbLink("Return to top");
+        link.addActionListener(e -> action.run());
+        container.add(link);
+        return container;
+    }
+
+    private static JButton breadcrumbLink(String text) {
+        JButton link = new JButton(text);
+        link.setContentAreaFilled(false);
+        link.setBorderPainted(false);
+        link.setFocusPainted(false);
+        link.setOpaque(false);
+        link.setForeground(PRIMARY);
+        link.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        link.setBorder(new EmptyBorder(4, 0, 4, 0));
+        return link;
+    }
+
+    private static JLabel breadcrumbSlash() {
+        JLabel slash = new JLabel("/");
+        slash.setForeground(PRIMARY);
+        slash.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        slash.setBorder(new EmptyBorder(4, 2, 4, 2));
+        return slash;
     }
 
     public static GridBagConstraints pageConstraints(int y) {
@@ -255,7 +318,8 @@ public final class AccommodationManagementHelper {
 
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 42));
-        header.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        Font tableHeaderFont = new Font("Segoe UI", Font.BOLD, 12);
+        header.setFont(tableHeaderFont);
         header.setForeground(Color.WHITE);
         header.setBackground(PRIMARY);
         header.setBorder(new LineBorder(new Color(190, 204, 218)));
@@ -272,7 +336,7 @@ public final class AccommodationManagementHelper {
                 label.setHorizontalAlignment(SwingConstants.CENTER);
                 label.setBackground(PRIMARY);
                 label.setForeground(Color.WHITE);
-                label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+                label.setFont(tableHeaderFont);
                 label.setBorder(new CompoundBorder(
                         new MatteBorder(0, 0, 1, 1, Color.WHITE),
                         new EmptyBorder(0, 14, 0, 14)

@@ -1,4 +1,4 @@
-package com.kgm.ui;
+package com.kgm.ui.styling;
 
 import javax.swing.*;
 import javax.swing.border.AbstractBorder;
@@ -44,6 +44,7 @@ public final class AddGuestHelper {
         gbc.insets = new Insets(10, 12, 10, 12);
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.NORTHWEST;
+        gbc.weightx = 1.0;
         return gbc;
     }
 
@@ -101,25 +102,39 @@ public final class AddGuestHelper {
     }
 
     public static void addField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
+        JPanel fieldBlock = new JPanel();
+        fieldBlock.setLayout(new BoxLayout(fieldBlock, BoxLayout.Y_AXIS));
+        fieldBlock.setBackground(Color.WHITE);
+
         JLabel label = label(labelText);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComponent styledField = styleField(field);
+        styledField.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        fieldBlock.add(label);
+        fieldBlock.add(Box.createVerticalStrut(6));
+        fieldBlock.add(styledField);
 
         gbc.gridx = xOffset;
         gbc.gridy = y;
-        panel.add(label, gbc);
-
-        gbc.gridx = xOffset + 1;
-        panel.add(styleField(field), gbc);
+        gbc.gridwidth = 2;
+        panel.add(fieldBlock, gbc);
+        gbc.gridwidth = 1;
     }
 
     public static JLabel label(String text) {
         JLabel label = new JLabel(text);
-        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        label.setForeground(new Color(70, 70, 70));
         return label;
     }
 
     @SuppressWarnings("unchecked")
     public static JComponent styleField(JComponent component) {
-        component.setPreferredSize(new Dimension(240, 34));
+        component.setPreferredSize(new Dimension(340, 34));
+        component.setMinimumSize(new Dimension(280, 34));
+        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
         component.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         component.setBackground(Color.WHITE);
         component.setBorder(new CompoundBorder(

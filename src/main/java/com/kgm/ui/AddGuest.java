@@ -1,5 +1,6 @@
 package com.kgm.ui;
 import com.kgm.ui.panel.HeaderPanel;
+import com.kgm.ui.styling.AddGuestHelper;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;

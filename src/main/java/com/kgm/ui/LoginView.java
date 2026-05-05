@@ -85,6 +85,8 @@ public class LoginView extends JFrame {
                 SessionWatcher.closeAllWindows();
                 //  new HomeView().setVisible(true);
   new AddGuest().setVisible(true);
+  new AccommodationManagement().setVisible(true);
+
           
 
             } else {

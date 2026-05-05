@@ -26,7 +26,7 @@ public final class AddGuestHelper {
     public static JPanel pagePanel() {
         JPanel page = new JPanel(new GridBagLayout());
         page.setBackground(Color.WHITE);
-        page.setBorder(new EmptyBorder(40, 60, 40, 60));
+        page.setBorder(new EmptyBorder(40, 40, 40, 40));
         return page;
     }
 
@@ -72,6 +72,10 @@ public final class AddGuestHelper {
     }
 
     public static JPanel screenHeader(Runnable onBack) {
+        return screenHeader("Add Guest", "Enter guest information", onBack);
+    }
+
+    public static JPanel screenHeader(String titleText, String subtitleText, Runnable onBack) {
         JPanel header = new JPanel(new BorderLayout()) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
@@ -86,11 +90,11 @@ public final class AddGuestHelper {
         titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
         titleBlock.setBackground(Color.WHITE);
 
-        JLabel title = new JLabel("Add Guest");
+        JLabel title = new JLabel(titleText);
         title.setFont(new Font("Segoe UI", Font.BOLD, 24));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel subtitle = new JLabel("Enter guest information");
+        JLabel subtitle = new JLabel(subtitleText);
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         subtitle.setForeground(new Color(100, 100, 100));
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -99,13 +103,76 @@ public final class AddGuestHelper {
         titleBlock.add(Box.createVerticalStrut(3));
         titleBlock.add(subtitle);
 
-        JButton back = new JButton("Back");
+        JButton back = new JButton("BACK");
         styleBack(back);
         back.addActionListener(e -> onBack.run());
 
         header.add(titleBlock, BorderLayout.WEST);
         header.add(back, BorderLayout.EAST);
         return header;
+    }
+
+    public static JPanel breadcrumb(String[] labels, Runnable[] actions) {
+        JPanel breadcrumb = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        breadcrumb.setBackground(Color.WHITE);
+        breadcrumb.setBorder(new EmptyBorder(0, 0, 2, 0));
+
+        for (int index = 0; index < labels.length; index++) {
+            JButton link = breadcrumbLink(labels[index]);
+            if (index < actions.length && actions[index] != null) {
+                int actionIndex = index;
+                link.addActionListener(e -> actions[actionIndex].run());
+            }
+            breadcrumb.add(link);
+
+            if (index < labels.length - 1) {
+                breadcrumb.add(breadcrumbSlash());
+            }
+        }
+        return breadcrumb;
+    }
+
+    public static JPanel returnToTop(Runnable action) {
+        JPanel container = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0)) {
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                size.width = CONTENT_WIDTH;
+                return size;
+            }
+        };
+        container.setBackground(Color.WHITE);
+
+        JButton link = breadcrumbLink("Return to top");
+        link.addActionListener(e -> action.run());
+        container.add(link);
+        return container;
+    }
+
+    private static JButton breadcrumbLink(String text) {
+        JButton link = new JButton(text);
+        link.setContentAreaFilled(false);
+        link.setBorderPainted(false);
+        link.setFocusPainted(false);
+        link.setOpaque(false);
+        link.setForeground(new Color(0, 112, 210));
+        link.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
+        link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        link.setBorder(new EmptyBorder(4, 0, 4, 0));
+        return link;
+    }
+
+    private static JLabel breadcrumbSlash() {
+        JLabel slash = new JLabel("/");
+        slash.setForeground(new Color(0, 112, 210));
+        slash.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
+        slash.setBorder(new EmptyBorder(4, 2, 4, 2));
+        return slash;
     }
 
     public static int addFormHeader(JPanel panel, GridBagConstraints gbc, int y, Runnable onBack) {

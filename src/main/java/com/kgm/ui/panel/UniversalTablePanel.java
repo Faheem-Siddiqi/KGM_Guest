@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class UniversalTablePanel extends JPanel {
+    // UPDATE PAGINATION 
     private static final int PAGE_SIZE = 2;
     private static final int MIN_VIEWPORT_HEIGHT = 118;
 
@@ -137,6 +138,19 @@ public class UniversalTablePanel extends JPanel {
     public void addRow(Object[] row) {
         rows.add(row);
         currentPage = lastPage();
+        refresh();
+    }
+
+    public void setRows(List<Object[]> newRows) {
+        rows.clear();
+        rows.addAll(newRows);
+        currentPage = 0;
+        refresh();
+    }
+
+    public void clearRows() {
+        rows.clear();
+        currentPage = 0;
         refresh();
     }
 

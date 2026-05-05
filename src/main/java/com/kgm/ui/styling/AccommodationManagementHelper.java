@@ -29,7 +29,7 @@ public final class AccommodationManagementHelper {
     public static JPanel pagePanel() {
         JPanel page = new JPanel(new GridBagLayout());
         page.setBackground(PAGE_BACKGROUND);
-        page.setBorder(new EmptyBorder(40, 60, 40, 60));
+        page.setBorder(new EmptyBorder(40, 40, 40, 40));
         return page;
     }
 
@@ -117,7 +117,7 @@ public final class AccommodationManagementHelper {
                 return size;
             }
         };
-        breadcrumb.setOpaque(false);
+        breadcrumb.setBackground(Color.WHITE);
         breadcrumb.setBorder(new EmptyBorder(0, 0, 2, 0));
 
         for (int index = 0; index < labels.length; index++) {
@@ -143,7 +143,7 @@ public final class AccommodationManagementHelper {
                 return size;
             }
         };
-        container.setOpaque(false);
+        container.setBackground(Color.WHITE);
 
         JButton link = breadcrumbLink("Return to top");
         link.addActionListener(e -> action.run());
@@ -157,8 +157,8 @@ public final class AccommodationManagementHelper {
         link.setBorderPainted(false);
         link.setFocusPainted(false);
         link.setOpaque(false);
-        link.setForeground(PRIMARY);
-        link.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        link.setForeground(new Color(0, 112, 210));
+        link.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         link.setBorder(new EmptyBorder(4, 0, 4, 0));
         return link;
@@ -166,8 +166,8 @@ public final class AccommodationManagementHelper {
 
     private static JLabel breadcrumbSlash() {
         JLabel slash = new JLabel("/");
-        slash.setForeground(PRIMARY);
-        slash.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        slash.setForeground(new Color(0, 112, 210));
+        slash.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         slash.setBorder(new EmptyBorder(4, 2, 4, 2));
         return slash;
     }

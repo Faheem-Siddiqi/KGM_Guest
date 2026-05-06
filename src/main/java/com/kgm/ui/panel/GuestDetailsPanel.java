@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.ui.styling.AddGuestHelper;
+import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -91,10 +92,10 @@ public class GuestDetailsPanel extends JPanel {
         update.addActionListener(e -> {
             updateTenure(arrivalDate, departureDate, tenureField);
             if (tenureField.getText().startsWith("Departure must")) {
-                JOptionPane.showMessageDialog(this, tenureField.getText(), "Invalid departure", JOptionPane.ERROR_MESSAGE);
+                DialogHelper.error(this, "Invalid departure", tenureField.getText());
                 return;
             }
-            JOptionPane.showMessageDialog(this, "Guest details updated.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            DialogHelper.success(this, "Guest details updated.");
         });
         actions.add(back);
         actions.add(update);

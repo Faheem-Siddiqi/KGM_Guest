@@ -2,6 +2,7 @@ package com.kgm.ui;
 
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.styling.AddGuestHelper;
+import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -252,6 +253,7 @@ public class AddGuest extends JFrame {
 
         if (guestName.isEmpty()) {
             errors.append("Guest Name is required.\n");
+            
         }
         if (guestCnic.isEmpty()) {
             errors.append("Guest CNIC is required.\n");
@@ -290,12 +292,7 @@ public class AddGuest extends JFrame {
             errors.append("Remarks are required.\n");
         }
         if (errors.length() > 0) {
-            JOptionPane.showMessageDialog(
-                    parent,
-                    errors.toString(),
-                    "Please complete required fields",
-                    JOptionPane.ERROR_MESSAGE
-            );
+            DialogHelper.error(parent, "Please complete required fields", errors.toString());
             return;
         }
 
@@ -315,12 +312,7 @@ public class AddGuest extends JFrame {
         System.out.println("Room: " + room);
         System.out.println("Remarks: " + remarksText);
 
-        JOptionPane.showMessageDialog(
-                parent,
-                "Guest added successfully.",
-                "Success",
-                JOptionPane.INFORMATION_MESSAGE
-        );
+        DialogHelper.success(parent, "Guest added successfully.");
     }
 
     private static Date dateTimeValue(int year, int month, int day, int hour, int minute) {

@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.ui.styling.AccommodationManagementHelper;
+import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -202,7 +203,7 @@ public class AccommodationFormPanel extends JPanel {
 
     private void updateAccommodation() {
         if (editingRow < 0) {
-            JOptionPane.showMessageDialog(this, "Select Edit from the table before updating.", "No row selected", JOptionPane.WARNING_MESSAGE);
+            DialogHelper.warning(this, "No row selected", "Select Edit from the table before updating.");
             return;
         }
         AccommodationRecord accommodation = collectAccommodation();
@@ -236,7 +237,7 @@ public class AccommodationFormPanel extends JPanel {
             errors.append("Assigned Staff is required.\n");
         }
         if (errors.length() > 0) {
-            JOptionPane.showMessageDialog(this, errors.toString(), "Please complete required fields", JOptionPane.ERROR_MESSAGE);
+            DialogHelper.error(this, "Please complete required fields", errors.toString());
             return null;
         }
 

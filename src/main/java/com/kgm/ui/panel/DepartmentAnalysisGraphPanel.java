@@ -11,8 +11,8 @@ public class DepartmentAnalysisGraphPanel extends UniversalGraphPanel {
                 new UniversalGraphPanel.Series(
                         "Guests",
                         new int[]{12, 7, 10, 9, 6},
-                        HomeViewHelper.GRAPH_PLUM_DARK,
-                        HomeViewHelper.GRAPH_PLUM_LIGHT
+                        HomeViewHelper.GRAPH_PLUM_LIGHT,
+                        HomeViewHelper.GRAPH_PLUM_DARK
                 )
         );
     }

@@ -16,6 +16,8 @@ import java.awt.*;
 
 public class HomeView extends JFrame {
     private static final int DASHBOARD_TAB = 0;
+    // KPI bottom margin; adjust this value to tune space below KPI cards.
+    private static final int KPI_BOTTOM_MARGIN = 36;
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
 
@@ -68,6 +70,7 @@ public class HomeView extends JFrame {
         );
 
         GridBagConstraints gbc = HomeViewHelper.pageConstraints(0);
+        gbc.insets = new Insets(0, 0, KPI_BOTTOM_MARGIN, 0);
         page.add(new HomeKpiPanel(), gbc);
 
         gbc = HomeViewHelper.pageConstraints(1);

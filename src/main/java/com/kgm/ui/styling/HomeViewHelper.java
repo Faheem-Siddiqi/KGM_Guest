@@ -37,6 +37,7 @@ public final class HomeViewHelper {
     public static final Color BORDER = new Color(220, 226, 232);
     public static final Color ROW_SELECTION = new Color(229, 242, 255);
     public static final String DATE_PATTERN = "yyyy-MM-dd";
+    private static final int TAB_DIVIDER_GAP = 8;
     private static final SimpleDateFormat FILTER_DATE_FORMAT = new SimpleDateFormat(DATE_PATTERN);
 
     private HomeViewHelper() {
@@ -45,7 +46,7 @@ public final class HomeViewHelper {
     public static JPanel pagePanel() {
         JPanel page = new JPanel(new GridBagLayout());
         page.setBackground(PAGE_BACKGROUND);
-        page.setBorder(new EmptyBorder(28, 40, 32, 40));
+        page.setBorder(new EmptyBorder(18, 40, 18, 40));
         return page;
     }
 
@@ -65,15 +66,15 @@ public final class HomeViewHelper {
         tabs.setBackground(Color.WHITE);
         tabs.setForeground(TEXT_SECONDARY);
         tabs.setOpaque(true);
-        tabs.setBorder(new MatteBorder(1, 0, 0, 0, BORDER));
+        tabs.setBorder(null);
         tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         tabs.setUI(new BasicTabbedPaneUI() {
             protected void installDefaults() {
                 super.installDefaults();
                 tabInsets = new Insets(12, 26, 11, 26);
                 selectedTabPadInsets = new Insets(0, 0, 0, 0);
-                contentBorderInsets = new Insets(18, 0, 0, 0);
-                tabAreaInsets = new Insets(8, 28, 18, 28);
+                contentBorderInsets = new Insets(10, 0, 0, 0);
+                tabAreaInsets = new Insets(TAB_DIVIDER_GAP, 28, 18, 28);
             }
 
             protected void paintTabBackground(
@@ -108,7 +109,7 @@ public final class HomeViewHelper {
                 if (rects != null) {
                     for (Rectangle rect : rects) {
                         if (rect != null && rect.height > 0) {
-                            lineY = Math.max(lineY, rect.y + rect.height - 2);
+                            lineY = Math.max(lineY, rect.y + rect.height + TAB_DIVIDER_GAP);
                         }
                     }
                 }

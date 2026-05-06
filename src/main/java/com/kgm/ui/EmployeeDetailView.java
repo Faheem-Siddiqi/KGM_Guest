@@ -9,6 +9,7 @@ import com.kgm.ui.panel.OtherDetailsPanel;
 import com.kgm.ui.panel.BasicDetailsPanel;
 import com.kgm.model.Employee;
 import com.kgm.ui.panel.DocumentViewPanel;
+import com.kgm.ui.panel.FooterPanel;
 
 public class EmployeeDetailView extends JFrame {
 
@@ -128,8 +129,8 @@ public class EmployeeDetailView extends JFrame {
         add(centerWrapper, BorderLayout.CENTER);
 
         // 🔸 FOOTER
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
-        footer.setBackground(Color.WHITE);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setBackground(Color.WHITE);
 
         updateBtn = new JButton("Update");
         updateBtn.setPreferredSize(new Dimension(110, 32));
@@ -138,8 +139,8 @@ public class EmployeeDetailView extends JFrame {
         updateBtn.setForeground(Color.WHITE);
         updateBtn.setBackground(new Color(0, 38, 77));
 
-        footer.add(updateBtn);
-        add(footer, BorderLayout.SOUTH);
+        actions.add(updateBtn);
+        add(new FooterPanel(actions), BorderLayout.SOUTH);
 
         // =========================================================
         // 🔥 CORE FIX: SMART ENABLE/DISABLE (NO TAB LOGIC ANYMORE)

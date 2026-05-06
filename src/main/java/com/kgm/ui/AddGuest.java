@@ -1,5 +1,6 @@
 package com.kgm.ui;
 
+import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
@@ -26,6 +27,7 @@ public class AddGuest extends JFrame {
         root.setBackground(Color.WHITE);
         root.add(new HeaderPanel("Add Guest"), BorderLayout.NORTH);
         root.add(createContent(onBack), BorderLayout.CENTER);
+        root.add(new FooterPanel(), BorderLayout.SOUTH);
 
         setContentPane(root);
         pack();

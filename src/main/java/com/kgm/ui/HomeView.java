@@ -5,6 +5,7 @@ import com.kgm.ui.panel.DepartmentAnalysisGraphPanel;
 import com.kgm.ui.panel.GuestFilterPanel;
 import com.kgm.ui.panel.GuestDetailsPanel;
 import com.kgm.ui.panel.GuestRecordPanel;
+import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.panel.HomeKpiPanel;
 import com.kgm.ui.panel.HouseOccupancyGraphPanel;
@@ -31,6 +32,7 @@ public class HomeView extends JFrame {
         root.setBackground(HomeViewHelper.PAGE_BACKGROUND);
         root.add(new HeaderPanel("Guest Management Dashboard"), BorderLayout.NORTH);
         root.add(createBody(), BorderLayout.CENTER);
+        root.add(new FooterPanel(), BorderLayout.SOUTH);
 
         setContentPane(root);
         pack();

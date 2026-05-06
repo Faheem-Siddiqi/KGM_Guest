@@ -1,6 +1,7 @@
 package com.kgm.ui;
 
 import com.kgm.ui.panel.AccommodationManagementPanel;
+import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 
 import javax.swing.*;
@@ -17,6 +18,7 @@ public class AccommodationManagement extends JFrame {
         root.setBackground(Color.WHITE);
         root.add(new HeaderPanel("Accommodation Management"), BorderLayout.NORTH);
         root.add(new AccommodationManagementPanel(this::goBack), BorderLayout.CENTER);
+        root.add(new FooterPanel(), BorderLayout.SOUTH);
 
         setContentPane(root);
         pack();

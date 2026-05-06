@@ -3,6 +3,7 @@ import javax.swing.*;
 import java.awt.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeEvent;
+import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.panel.FormPanel;
 import com.kgm.ui.panel.DocumentPanel;
@@ -57,8 +58,8 @@ public class EmployeeInduction extends JFrame {
         tabs.addTab("Documents", documentPanel);
         centerWrapper.add(tabs, BorderLayout.CENTER);
         add(centerWrapper, BorderLayout.CENTER);
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
-        footer.setBackground(Color.WHITE);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setBackground(Color.WHITE);
         nextBackBtn = new JButton("Next");
         submitBtn = new JButton("Submit");
         nextBackBtn.setPreferredSize(new Dimension(100, 32));
@@ -75,9 +76,9 @@ public class EmployeeInduction extends JFrame {
         submitBtn.setForeground(Color.WHITE);
         submitBtn.setBackground(new Color(0, 38, 77)); // navy blue
         submitBtn.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        footer.add(nextBackBtn);
-        footer.add(submitBtn);
-        add(footer, BorderLayout.SOUTH);
+        actions.add(nextBackBtn);
+        actions.add(submitBtn);
+        add(new FooterPanel(actions), BorderLayout.SOUTH);
         // ================= TAB CHANGE =================
         tabs.addChangeListener((ChangeEvent e) -> {
             int index = tabs.getSelectedIndex();

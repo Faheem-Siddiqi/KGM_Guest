@@ -30,6 +30,8 @@ public final class HomeViewHelper {
     public static final Color KPI_SKY_LIGHT = new Color(56, 165, 214);
     public static final Color KPI_ROSE_DARK = new Color(157, 43, 91);
     public static final Color KPI_ROSE_LIGHT = new Color(232, 96, 145);
+    public static final Color GRAPH_PLUM_DARK = new Color(103, 58, 183);
+    public static final Color GRAPH_PLUM_LIGHT = new Color(213, 87, 128);
     public static final Color TEXT_PRIMARY = new Color(35, 43, 54);
     public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
     public static final Color BORDER = new Color(220, 226, 232);
@@ -57,9 +59,9 @@ public final class HomeViewHelper {
         gbc.insets = new Insets(0, 0, 18, 0);
         return gbc;
     }
-
+// tabs text font stlying 
     public static void styleTabs(JTabbedPane tabs) {
-        tabs.setFont(new Font("Tahoma", Font.BOLD, 13));
+        tabs.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         tabs.setBackground(Color.WHITE);
         tabs.setForeground(TEXT_SECONDARY);
         tabs.setOpaque(true);
@@ -155,7 +157,8 @@ public final class HomeViewHelper {
                     boolean isSelected
             ) {
                 Graphics2D g2 = (Graphics2D) graphics.create();
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_GASP);
+                g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
                 g2.setFont(font);
                 g2.setColor(isSelected ? PRIMARY : TEXT_SECONDARY);
                 g2.drawString(title, textRect.x, textRect.y + metrics.getAscent());

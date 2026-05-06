@@ -1,23 +1,30 @@
 package com.kgm.util;
 import com.kgm.model.UserSession;
-public class SessionManager {
+
+public final class SessionManager {
     private static UserSession session;
-    // SESSION TIME 30 MINS
-    private static final long EXPIRY = 30 * 60 * 1000;
-    // private static final long EXPIRY = 5 * 1000; // 5 seconds for testing
-    public static void startSession(String user) {
-        session = new UserSession();
-        session.username = user;
-        session.loginTime = System.currentTimeMillis();
+    private static final long EXPIRY_MILLIS = 30L * 60L * 1000L;
+
+    private SessionManager() {
     }
-    public static boolean isValid() {
-        return session != null &&
-                (System.currentTimeMillis() - session.loginTime) < EXPIRY;
+
+    public static synchronized void startSession(String user) {
+        session = new UserSession(user, System.currentTimeMillis(), EXPIRY_MILLIS);
     }
-    public static String getUser() {
-        return session != null ? session.username : null;
+
+    public static synchronized boolean isValid() {
+        return session != null && session.isValid(System.currentTimeMillis());
     }
-    public static void clear() {
+
+    public static synchronized long getRemainingMillis() {
+        return session == null ? 0 : session.remainingMillis(System.currentTimeMillis());
+    }
+
+    public static synchronized String getUser() {
+        return session != null ? session.getUsername() : null;
+    }
+
+    public static synchronized void clear() {
         session = null;
     }
 }

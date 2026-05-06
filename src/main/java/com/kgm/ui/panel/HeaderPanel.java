@@ -1,8 +1,6 @@
 package com.kgm.ui.panel;
 
-import com.kgm.ui.LoginView;
 import com.kgm.ui.styling.DialogHelper;
-import com.kgm.util.SessionManager;
 import com.kgm.util.SessionWatcher;
 
 import javax.swing.*;
@@ -121,14 +119,7 @@ public class HeaderPanel extends JPanel {
     // ================= LOGOUT LOGIC =================
     private void logout() {
         try {
-            SessionManager.clear();
-            SessionWatcher.stop();
-
-            Window w = SwingUtilities.getWindowAncestor(this);
-            if (w != null) w.dispose();
-
-            new LoginView().setVisible(true);
-
+            SessionWatcher.logoutToLogin();
         } catch (Exception e) {
             DialogHelper.error(SwingUtilities.getWindowAncestor(this), "Error", "Failure - Try Again");
         }

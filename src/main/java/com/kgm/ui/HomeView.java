@@ -2,6 +2,7 @@ package com.kgm.ui;
 
 import com.kgm.dao.DashboardDao;
 import com.kgm.database.DatabaseInitializer;
+import com.kgm.service.ExcelImportService;
 import com.kgm.ui.panel.AccommodationManagementPanel;
 import com.kgm.ui.panel.DepartmentAnalysisGraphPanel;
 import com.kgm.ui.panel.GuestFilterPanel;
@@ -12,13 +13,17 @@ import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.panel.HomeKpiPanel;
 import com.kgm.ui.panel.HouseOccupancyGraphPanel;
 import com.kgm.ui.panel.UniversalGraphPanel;
+import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.sql.SQLException;
+import java.util.concurrent.ExecutionException;
 
 public class HomeView extends JFrame {
     private static final int DASHBOARD_TAB = 0;
@@ -31,11 +36,13 @@ public class HomeView extends JFrame {
     private GuestFilterPanel guestFilterPanel;
     private GuestRecordPanel guestRecordPanel;
     private final DashboardDao dashboardDao = new DashboardDao();
+    private final ExcelImportService excelImportService = new ExcelImportService();
     private JPanel dashboardScreens;
     private JPanel dashboardPage;
     private Component guestDetailsScreen;
     private JTabbedPane mainTabs;
     private boolean refreshingAddGuestTab;
+    private JButton importExcelButton;
 
     public HomeView() {
         DatabaseInitializer.init();
@@ -138,15 +145,18 @@ public class HomeView extends JFrame {
         dashboardPage.add(new HomeKpiPanel(loadDashboardStats()), gbc);
 
         gbc = HomeViewHelper.pageConstraints(1);
-        dashboardPage.add(guestFilterPanel, gbc);
+        dashboardPage.add(createImportActionsRow(), gbc);
 
         gbc = HomeViewHelper.pageConstraints(2);
-        dashboardPage.add(guestRecordPanel, gbc);
+        dashboardPage.add(guestFilterPanel, gbc);
 
         gbc = HomeViewHelper.pageConstraints(3);
-        dashboardPage.add(createGraphPanel(), gbc);
+        dashboardPage.add(guestRecordPanel, gbc);
 
         gbc = HomeViewHelper.pageConstraints(4);
+        dashboardPage.add(createGraphPanel(), gbc);
+
+        gbc = HomeViewHelper.pageConstraints(5);
         gbc.weighty = 1.0;
         dashboardPage.add(Box.createVerticalGlue(), gbc);
         dashboardPage.revalidate();
@@ -230,6 +240,153 @@ public class HomeView extends JFrame {
         graphs.add(graphScroll(new DepartmentAnalysisGraphPanel(loadDepartmentChart())));
 
         return graphs;
+    }
+
+    private JPanel createImportActionsRow() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        row.setOpaque(false);
+
+        importExcelButton = new JButton("Import Excel");
+        importExcelButton.setPreferredSize(new Dimension(126, 32));
+        importExcelButton.setBackground(new Color(28, 137, 85));
+        importExcelButton.setForeground(Color.WHITE);
+        importExcelButton.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        importExcelButton.setFocusPainted(false);
+        importExcelButton.setBorderPainted(false);
+        importExcelButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        importExcelButton.addActionListener(event -> chooseExcelImportFile());
+
+        row.add(importExcelButton);
+        return row;
+    }
+
+    private void chooseExcelImportFile() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Import Guest Excel Sheet");
+        chooser.setFileFilter(new FileNameExtensionFilter("Excel files (*.xlsx, *.xls)", "xlsx", "xls"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        importGuestsFromExcel(chooser.getSelectedFile());
+    }
+
+    private void importGuestsFromExcel(File file) {
+        System.out.println("Selected Excel import file: " + file.getAbsolutePath());
+        System.out.println(ExcelImportService.importGuideMessage());
+        setImportButtonEnabled(false);
+        SwingWorker<ExcelImportService.ImportResult, Void> worker = new SwingWorker<>() {
+            protected ExcelImportService.ImportResult doInBackground() throws Exception {
+                return excelImportService.importGuests(file);
+            }
+
+            protected void done() {
+                setImportButtonEnabled(true);
+                try {
+                    ExcelImportService.ImportResult result = get();
+                    showImportResult(result);
+                    if (result.importedCount() > 0) {
+                        refreshDashboard();
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    System.err.println("Excel import interrupted.");
+                    DialogHelper.error(HomeView.this, "Excel import stopped", "Import was interrupted.");
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    String message = cause == null ? exception.getMessage() : cause.getMessage();
+                    Throwable logCause = cause == null ? exception : cause;
+                    System.err.println("Excel import failed: " + message);
+                    logCause.printStackTrace(System.err);
+                    if (cause instanceof ExcelImportService.HeaderImportException) {
+                        showHeaderImportError(message);
+                        return;
+                    }
+                    DialogHelper.error(HomeView.this, "Excel import failed", message);
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void showHeaderImportError(String message) {
+        Object[] options = {"Download Sample", "OK"};
+        int selected = JOptionPane.showOptionDialog(
+                this,
+                message,
+                "Excel header issue",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.ERROR_MESSAGE,
+                null,
+                options,
+                options[1]
+        );
+        if (selected == 0) {
+            downloadSampleExcel();
+        }
+    }
+
+    private void downloadSampleExcel() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Save Guest Import Sample");
+        chooser.setSelectedFile(new File("guest_import_sample.xlsx"));
+        chooser.setFileFilter(new FileNameExtensionFilter("Excel workbook (*.xlsx)", "xlsx"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File target = xlsxFile(chooser.getSelectedFile());
+        try {
+            ExcelImportService.writeSampleWorkbook(target);
+            System.out.println("Excel import sample downloaded: " + target.getAbsolutePath());
+            DialogHelper.success(this, "Sample Excel file saved:\n" + target.getAbsolutePath());
+        } catch (Exception exception) {
+            System.err.println("Sample Excel download failed: " + exception.getMessage());
+            exception.printStackTrace(System.err);
+            DialogHelper.error(this, "Sample not saved", exception.getMessage());
+        }
+    }
+
+    private File xlsxFile(File file) {
+        String path = file.getAbsolutePath();
+        return path.toLowerCase().endsWith(".xlsx") ? file : new File(path + ".xlsx");
+    }
+
+    private void showImportResult(ExcelImportService.ImportResult result) {
+        String message = importResultMessage(result);
+        if (result.skippedRows().isEmpty()) {
+            DialogHelper.success(this, message);
+        } else {
+            DialogHelper.warning(this, "Excel import completed with skipped rows", message);
+        }
+    }
+
+    private String importResultMessage(ExcelImportService.ImportResult result) {
+        StringBuilder message = new StringBuilder();
+        message.append("Imported guests: ").append(result.importedCount()).append("\n");
+        message.append("Skipped rows: ").append(result.skippedRows().size());
+
+        if (!result.skippedRows().isEmpty()) {
+            message.append("\n\nSkipped row details:");
+            int limit = Math.min(20, result.skippedRows().size());
+            for (int i = 0; i < limit; i++) {
+                message.append("\n").append(result.skippedRows().get(i));
+            }
+            if (result.skippedRows().size() > limit) {
+                message.append("\n...and ")
+                        .append(result.skippedRows().size() - limit)
+                        .append(" more skipped rows.");
+            }
+        }
+        return message.toString();
+    }
+
+    private void setImportButtonEnabled(boolean enabled) {
+        if (importExcelButton == null) {
+            return;
+        }
+        importExcelButton.setEnabled(enabled);
+        importExcelButton.setText(enabled ? "Import Excel" : "Importing...");
+        importExcelButton.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
     }
 
     private JComponent graphScroll(UniversalGraphPanel graph) {

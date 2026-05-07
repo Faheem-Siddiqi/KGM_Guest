@@ -119,6 +119,24 @@ public class GuestDao {
         return guests;
     }
 
+    public boolean existsByNameOnArrivalDate(String guestName, Date arrivalAt) throws SQLException {
+        String sql = """
+                SELECT 1
+                FROM guests
+                WHERE LOWER(TRIM(guest_name)) = LOWER(TRIM(?))
+                  AND DATE(arrival_at) = DATE(?)
+                LIMIT 1
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, guestName);
+            statement.setTimestamp(2, timestamp(arrivalAt));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
     public void updateDepartureAndReview(long guestId, Date departureAt, String review) throws SQLException {
         String sql = """
                 UPDATE guests

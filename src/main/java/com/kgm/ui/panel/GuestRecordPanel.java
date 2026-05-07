@@ -12,6 +12,7 @@ import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 public class GuestRecordPanel extends JPanel {
@@ -36,6 +37,10 @@ public class GuestRecordPanel extends JPanel {
     private final List<Object[]> allData = new ArrayList<>();
     private final List<Object[]> visibleRecords = new ArrayList<>();
     private final Consumer<Object[]> onViewGuest;
+    private final RefreshIcon refreshIcon = new RefreshIcon(16, HomeViewHelper.PRIMARY);
+    private JButton refreshButton;
+    private Timer refreshAnimation;
+    private SwingWorker<List<Object[]>, Void> refreshWorker;
 
     private final UniversalTablePanel guestTable = new UniversalTablePanel(
             new String[]{"Guest Name", "Arrival", "Departure", "Status", "Tenure", "Actions"},
@@ -47,7 +52,11 @@ public class GuestRecordPanel extends JPanel {
         setLayout(new BorderLayout());
         setOpaque(false);
 
-        JPanel card = HomeViewHelper.sectionCard("Recent Guest Records", "Current guest movements and approvals.");
+        JPanel card = HomeViewHelper.sectionCard(
+                "Recent Guest Records",
+                "Current guest movements and approvals.",
+                refreshButton()
+        );
         guestTable.setActionColumn(5, "View", row -> showGuestDetails(row));
         guestTable.setStatusColumn(3);
         refreshFromDatabase();
@@ -57,14 +66,104 @@ public class GuestRecordPanel extends JPanel {
 
     public void refreshFromDatabase() {
         try {
-            allData.clear();
-            for (Guest guest : guestDao.findAll()) {
-                allData.add(toRecord(guest));
-            }
-            reset();
+            setGuestRecords(loadGuestRecords());
         } catch (SQLException exception) {
             allData.clear();
             setVisibleRecords(new ArrayList<>());
+        }
+    }
+
+    private JButton refreshButton() {
+        JButton button = new JButton(refreshIcon);
+        refreshButton = button;
+        button.setPreferredSize(new Dimension(34, 34));
+        button.setMinimumSize(new Dimension(34, 34));
+        button.setMaximumSize(new Dimension(34, 34));
+        button.setToolTipText("Refresh Data");
+        button.getAccessibleContext().setAccessibleName("Refresh Data");
+        button.setContentAreaFilled(false);
+        button.setBorder(BorderFactory.createEmptyBorder());
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setDisabledIcon(refreshIcon);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.addActionListener(event -> refreshFromDatabaseAsync());
+        return button;
+    }
+
+    private void refreshFromDatabaseAsync() {
+        if (refreshWorker != null && !refreshWorker.isDone()) {
+            return;
+        }
+
+        startRefreshAnimation();
+        refreshWorker = new SwingWorker<>() {
+            protected List<Object[]> doInBackground() throws Exception {
+                return loadGuestRecords();
+            }
+
+            protected void done() {
+                try {
+                    setGuestRecords(get());
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    allData.clear();
+                    setVisibleRecords(new ArrayList<>());
+                    Throwable cause = exception.getCause();
+                    System.err.println("Guest records refresh failed: "
+                            + (cause == null ? exception.getMessage() : cause.getMessage()));
+                } finally {
+                    stopRefreshAnimation();
+                    refreshWorker = null;
+                }
+            }
+        };
+        refreshWorker.execute();
+    }
+
+    private List<Object[]> loadGuestRecords() throws SQLException {
+        List<Object[]> records = new ArrayList<>();
+        for (Guest guest : guestDao.findAll()) {
+            records.add(toRecord(guest));
+        }
+        return records;
+    }
+
+    private void setGuestRecords(List<Object[]> records) {
+        allData.clear();
+        allData.addAll(records);
+        reset();
+    }
+
+    private void startRefreshAnimation() {
+        refreshIcon.setAngle(0);
+        if (refreshButton != null) {
+            refreshButton.setEnabled(false);
+            refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        }
+        if (refreshAnimation != null) {
+            refreshAnimation.stop();
+        }
+        refreshAnimation = new Timer(60, event -> {
+            refreshIcon.rotate(28);
+            if (refreshButton != null) {
+                refreshButton.repaint();
+            }
+        });
+        refreshAnimation.start();
+    }
+
+    private void stopRefreshAnimation() {
+        if (refreshAnimation != null) {
+            refreshAnimation.stop();
+            refreshAnimation = null;
+        }
+        refreshIcon.setAngle(0);
+        if (refreshButton != null) {
+            refreshButton.setEnabled(true);
+            refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            refreshButton.repaint();
         }
     }
 
@@ -267,5 +366,53 @@ public class GuestRecordPanel extends JPanel {
             return first;
         }
         return second == null ? "" : second;
+    }
+
+    private static class RefreshIcon implements Icon {
+        private final int size;
+        private final Color color;
+        private int angle;
+
+        private RefreshIcon(int size, Color color) {
+            this.size = size;
+            this.color = color;
+        }
+
+        public int getIconWidth() {
+            return size;
+        }
+
+        public int getIconHeight() {
+            return size;
+        }
+
+        private void setAngle(int angle) {
+            this.angle = angle % 360;
+        }
+
+        private void rotate(int degrees) {
+            setAngle(angle + degrees);
+        }
+
+        public void paintIcon(Component component, Graphics graphics, int x, int y) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.rotate(Math.toRadians(angle), x + size / 2.0, y + size / 2.0);
+            g2.setColor(color);
+            g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            int inset = 3;
+            int diameter = size - inset * 2;
+            g2.drawArc(x + inset, y + inset, diameter, diameter, 35, 280);
+
+            int arrowX = x + size - 4;
+            int arrowY = y + 5;
+            Polygon arrow = new Polygon();
+            arrow.addPoint(arrowX, arrowY);
+            arrow.addPoint(arrowX - 7, arrowY);
+            arrow.addPoint(arrowX - 3, arrowY + 6);
+            g2.fillPolygon(arrow);
+            g2.dispose();
+        }
     }
 }

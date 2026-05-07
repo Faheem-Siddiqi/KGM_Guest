@@ -19,9 +19,23 @@ public class AccommodationDao {
 
     public List<AccommodationRecord> findAll() throws SQLException {
         String sql = """
-                SELECT a.id, a.name, a.capacity, a.status, a.assigned_staff, c.name AS category_name
+                SELECT
+                    a.id,
+                    a.name,
+                    a.capacity,
+                    GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) AS available_seats,
+                    a.status,
+                    a.assigned_staff,
+                    c.name AS category_name
                 FROM accommodations a
                 JOIN accommodation_categories c ON c.id = a.category_id
+                LEFT JOIN (
+                    SELECT accommodation_id, COUNT(*) AS current_guests
+                    FROM guests
+                    WHERE arrival_at <= NOW()
+                      AND departure_at >= NOW()
+                    GROUP BY accommodation_id
+                ) occupied ON occupied.accommodation_id = a.id
                 WHERE a.active = TRUE
                 ORDER BY c.name, a.name
                 """;
@@ -36,6 +50,7 @@ public class AccommodationDao {
                         resultSet.getString("name"),
                         resultSet.getString("category_name"),
                         resultSet.getInt("capacity"),
+                        resultSet.getInt("available_seats"),
                         resultSet.getString("status"),
                         resultSet.getString("assigned_staff"),
                         findAmenities(connection, id)
@@ -178,6 +193,7 @@ public class AccommodationDao {
             }
         }
         saveAmenities(accommodation.getId(), accommodation.getAmenities());
+        refreshAvailableSeats(accommodation);
         return accommodation;
     }
 
@@ -205,7 +221,37 @@ public class AccommodationDao {
             statement.executeUpdate();
         }
         saveAmenities(accommodation.getId(), accommodation.getAmenities());
+        refreshAvailableSeats(accommodation);
         return accommodation;
+    }
+
+    private void refreshAvailableSeats(AccommodationRecord accommodation) throws SQLException {
+        if (accommodation.getId() <= 0) {
+            accommodation.setAvailableSeats(Math.max(accommodation.getCapacity(), 0));
+            return;
+        }
+
+        String sql = """
+                SELECT GREATEST(a.capacity - COUNT(g.id), 0) AS available_seats
+                FROM accommodations a
+                LEFT JOIN guests g
+                    ON g.accommodation_id = a.id
+                   AND g.arrival_at <= NOW()
+                   AND g.departure_at >= NOW()
+                WHERE a.id = ?
+                GROUP BY a.id, a.capacity
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, accommodation.getId());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    accommodation.setAvailableSeats(resultSet.getInt("available_seats"));
+                    return;
+                }
+            }
+        }
+        accommodation.setAvailableSeats(Math.max(accommodation.getCapacity(), 0));
     }
 
     private List<String> findAmenities(Connection connection, long accommodationId) throws SQLException {

@@ -192,6 +192,10 @@ public final class HomeViewHelper {
     }
 
     public static JPanel sectionCard(String title, String subtitle) {
+        return sectionCard(title, subtitle, null);
+    }
+
+    public static JPanel sectionCard(String title, String subtitle, JComponent action) {
         JPanel card = new JPanel(new BorderLayout(0, 16));
         card.setBackground(Color.WHITE);
         card.setBorder(new CompoundBorder(
@@ -216,7 +220,16 @@ public final class HomeViewHelper {
         heading.add(titleLabel);
         heading.add(Box.createVerticalStrut(4));
         heading.add(subtitleLabel);
-        card.add(heading, BorderLayout.NORTH);
+
+        if (action == null) {
+            card.add(heading, BorderLayout.NORTH);
+        } else {
+            JPanel header = new JPanel(new BorderLayout(12, 0));
+            header.setOpaque(false);
+            header.add(heading, BorderLayout.WEST);
+            header.add(action, BorderLayout.EAST);
+            card.add(header, BorderLayout.NORTH);
+        }
         return card;
     }
 

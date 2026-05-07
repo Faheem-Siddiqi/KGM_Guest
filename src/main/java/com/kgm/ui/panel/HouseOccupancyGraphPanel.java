@@ -14,7 +14,7 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
     private static final String ALL_CATEGORIES = "All Categories";
     private static final int HEADER_LEFT = 22;
     private static final int CATEGORY_TABS_Y = 58;
-    private static final int CATEGORY_TABS_BOTTOM_MARGIN = 4;
+    private static final int CATEGORY_TABS_BOTTOM_MARGIN = 12;
     private final DashboardDao dashboardDao;
     private final CategoryTabsPanel categoryTabs = new CategoryTabsPanel();
     private String selectedCategory = "";

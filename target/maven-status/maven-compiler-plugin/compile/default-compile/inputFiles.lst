@@ -1,4 +1,7 @@
+D:\KGM_Guest\src\main\java\com\kgm\config\DatabaseConfig.java
+D:\KGM_Guest\src\main\java\com\kgm\config\DatabaseConnection.java
 D:\KGM_Guest\src\main\java\com\kgm\controller\UserSessions.java
+D:\KGM_Guest\src\main\java\com\kgm\database\DatabaseInitializer.java
 D:\KGM_Guest\src\main\java\com\kgm\Main.java
 D:\KGM_Guest\src\main\java\com\kgm\model\UserSession.java
 D:\KGM_Guest\src\main\java\com\kgm\service\AuthService.java
@@ -30,8 +33,5 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\styling\AccommodationManagementHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\AddGuestHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\DialogHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\HomeViewHelper.java
-D:\KGM_Guest\src\main\java\com\kgm\util\FileUtil.java
-D:\KGM_Guest\src\main\java\com\kgm\util\FilterUtil.java
 D:\KGM_Guest\src\main\java\com\kgm\util\SessionManager.java
 D:\KGM_Guest\src\main\java\com\kgm\util\SessionWatcher.java
-D:\KGM_Guest\src\main\java\com\kgm\util\ValidationUtil.java

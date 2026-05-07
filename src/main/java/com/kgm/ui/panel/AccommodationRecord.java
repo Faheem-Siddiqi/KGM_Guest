@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AccommodationRecord {
+    private long id;
     private String name;
     private String category;
     private int capacity;
@@ -19,12 +20,29 @@ public class AccommodationRecord {
             String assignedStaff,
             List<String> amenities
     ) {
+        this(0, name, category, capacity, status, assignedStaff, amenities);
+    }
+
+    public AccommodationRecord(
+            long id,
+            String name,
+            String category,
+            int capacity,
+            String status,
+            String assignedStaff,
+            List<String> amenities
+    ) {
+        this.id = id;
         this.name = name;
         this.category = category;
         this.capacity = capacity;
         this.status = status;
         this.assignedStaff = assignedStaff;
         this.amenities = new ArrayList<>(amenities);
+    }
+
+    public long getId() {
+        return id;
     }
 
     public String getName() {
@@ -53,6 +71,10 @@ public class AccommodationRecord {
 
     public String getAmenitiesText() {
         return String.join(", ", amenities);
+    }
+
+    public void setId(long id) {
+        this.id = id;
     }
 
     public void setName(String name) {

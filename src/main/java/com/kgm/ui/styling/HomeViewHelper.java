@@ -11,6 +11,8 @@ import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -68,6 +70,7 @@ public final class HomeViewHelper {
         tabs.setOpaque(true);
         tabs.setBorder(null);
         tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        installTabHoverCursor(tabs);
         tabs.setUI(new BasicTabbedPaneUI() {
             protected void installDefaults() {
                 super.installDefaults();
@@ -166,6 +169,26 @@ public final class HomeViewHelper {
                 g2.dispose();
             }
         });
+    }
+
+    private static void installTabHoverCursor(JTabbedPane tabs) {
+        MouseAdapter tabCursor = new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent event) {
+                int tabIndex = tabs.indexAtLocation(event.getX(), event.getY());
+                boolean hoveringEnabledTab = tabIndex >= 0 && tabs.isEnabledAt(tabIndex);
+                tabs.setCursor(Cursor.getPredefinedCursor(
+                        hoveringEnabledTab ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR
+                ));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent event) {
+                tabs.setCursor(Cursor.getDefaultCursor());
+            }
+        };
+        tabs.addMouseMotionListener(tabCursor);
+        tabs.addMouseListener(tabCursor);
     }
 
     public static JPanel sectionCard(String title, String subtitle) {

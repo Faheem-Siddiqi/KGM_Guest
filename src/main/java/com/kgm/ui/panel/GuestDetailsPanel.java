@@ -46,7 +46,7 @@ public class GuestDetailsPanel extends JPanel {
         int y = AddGuestHelper.addSectionTitle(basicCard, basicGbc, 0, "Basic Information");
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Name", lockedField(value(record, GuestRecordPanel.NAME)));
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest CNIC", lockedField(value(record, GuestRecordPanel.CNIC)));
-        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Association", lockedField(value(record, GuestRecordPanel.ASSOCIATION)));
+        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Nationality", lockedField(value(record, GuestRecordPanel.NATIONALITY)));
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest Category", lockedField(value(record, GuestRecordPanel.CATEGORY)));
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Address", lockedField(value(record, GuestRecordPanel.ADDRESS)));
 

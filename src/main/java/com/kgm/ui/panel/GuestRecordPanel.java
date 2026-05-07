@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 public class GuestRecordPanel extends JPanel {
     public static final int NAME = 0;
     public static final int CNIC = 1;
-    public static final int ASSOCIATION = 2;
+    public static final int NATIONALITY = 2;
     public static final int CATEGORY = 3;
     public static final int ADDRESS = 4;
     public static final int REQUESTED_BY = 5;
@@ -28,14 +28,14 @@ public class GuestRecordPanel extends JPanel {
     public static final int REVIEW = 13;
 
     private final Object[][] allData = {
-            {"Ali Khan", "3520112345671", "Government", "Family", "Islamabad", "Mate", "IT", "Mate", "Admin Office", "2026-05-01", "2026-05-01", "Guest Room", "Room I", "Comfortable stay."},
-            {"Sara Ahmed", "3520112345672", "Private", "Non-Family", "Rawalpindi", "HR Desk", "HR", "Mate", "Admin Office", "2026-05-02", "2026-05-02", "Guest House", "Room II", "Arrived on schedule."},
-            {"Usman Tariq", "3520112345673", "Government", "Family", "Lahore", "Ops Coordinator", "Ops", "Adnan Latif", "Admin Office", "2026-05-02", "2026-05-03", "Guest Room", "Room III", "Requires transport follow-up."},
-            {"Hassan Raza", "3520112345674", "Private", "Family", "Faisalabad", "Finance Desk", "Finance", "Adnan Latif", "Admin Office", "2026-05-03", "2026-05-04", "Guest House", "Room IV", "No issues reported."},
-            {"Bilal Khan", "3520112345675", "Government", "Non-Family", "Karachi", "Sales Desk", "Sales", "Adnan Latif", "Admin Office", "2026-05-04", "2026-05-04", "Guest Room", "Room V", "Short stay completed."},
-            {"Ayesha Noor", "3520112345676", "Private", "Family", "Multan", "IT Desk", "IT", "Adnan Latif", "Admin Office", "2026-05-04", "2026-05-05", "Guest House", "Room VI", "Extended checkout requested."},
-            {"Zain Ali", "3520112345677", "Government", "Non-Family", "Peshawar", "HR Desk", "HR", "Adnan Latif", "Admin Office", "2026-05-05", "2026-05-05", "Guest Room", "Room VII", "Guest checked in smoothly."},
-            {"Noman", "3520112345678", "Private", "Non-Family", "Quetta", "Ops Desk", "Ops", "Adnan Latif", "Admin Office", "2026-05-05", "2026-05-06", "Guest House", "Room I", "Monitor departure timing."}
+            {"Ali Khan", "3520112345671", "Foreigner", "Family", "Islamabad", "Mate", "IT", "Mate", "Admin Office", "2026-05-01", "2026-05-01", "Guest Room", "Room I", "Comfortable stay."},
+            {"Sara Ahmed", "3520112345672", "Pakistani", "Non-Family", "Rawalpindi", "HR Desk", "HR", "Mate", "Admin Office", "2026-05-02", "2026-05-02", "Guest House", "Room II", "Arrived on schedule."},
+            {"Usman Tariq", "3520112345673", "Foreigner", "Family", "Lahore", "Ops Coordinator", "Ops", "Adnan Latif", "Admin Office", "2026-05-02", "2026-05-03", "Guest Room", "Room III", "Requires transport follow-up."},
+            {"Hassan Raza", "3520112345674", "Pakistani", "Family", "Faisalabad", "Finance Desk", "Finance", "Adnan Latif", "Admin Office", "2026-05-03", "2026-05-04", "Guest House", "Room IV", "No issues reported."},
+            {"Bilal Khan", "3520112345675", "Foreigner", "Non-Family", "Karachi", "Sales Desk", "Sales", "Adnan Latif", "Admin Office", "2026-05-04", "2026-05-04", "Guest Room", "Room V", "Short stay completed."},
+            {"Ayesha Noor", "3520112345676", "Pakistani", "Family", "Multan", "IT Desk", "IT", "Adnan Latif", "Admin Office", "2026-05-04", "2026-05-05", "Guest House", "Room VI", "Extended checkout requested."},
+            {"Zain Ali", "3520112345677", "Foreigner", "Non-Family", "Peshawar", "HR Desk", "HR", "Adnan Latif", "Admin Office", "2026-05-05", "2026-05-05", "Guest Room", "Room VII", "Guest checked in smoothly."},
+            {"Noman", "3520112345678", "Pakistani", "Non-Family", "Quetta", "Ops Desk", "Ops", "Adnan Latif", "Admin Office", "2026-05-05", "2026-05-06", "Guest House", "Room I", "Monitor departure timing."}
     };
     private final List<Object[]> visibleRecords = new ArrayList<>();
     private final Consumer<Object[]> onViewGuest;

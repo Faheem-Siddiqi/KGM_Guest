@@ -124,3 +124,15 @@ install Maven
  Set Environment Variable via youtube 
  apache-maven-3.9.14-bin.zip
  mvn clean install
+
+
+https://dev.mysql.com/downloads/file/?id=551030
+
+
+<dependency>
+    <groupId>com.mysql</groupId>
+    <artifactId>mysql-connector-j</artifactId>
+    <version>9.3.0</version>
+</dependency>
+
+

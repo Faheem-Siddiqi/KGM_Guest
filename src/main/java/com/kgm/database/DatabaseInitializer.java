@@ -1,9 +1,11 @@
 package com.kgm.database;
+
 import com.kgm.config.DatabaseConnection;
+
 import java.sql.Connection;
-import java.sql.Statement;
-import java.sql.SQLException;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class DatabaseInitializer {
 
@@ -11,147 +13,147 @@ public class DatabaseInitializer {
 
         String employees = """
             CREATE TABLE IF NOT EXISTS employees (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ID INT PRIMARY KEY AUTO_INCREMENT,
 
                 -- CORE
-                UNT_CODE TEXT DEFAULT '',
-                EMPLOYEE_CODE TEXT UNIQUE DEFAULT '',
-                EMP_NAME TEXT DEFAULT '',
-                FATHER_NAME TEXT DEFAULT '',
-                MOTHER_NAME TEXT DEFAULT '',
-                GENDER TEXT DEFAULT '',
-                DOB TEXT DEFAULT '',
-                CITY_OF_BIRTH TEXT DEFAULT '',
-                NATIONALITY TEXT DEFAULT '',
-                RELIGION TEXT DEFAULT '',
-                BLOOD_GROUP TEXT DEFAULT '',
-                M_STATUS TEXT DEFAULT '',
-                NID TEXT DEFAULT '',
+                UNT_CODE VARCHAR(255) DEFAULT '',
+                EMPLOYEE_CODE VARCHAR(255) UNIQUE DEFAULT '',
+                EMP_NAME VARCHAR(255) DEFAULT '',
+                FATHER_NAME VARCHAR(255) DEFAULT '',
+                MOTHER_NAME VARCHAR(255) DEFAULT '',
+                GENDER VARCHAR(255) DEFAULT '',
+                DOB VARCHAR(255) DEFAULT '',
+                CITY_OF_BIRTH VARCHAR(255) DEFAULT '',
+                NATIONALITY VARCHAR(255) DEFAULT '',
+                RELIGION VARCHAR(255) DEFAULT '',
+                BLOOD_GROUP VARCHAR(255) DEFAULT '',
+                M_STATUS VARCHAR(255) DEFAULT '',
+                NID VARCHAR(255) DEFAULT '',
 
                 -- EMPLOYMENT
-                DEPARTMENT TEXT DEFAULT '',
-                DESIG_CODE TEXT DEFAULT '',
-                DESIGNATION TEXT DEFAULT '',
-                GRADE TEXT DEFAULT '',
-                JOINING_DATE TEXT DEFAULT '',
-                CONFIRMING_ON TEXT DEFAULT '',
-                EMP_STATUS TEXT DEFAULT '',
-                SHIFT TEXT DEFAULT '',
-                PROB_PERIOD TEXT DEFAULT '',
-                EXP_IN_KTML TEXT DEFAULT '',
-                APPLICATION_DATE TEXT DEFAULT '',
-                RESIGN_REASON TEXT DEFAULT '',
-                RESIGN_DATE TEXT DEFAULT '',
+                DEPARTMENT VARCHAR(255) DEFAULT '',
+                DESIG_CODE VARCHAR(255) DEFAULT '',
+                DESIGNATION VARCHAR(255) DEFAULT '',
+                GRADE VARCHAR(255) DEFAULT '',
+                JOINING_DATE VARCHAR(255) DEFAULT '',
+                CONFIRMING_ON VARCHAR(255) DEFAULT '',
+                EMP_STATUS VARCHAR(255) DEFAULT '',
+                SHIFT VARCHAR(255) DEFAULT '',
+                PROB_PERIOD VARCHAR(255) DEFAULT '',
+                EXP_IN_KTML VARCHAR(255) DEFAULT '',
+                APPLICATION_DATE VARCHAR(255) DEFAULT '',
+                RESIGN_REASON VARCHAR(255) DEFAULT '',
+                RESIGN_DATE VARCHAR(255) DEFAULT '',
 
                 -- ORGANIZATION
-                ORG_ID TEXT DEFAULT '',
-                DIVISION TEXT DEFAULT '',
-                BRANCH_CODE TEXT DEFAULT '',
-                BRANCH_NAME TEXT DEFAULT '',
-                DESCR TEXT DEFAULT '',
+                ORG_ID VARCHAR(255) DEFAULT '',
+                DIVISION VARCHAR(255) DEFAULT '',
+                BRANCH_CODE VARCHAR(255) DEFAULT '',
+                BRANCH_NAME VARCHAR(255) DEFAULT '',
+                DESCR VARCHAR(255) DEFAULT '',
 
                 -- PAYROLL
-                GROSS_SALARY TEXT DEFAULT '',
-                PAY_CATEGORY TEXT DEFAULT '',
-                BASIC TEXT DEFAULT '',
-                COLA1 TEXT DEFAULT '',
-                COLA2 TEXT DEFAULT '',
-                COLA3 TEXT DEFAULT '',
-                COLA4 TEXT DEFAULT '',
-                COLA5 TEXT DEFAULT '',
-                COLA6_7 TEXT DEFAULT '',
-                COLA8 TEXT DEFAULT '',
-                COLA9 TEXT DEFAULT '',
-                COLA10 TEXT DEFAULT '',
-                COLA11 TEXT DEFAULT '',
-                PB_SPECIAL1_2 TEXT DEFAULT '',
-                PB_SPECIAL3 TEXT DEFAULT '',
-                PB_SPECIAL4 TEXT DEFAULT '',
-                SPECIAL TEXT DEFAULT '',
-                OTHER1 TEXT DEFAULT '',
-                OTHER2 TEXT DEFAULT '',
-                OTHER3 TEXT DEFAULT '',
-                MEDICAL TEXT DEFAULT '',
-                CONVEYANCE TEXT DEFAULT '',
-                UTILITY TEXT DEFAULT '',
-                ENTERTAINMENT TEXT DEFAULT '',
-                PAY_GROUP TEXT DEFAULT '',
-                PAY_GROUP_DESC TEXT DEFAULT '',
-                PAY_AT_JOINING TEXT DEFAULT '',
-                EXTRA_DUTY TEXT DEFAULT '',
-                PAYROLL_FLAG TEXT DEFAULT '',
+                GROSS_SALARY VARCHAR(255) DEFAULT '',
+                PAY_CATEGORY VARCHAR(255) DEFAULT '',
+                BASIC VARCHAR(255) DEFAULT '',
+                COLA1 VARCHAR(255) DEFAULT '',
+                COLA2 VARCHAR(255) DEFAULT '',
+                COLA3 VARCHAR(255) DEFAULT '',
+                COLA4 VARCHAR(255) DEFAULT '',
+                COLA5 VARCHAR(255) DEFAULT '',
+                COLA6_7 VARCHAR(255) DEFAULT '',
+                COLA8 VARCHAR(255) DEFAULT '',
+                COLA9 VARCHAR(255) DEFAULT '',
+                COLA10 VARCHAR(255) DEFAULT '',
+                COLA11 VARCHAR(255) DEFAULT '',
+                PB_SPECIAL1_2 VARCHAR(255) DEFAULT '',
+                PB_SPECIAL3 VARCHAR(255) DEFAULT '',
+                PB_SPECIAL4 VARCHAR(255) DEFAULT '',
+                SPECIAL VARCHAR(255) DEFAULT '',
+                OTHER1 VARCHAR(255) DEFAULT '',
+                OTHER2 VARCHAR(255) DEFAULT '',
+                OTHER3 VARCHAR(255) DEFAULT '',
+                MEDICAL VARCHAR(255) DEFAULT '',
+                CONVEYANCE VARCHAR(255) DEFAULT '',
+                UTILITY VARCHAR(255) DEFAULT '',
+                ENTERTAINMENT VARCHAR(255) DEFAULT '',
+                PAY_GROUP VARCHAR(255) DEFAULT '',
+                PAY_GROUP_DESC VARCHAR(255) DEFAULT '',
+                PAY_AT_JOINING VARCHAR(255) DEFAULT '',
+                EXTRA_DUTY VARCHAR(255) DEFAULT '',
+                PAYROLL_FLAG VARCHAR(255) DEFAULT '',
 
                 -- BANKING
-                BANK_NAME TEXT DEFAULT '',
-                BANK_AC_NO TEXT DEFAULT '',
-                SS_NO TEXT DEFAULT '',
-                EOBI_NO TEXT DEFAULT '',
-                TAX_NO TEXT DEFAULT '',
-                PFUND_DEDUCTION TEXT DEFAULT '',
-                PF_INTEREST TEXT DEFAULT '',
-                PFUND_CODE TEXT DEFAULT '',
-                CLIPPER_PFUND_CODE TEXT DEFAULT '',
-                EFU TEXT DEFAULT '',
-                EFU_NO TEXT DEFAULT '',
-                EOBI_STATUS TEXT DEFAULT '',
+                BANK_NAME VARCHAR(255) DEFAULT '',
+                BANK_AC_NO VARCHAR(255) DEFAULT '',
+                SS_NO VARCHAR(255) DEFAULT '',
+                EOBI_NO VARCHAR(255) DEFAULT '',
+                TAX_NO VARCHAR(255) DEFAULT '',
+                PFUND_DEDUCTION VARCHAR(255) DEFAULT '',
+                PF_INTEREST VARCHAR(255) DEFAULT '',
+                PFUND_CODE VARCHAR(255) DEFAULT '',
+                CLIPPER_PFUND_CODE VARCHAR(255) DEFAULT '',
+                EFU VARCHAR(255) DEFAULT '',
+                EFU_NO VARCHAR(255) DEFAULT '',
+                EOBI_STATUS VARCHAR(255) DEFAULT '',
 
                 -- CONTACT
-                EMP_CONTNO TEXT DEFAULT '',
-                CURRENT_ADR TEXT DEFAULT '',
-                PERMANENT_ADR TEXT DEFAULT '',
-                PERSONAL_EMAIL TEXT DEFAULT '',
-                OFFICIAL_EMAIL TEXT DEFAULT '',
-                EMERGENCY_NO TEXT DEFAULT '',
+                EMP_CONTNO VARCHAR(255) DEFAULT '',
+                CURRENT_ADR VARCHAR(255) DEFAULT '',
+                PERMANENT_ADR VARCHAR(255) DEFAULT '',
+                PERSONAL_EMAIL VARCHAR(255) DEFAULT '',
+                OFFICIAL_EMAIL VARCHAR(255) DEFAULT '',
+                EMERGENCY_NO VARCHAR(255) DEFAULT '',
 
                 -- REPORTING
-                REP_UNT TEXT DEFAULT '',
-                REP_EMP_ID TEXT DEFAULT '',
-                REP_EMP_DESIG_CODE TEXT DEFAULT '',
-                REP_EMP_DEPT_CODE TEXT DEFAULT '',
-                REP_EMP_TYPE TEXT DEFAULT '',
+                REP_UNT VARCHAR(255) DEFAULT '',
+                REP_EMP_ID VARCHAR(255) DEFAULT '',
+                REP_EMP_DESIG_CODE VARCHAR(255) DEFAULT '',
+                REP_EMP_DEPT_CODE VARCHAR(255) DEFAULT '',
+                REP_EMP_TYPE VARCHAR(255) DEFAULT '',
 
                 -- COMPLIANCE
-                FLAG TEXT DEFAULT '',
-                CLEARANCE_STATUS TEXT DEFAULT '',
-                HOD_CHECK TEXT DEFAULT '',
-                SEC_HEAD_CHK TEXT DEFAULT '',
-                NIC_VERIFY TEXT DEFAULT '',
-                NIC_VERIFY_DATE TEXT DEFAULT '',
-                ATT_CATEG TEXT DEFAULT '',
-                DIS_CERTIFICATE TEXT DEFAULT '',
+                FLAG VARCHAR(255) DEFAULT '',
+                CLEARANCE_STATUS VARCHAR(255) DEFAULT '',
+                HOD_CHECK VARCHAR(255) DEFAULT '',
+                SEC_HEAD_CHK VARCHAR(255) DEFAULT '',
+                NIC_VERIFY VARCHAR(255) DEFAULT '',
+                NIC_VERIFY_DATE VARCHAR(255) DEFAULT '',
+                ATT_CATEG VARCHAR(255) DEFAULT '',
+                DIS_CERTIFICATE VARCHAR(255) DEFAULT '',
 
                 -- BENEFITS
-                WELLNESS_CLUB TEXT DEFAULT '',
-                WELLNESS_CARD_ISSUE TEXT DEFAULT '',
-                WELLNESS_CARD_NO TEXT DEFAULT '',
-                WELLNESS_CLUB_VALID_DATE TEXT DEFAULT '',
+                WELLNESS_CLUB VARCHAR(255) DEFAULT '',
+                WELLNESS_CARD_ISSUE VARCHAR(255) DEFAULT '',
+                WELLNESS_CARD_NO VARCHAR(255) DEFAULT '',
+                WELLNESS_CLUB_VALID_DATE VARCHAR(255) DEFAULT '',
 
                 -- VACCINATION
-                FIRST_DOSE TEXT DEFAULT '',
-                SECOND_DOSE TEXT DEFAULT '',
-                FIRST_VACC_DATE TEXT DEFAULT '',
-                SECOND_VACC_DATE TEXT DEFAULT '',
+                FIRST_DOSE VARCHAR(255) DEFAULT '',
+                SECOND_DOSE VARCHAR(255) DEFAULT '',
+                FIRST_VACC_DATE VARCHAR(255) DEFAULT '',
+                SECOND_VACC_DATE VARCHAR(255) DEFAULT '',
 
                 -- DOCUMENTS
-                CNIC_COPY TEXT DEFAULT '',
-                SS_CARD_COPY TEXT DEFAULT '',
-                EOBI_CARD_COPY TEXT DEFAULT '',
-                FINAL_SETTLEMENT TEXT DEFAULT '',
-                CLEARANCE_CERT TEXT DEFAULT '',
-                JOB_APPOINTMENT TEXT DEFAULT '',
-                APPLICATION_DOC TEXT DEFAULT '',
-                ISSUANCE_DOC TEXT DEFAULT '',
-                SETTLEMENT_DOC TEXT DEFAULT '',
-                TRIAL_CARD TEXT DEFAULT '',
-                INTERVIEW_DOC TEXT DEFAULT '',
-                SERVICE_LETTER TEXT DEFAULT '',
-                EXTENSION_LETTER TEXT DEFAULT '',
-                RETIREMENT_LETTER TEXT DEFAULT '',
-                COVID_CERT TEXT DEFAULT '',
-                DISCIPLINARY_I TEXT DEFAULT '',
-                DISCIPLINARY_II TEXT DEFAULT '',
-                DISCIPLINARY_III TEXT DEFAULT '',
-                EMP_IMG TEXT DEFAULT ''
+                CNIC_COPY VARCHAR(255) DEFAULT '',
+                SS_CARD_COPY VARCHAR(255) DEFAULT '',
+                EOBI_CARD_COPY VARCHAR(255) DEFAULT '',
+                FINAL_SETTLEMENT VARCHAR(255) DEFAULT '',
+                CLEARANCE_CERT VARCHAR(255) DEFAULT '',
+                JOB_APPOINTMENT VARCHAR(255) DEFAULT '',
+                APPLICATION_DOC VARCHAR(255) DEFAULT '',
+                ISSUANCE_DOC VARCHAR(255) DEFAULT '',
+                SETTLEMENT_DOC VARCHAR(255) DEFAULT '',
+                TRIAL_CARD VARCHAR(255) DEFAULT '',
+                INTERVIEW_DOC VARCHAR(255) DEFAULT '',
+                SERVICE_LETTER VARCHAR(255) DEFAULT '',
+                EXTENSION_LETTER VARCHAR(255) DEFAULT '',
+                RETIREMENT_LETTER VARCHAR(255) DEFAULT '',
+                COVID_CERT VARCHAR(255) DEFAULT '',
+                DISCIPLINARY_I VARCHAR(255) DEFAULT '',
+                DISCIPLINARY_II VARCHAR(255) DEFAULT '',
+                DISCIPLINARY_III VARCHAR(255) DEFAULT '',
+                EMP_IMG VARCHAR(255) DEFAULT ''
             );
         """;
 
@@ -159,18 +161,17 @@ public class DatabaseInitializer {
              Statement stmt = conn.createStatement()) {
 
             ResultSet rs = stmt.executeQuery(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='employees'"
+                "SELECT COUNT(*) FROM information_schema.tables "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'employees'"
             );
-            boolean exists = rs.next();
+            boolean exists = rs.next() && rs.getInt(1) > 0;
             rs.close();
 
             stmt.execute(employees);
 
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_emp_code ON employees(EMPLOYEE_CODE);");
-
             System.out.println(exists ? "=> Schema already exists." : "=> Schema created.");
 
-        } catch (SQLException e) {
+        } catch (SQLException | IllegalStateException e) {
             System.out.println("=> Schema failed!");
             e.printStackTrace();
         }

@@ -43,7 +43,10 @@ public class AddGuest extends JFrame {
 
         JTextField guestNameField = new JTextField("");
         JTextField guestCnicField = new JTextField("1234512345671");
-        JComboBox<String> guestAssociationCombo = AddGuestHelper.combo("Government", "Private", "Other");
+        JComboBox<String> guestNationalityCombo = AddGuestHelper.editableCombo(
+                "Pakistani", "Afghan", "Chinese", "Turkish", "Other (Specify)"
+        );
+        guestNationalityCombo.setSelectedItem("Pakistani");
         JComboBox<String> guestCategoryCombo = AddGuestHelper.combo("Family", "Non-Family");
         JTextField guestAddressField = new JTextField("");
 
@@ -80,7 +83,7 @@ public class AddGuest extends JFrame {
         int y = AddGuestHelper.addSectionTitle(basicCard, basicGbc, 0, "Basic Information");
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Name", guestNameField);
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest CNIC", guestCnicField);
-        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Association", guestAssociationCombo);
+        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Nationality", guestNationalityCombo);
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest Category", guestCategoryCombo);
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Address", guestAddressField);
 
@@ -123,7 +126,7 @@ public class AddGuest extends JFrame {
         reset.addActionListener(e -> {
             guestNameField.setText("");
             guestCnicField.setText("1234512345671");
-            guestAssociationCombo.setSelectedIndex(0);
+            guestNationalityCombo.setSelectedItem("Pakistani");
             guestCategoryCombo.setSelectedIndex(0);
             guestAddressField.setText("");
             requestedByField.setText("");
@@ -144,7 +147,7 @@ public class AddGuest extends JFrame {
                 page,
                 guestNameField,
                 guestCnicField,
-                guestAssociationCombo,
+                guestNationalityCombo,
                 guestCategoryCombo,
                 guestAddressField,
                 requestedByField,
@@ -225,7 +228,7 @@ public class AddGuest extends JFrame {
             Component parent,
             JTextField guestNameField,
             JTextField guestCnicField,
-            JComboBox<String> guestAssociationCombo,
+            JComboBox<String> guestNationalityCombo,
             JComboBox<String> guestCategoryCombo,
             JTextField guestAddressField,
             JTextField requestedByField,
@@ -242,7 +245,7 @@ public class AddGuest extends JFrame {
         StringBuilder errors = new StringBuilder();
         String guestName = guestNameField.getText().trim();
         String guestCnic = guestCnicField.getText().trim();
-        String guestAssociation = String.valueOf(guestAssociationCombo.getSelectedItem()).trim();
+        String guestNationality = String.valueOf(guestNationalityCombo.getEditor().getItem()).trim();
         String guestCategory = String.valueOf(guestCategoryCombo.getSelectedItem()).trim();
         String guestAddress = guestAddressField.getText().trim();
         String requestedBy = requestedByField.getText().trim();
@@ -260,8 +263,8 @@ public class AddGuest extends JFrame {
         if (guestCnic.isEmpty()) {
             errors.append("Guest CNIC is required.\n");
         }
-        if (guestAssociation.isEmpty()) {
-            errors.append("Guest Association is required.\n");
+        if (guestNationality.isEmpty()) {
+            errors.append("Guest Nationality is required.\n");
         }
         if (guestCategory.isEmpty()) {
             errors.append("Guest Category is required.\n");
@@ -300,7 +303,7 @@ public class AddGuest extends JFrame {
 
         System.out.println("Guest Name: " + guestName);
         System.out.println("Guest CNIC: " + guestCnic);
-        System.out.println("Guest Association: " + guestAssociation);
+        System.out.println("Guest Nationality: " + guestNationality);
         System.out.println("Guest Category: " + guestCategory);
         System.out.println("Guest Address: " + guestAddress);
         System.out.println("Requested By: " + requestedBy);

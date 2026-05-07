@@ -1,20 +1,27 @@
 package com.kgm.config;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-public class DatabaseConnection {
-    private static final String URL = "jdbc:sqlite:kgm_employees.db";
+
+public final class DatabaseConnection {
+    private static final String HOST = "localhost";
+    private static final int PORT = 3306;
+    private static final String DATABASE = "KGM_GUESTS";
+    private static final String USERNAME = "FaheemSIDDIQI";
+    private static final String PASSWORD = "FS@12345";
+
+    private static final String URL = "jdbc:mysql://" + HOST + ":" + PORT + "/" + DATABASE
+            + "?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+
+    private DatabaseConnection() {
+    }
+
     public static Connection getConnection() {
         try {
-            Connection conn = DriverManager.getConnection(URL);
-            if (conn != null) {
-                System.out.println("  => Database connected successfully!");
-            }
-            return conn;
+            return DriverManager.getConnection(URL, USERNAME, PASSWORD);
         } catch (SQLException e) {
-            System.out.println("  =>  Connection failed!");
-            e.printStackTrace();
-            return null;
+            throw new IllegalStateException("Unable to connect to MySQL database: " + e.getMessage(), e);
         }
     }
 }

@@ -33,32 +33,46 @@ public class DashboardDao {
     }
 
     public OccupancyChartData loadOccupancyChart() throws SQLException {
+        return loadOccupancyChart("");
+    }
+
+    public OccupancyChartData loadOccupancyChart(String category) throws SQLException {
+        String normalizedCategory = category == null ? "" : category.trim();
         String sql = """
                 SELECT
+                    c.name AS category_name,
                     a.name,
                     a.capacity,
                     COUNT(g.id) AS occupied
                 FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
                 LEFT JOIN guests g
                     ON g.accommodation_id = a.id
                    AND g.arrival_at <= NOW()
                    AND g.departure_at >= NOW()
                 WHERE a.active = TRUE
-                GROUP BY a.id, a.name, a.capacity
-                ORDER BY a.name
-                LIMIT 8
+                  AND (? = '' OR c.name = ?)
+                GROUP BY a.id, c.name, a.name, a.capacity
+                ORDER BY c.name, a.name
                 """;
 
         List<String> labels = new ArrayList<>();
         List<Integer> capacity = new ArrayList<>();
         List<Integer> occupied = new ArrayList<>();
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedCategory);
+            statement.setString(2, normalizedCategory);
+            try (ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
-                labels.add(shortLabel(resultSet.getString("name")));
+                String room = resultSet.getString("name");
+                String label = normalizedCategory.isEmpty()
+                        ? shortLabel(resultSet.getString("category_name")) + "\n" + shortLabel(room)
+                        : shortLabel(room);
+                labels.add(label);
                 capacity.add(resultSet.getInt("capacity"));
                 occupied.add(resultSet.getInt("occupied"));
+            }
             }
         }
         return new OccupancyChartData(toStringArray(labels), toIntArray(capacity), toIntArray(occupied));
@@ -66,10 +80,12 @@ public class DashboardDao {
 
     public DepartmentChartData loadDepartmentChart() throws SQLException {
         String sql = """
-                SELECT requested_department, COUNT(*) AS guests
+                SELECT
+                    COALESCE(NULLIF(TRIM(requested_department), ''), 'Unknown') AS department_name,
+                    COUNT(*) AS guests
                 FROM guests
-                GROUP BY requested_department
-                ORDER BY guests DESC, requested_department
+                GROUP BY department_name
+                ORDER BY guests DESC, department_name
                 LIMIT 5
                 """;
 
@@ -79,11 +95,29 @@ public class DashboardDao {
              PreparedStatement statement = connection.prepareStatement(sql);
              ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
-                labels.add(shortLabel(resultSet.getString("requested_department")));
+                labels.add(shortLabel(resultSet.getString("department_name")));
                 values.add(resultSet.getInt("guests"));
             }
         }
         return new DepartmentChartData(toStringArray(labels), toIntArray(values));
+    }
+
+    public String[] loadAccommodationCategories() throws SQLException {
+        String sql = """
+                SELECT name
+                FROM accommodation_categories
+                WHERE active = TRUE
+                ORDER BY name
+                """;
+        List<String> categories = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                categories.add(resultSet.getString("name"));
+            }
+        }
+        return toStringArray(categories);
     }
 
     private int totalSeats() throws SQLException {
@@ -148,7 +182,7 @@ public class DashboardDao {
 
     private String shortLabel(String value) {
         String text = value == null || value.isBlank() ? "-" : value.trim();
-        return text.length() <= 10 ? text : text.substring(0, 9) + ".";
+        return text.length() <= 14 ? text : text.substring(0, 13) + ".";
     }
 
     private String[] toStringArray(List<String> values) {

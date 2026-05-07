@@ -44,9 +44,15 @@ public class GuestDetailsPanel extends JPanel {
         JSpinner departureDate = dateTimeSpinner(departureValue);
         JTextField tenureField = lockedField("");
         JTextField statusField = lockedField("");
-        JTextArea review = AddGuestHelper.remarksArea(value(record, GuestRecordPanel.REVIEW));
+        String reviewText = value(record, GuestRecordPanel.REVIEW);
+        JTextArea review = AddGuestHelper.remarksArea(reviewText);
+        boolean canEditReview = canEditReview(reviewText);
+        review.setEditable(canEditReview);
+        review.setFocusable(canEditReview);
+        review.setBackground(canEditReview ? Color.WHITE : new Color(248, 248, 248));
 
         arrivalDate.setEnabled(false);
+        departureDate.setEnabled(!isDeparted(departureValue));
         updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
         departureDate.addChangeListener(e -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
         addDateTimeEditListener(departureDate, () -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
@@ -101,15 +107,23 @@ public class GuestDetailsPanel extends JPanel {
         JButton update = new JButton("Update Guest");
         AddGuestHelper.stylePrimary(update);
         update.addActionListener(e -> {
+            if (!canEditReview && !departureDate.isEnabled()) {
+                DialogHelper.warning(this, "No editable fields", "This departed guest record cannot be changed.");
+                return;
+            }
             updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
             if (tenureField.getText().startsWith("Departure must")) {
                 DialogHelper.error(this, "Invalid departure", tenureField.getText());
                 return;
             }
             try {
-                guestDao.updateDepartureAndReview(recordId(record), (Date) departureDate.getValue(), review.getText().trim());
+                String nextReview = review.getText().trim();
+                if (!canEditReview) {
+                    nextReview = value(record, GuestRecordPanel.REVIEW);
+                }
+                guestDao.updateDepartureAndReview(recordId(record), (Date) departureDate.getValue(), nextReview);
                 record[GuestRecordPanel.DEPARTURE] = DATE_TIME.format((Date) departureDate.getValue());
-                record[GuestRecordPanel.REVIEW] = review.getText().trim();
+                record[GuestRecordPanel.REVIEW] = nextReview;
                 updateStatus(arrivalDate, departureDate, statusField);
                 onUpdated.run();
                 DialogHelper.success(this, "Guest details updated.");
@@ -147,7 +161,12 @@ public class GuestDetailsPanel extends JPanel {
             scroll.getVerticalScrollBar().setValue(0);
             scroll.getHorizontalScrollBar().setValue(0);
         });
-        Timer statusTimer = new Timer(1000, event -> updateStatus(arrivalDate, departureDate, statusField));
+        Timer statusTimer = new Timer(1000, event -> {
+            updateStatus(arrivalDate, departureDate, statusField);
+            if (isDeparted((Date) departureDate.getValue())) {
+                departureDate.setEnabled(false);
+            }
+        });
         statusTimer.start();
         scroll.addHierarchyListener(event -> {
             if ((event.getChangeFlags() & HierarchyEvent.DISPLAYABILITY_CHANGED) != 0 && !scroll.isDisplayable()) {
@@ -185,6 +204,18 @@ public class GuestDetailsPanel extends JPanel {
         field.setForeground(new Color(70, 70, 70));
         field.setBackground(Color.WHITE);
         return field;
+    }
+
+    private static boolean canEditReview(String value) {
+        String text = value == null ? "" : value.trim();
+        return text.isEmpty()
+                || text.equalsIgnoreCase("N/A")
+                || text.equals("''")
+                || text.equals("' '");
+    }
+
+    private static boolean isDeparted(Date departure) {
+        return departure != null && !departure.after(new Date());
     }
 
     private static Date parseDate(String value) {

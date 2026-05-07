@@ -21,6 +21,10 @@ import java.util.Date;
 import java.util.List;
 
 public class AddGuest extends JFrame {
+    private static final String ALL_ROOMS_OCCUPIED = "All rooms occupied";
+    private static final String NO_ROOMS_AVAILABLE = "No rooms available";
+    private static final Color ROOM_BLOCKED_COLOR = new Color(180, 60, 45);
+
     private static final GuestDao GUEST_DAO = new GuestDao();
     private static final AccommodationDao ACCOMMODATION_DAO = new AccommodationDao();
     private static final AccommodationCategoryDao ACCOMMODATION_CATEGORY_DAO = new AccommodationCategoryDao();
@@ -81,6 +85,7 @@ public class AddGuest extends JFrame {
         tenureField.setBackground(Color.WHITE);
         JComboBox<String> accommodationCombo = AddGuestHelper.combo(accommodationCategoryItems());
         JComboBox<String> roomCombo = AddGuestHelper.combo();
+        installRoomComboRenderer(roomCombo);
         updateRoomCombo(accommodationCombo, roomCombo);
         accommodationCombo.addActionListener(event -> updateRoomCombo(accommodationCombo, roomCombo));
         JTextArea remarks = AddGuestHelper.remarksArea("N/A");
@@ -136,23 +141,23 @@ public class AddGuest extends JFrame {
         JPanel actions = AddGuestHelper.actionsPanel();
         JButton reset = new JButton("Reset");
         AddGuestHelper.styleReset(reset);
-        reset.addActionListener(e -> {
-            guestNameField.setText("");
-            guestCnicField.setText("");
-            guestNationalityCombo.setSelectedItem("Pakistani");
-            guestCategoryCombo.setSelectedIndex(0);
-            guestAddressField.setText("");
-            requestedByField.setText("");
-            requestedDepartmentCombo.setSelectedItem("");
-            approvedByField.setText("");
-            accommodatedByField.setText("");
-            arrivalDate.setValue(initialArrivalDate);
-            departureDate.setValue(initialDepartureDate);
-            selectFirstItem(accommodationCombo);
-            updateRoomCombo(accommodationCombo, roomCombo);
-            remarks.setText("N/A");
-            updateTenure(arrivalDate, departureDate, tenureField);
-        });
+        reset.addActionListener(e -> clearForm(
+                guestNameField,
+                guestCnicField,
+                guestNationalityCombo,
+                guestCategoryCombo,
+                guestAddressField,
+                requestedByField,
+                requestedDepartmentCombo,
+                approvedByField,
+                accommodatedByField,
+                accommodationCombo,
+                roomCombo,
+                arrivalDate,
+                departureDate,
+                tenureField,
+                remarks
+        ));
 
         JButton submit = new JButton("Add Guest");
         AddGuestHelper.stylePrimary(submit);
@@ -276,6 +281,8 @@ public class AddGuest extends JFrame {
         }
         if (guestCnic.isEmpty()) {
             errors.append("Guest CNIC is required.\n");
+        } else if (!guestCnic.matches("\\d{13}")) {
+            errors.append("Guest CNIC must contain exactly 13 digits.\n");
         }
         if (guestNationality.isEmpty()) {
             errors.append("Guest Nationality is required.\n");
@@ -304,8 +311,8 @@ public class AddGuest extends JFrame {
         if (accommodation.isEmpty()) {
             errors.append("Accommodation Category is required.\n");
         }
-        if (room.isEmpty()) {
-            errors.append("Room is required.\n");
+        if (room.isEmpty() || isRoomPlaceholder(room) || !roomCombo.isEnabled()) {
+            errors.append("No ready room is available for the selected accommodation category.\n");
         }
         if (errors.length() > 0) {
             DialogHelper.error(parent, "Please complete required fields", errors.toString());
@@ -331,6 +338,23 @@ public class AddGuest extends JFrame {
         try {
             GUEST_DAO.save(guest);
             DialogHelper.success(parent, "Guest added successfully. Record ID: " + guest.getId());
+            clearForm(
+                    guestNameField,
+                    guestCnicField,
+                    guestNationalityCombo,
+                    guestCategoryCombo,
+                    guestAddressField,
+                    requestedByField,
+                    requestedDepartmentCombo,
+                    approvedByField,
+                    accommodatedByField,
+                    accommodationCombo,
+                    roomCombo,
+                    arrivalDate,
+                    departureDate,
+                    tenureField,
+                    remarks
+            );
         } catch (SQLException exception) {
             DialogHelper.error(parent, "Guest not saved", exception.getMessage());
         }
@@ -363,8 +387,63 @@ public class AddGuest extends JFrame {
 
     private static void updateRoomCombo(JComboBox<String> accommodationCombo, JComboBox<String> roomCombo) {
         String accommodation = selectedText(accommodationCombo);
-        setComboItems(roomCombo, roomItems(accommodation));
-        roomCombo.setEnabled(!accommodation.isEmpty() && roomCombo.getItemCount() > 0);
+        if (accommodation.isEmpty()) {
+            setComboItems(roomCombo, new String[0]);
+            setRoomComboState(roomCombo, false, false);
+            return;
+        }
+
+        String[] readyRooms = roomItems(accommodation);
+        if (readyRooms.length > 0) {
+            setComboItems(roomCombo, readyRooms);
+            setRoomComboState(roomCombo, true, false);
+            return;
+        }
+
+        if (hasRoomsInCategory(accommodation)) {
+            setComboItems(roomCombo, new String[]{ALL_ROOMS_OCCUPIED});
+            setRoomComboState(roomCombo, false, true);
+            return;
+        }
+
+        setComboItems(roomCombo, new String[]{NO_ROOMS_AVAILABLE});
+        setRoomComboState(roomCombo, false, false);
+    }
+
+    private static void clearForm(
+            JTextField guestNameField,
+            JTextField guestCnicField,
+            JComboBox<String> guestNationalityCombo,
+            JComboBox<String> guestCategoryCombo,
+            JTextField guestAddressField,
+            JTextField requestedByField,
+            JComboBox<String> requestedDepartmentCombo,
+            JTextField approvedByField,
+            JTextField accommodatedByField,
+            JComboBox<String> accommodationCombo,
+            JComboBox<String> roomCombo,
+            JSpinner arrivalDate,
+            JSpinner departureDate,
+            JTextField tenureField,
+            JTextArea remarks
+    ) {
+        guestNameField.setText("");
+        guestCnicField.setText("");
+        guestNationalityCombo.setSelectedItem("Pakistani");
+        if (guestCategoryCombo.getItemCount() > 0) {
+            guestCategoryCombo.setSelectedIndex(0);
+        }
+        guestAddressField.setText("");
+        requestedByField.setText("");
+        requestedDepartmentCombo.setSelectedItem("");
+        approvedByField.setText("");
+        accommodatedByField.setText("");
+        arrivalDate.setValue(dateTimeValue(0, 0));
+        departureDate.setValue(dateTimeValue(1, 0));
+        selectFirstItem(accommodationCombo);
+        updateRoomCombo(accommodationCombo, roomCombo);
+        remarks.setText("N/A");
+        updateTenure(arrivalDate, departureDate, tenureField);
     }
 
     private static String[] itemsOrFallback(List<String> values, String... fallback) {
@@ -375,6 +454,42 @@ public class AddGuest extends JFrame {
             }
         }
         return cleanValues.isEmpty() ? fallback : cleanValues.toArray(new String[0]);
+    }
+
+    private static boolean hasRoomsInCategory(String accommodationCategory) {
+        try {
+            return !ACCOMMODATION_DAO.findActiveNamesByCategory(accommodationCategory).isEmpty();
+        } catch (SQLException exception) {
+            return false;
+        }
+    }
+
+    private static void setRoomComboState(JComboBox<String> roomCombo, boolean enabled, boolean allOccupied) {
+        roomCombo.setEnabled(enabled);
+        roomCombo.setForeground(allOccupied ? ROOM_BLOCKED_COLOR : Color.BLACK);
+        roomCombo.putClientProperty("kgm.allRoomsOccupied", allOccupied);
+        roomCombo.repaint();
+    }
+
+    private static void installRoomComboRenderer(JComboBox<String> roomCombo) {
+        ListCellRenderer<? super String> defaultRenderer = roomCombo.getRenderer();
+        roomCombo.setRenderer((list, value, index, isSelected, cellHasFocus) -> {
+            Component component = defaultRenderer.getListCellRendererComponent(
+                    list,
+                    value,
+                    index,
+                    isSelected,
+                    cellHasFocus
+            );
+            if (component instanceof JLabel label) {
+                if (ALL_ROOMS_OCCUPIED.equals(value)) {
+                    label.setForeground(ROOM_BLOCKED_COLOR);
+                } else if (NO_ROOMS_AVAILABLE.equals(value)) {
+                    label.setForeground(new Color(145, 145, 145));
+                }
+            }
+            return component;
+        });
     }
 
     private static void setComboItems(JComboBox<String> comboBox, String[] items) {
@@ -400,6 +515,10 @@ public class AddGuest extends JFrame {
     private static String selectedText(JComboBox<String> comboBox) {
         Object selected = comboBox.getSelectedItem();
         return selected == null ? "" : String.valueOf(selected).trim();
+    }
+
+    private static boolean isRoomPlaceholder(String value) {
+        return ALL_ROOMS_OCCUPIED.equals(value) || NO_ROOMS_AVAILABLE.equals(value);
     }
 
     private static boolean containsItem(JComboBox<String> comboBox, String value) {

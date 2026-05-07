@@ -11,6 +11,7 @@ import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.panel.HomeKpiPanel;
 import com.kgm.ui.panel.HouseOccupancyGraphPanel;
+import com.kgm.ui.panel.UniversalGraphPanel;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
@@ -219,11 +220,26 @@ public class HomeView extends JFrame {
         JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 16));
         graphs.setOpaque(false);
         graphs.setPreferredSize(new Dimension(0, 360));
+        String[] accommodationCategories = loadAccommodationCategories();
 
-        graphs.add(new HouseOccupancyGraphPanel(loadOccupancyChart()));
-        graphs.add(new DepartmentAnalysisGraphPanel(loadDepartmentChart()));
+        graphs.add(graphScroll(new HouseOccupancyGraphPanel(
+                dashboardDao,
+                loadOccupancyChart(defaultOccupancyCategory(accommodationCategories)),
+                accommodationCategories
+        )));
+        graphs.add(graphScroll(new DepartmentAnalysisGraphPanel(loadDepartmentChart())));
 
         return graphs;
+    }
+
+    private JComponent graphScroll(UniversalGraphPanel graph) {
+        JScrollPane scroll = new JScrollPane(graph);
+        scroll.setBorder(null);
+        scroll.getViewport().setBackground(Color.WHITE);
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroll.getHorizontalScrollBar().setUnitIncrement(16);
+        return scroll;
     }
 
     private DashboardDao.DashboardStats loadDashboardStats() {
@@ -234,12 +250,24 @@ public class HomeView extends JFrame {
         }
     }
 
-    private DashboardDao.OccupancyChartData loadOccupancyChart() {
+    private DashboardDao.OccupancyChartData loadOccupancyChart(String category) {
         try {
-            return dashboardDao.loadOccupancyChart();
+            return dashboardDao.loadOccupancyChart(category);
         } catch (SQLException exception) {
             return new DashboardDao.OccupancyChartData(new String[0], new int[0], new int[0]);
         }
+    }
+
+    private String[] loadAccommodationCategories() {
+        try {
+            return dashboardDao.loadAccommodationCategories();
+        } catch (SQLException exception) {
+            return new String[0];
+        }
+    }
+
+    private String defaultOccupancyCategory(String[] categories) {
+        return categories.length == 0 ? "" : categories[0];
     }
 
     private DashboardDao.DepartmentChartData loadDepartmentChart() {

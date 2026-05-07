@@ -49,6 +49,7 @@ public class GuestRecordPanel extends JPanel {
 
         JPanel card = HomeViewHelper.sectionCard("Recent Guest Records", "Current guest movements and approvals.");
         guestTable.setActionColumn(5, "View", row -> showGuestDetails(row));
+        guestTable.setStatusColumn(3);
         refreshFromDatabase();
         card.add(guestTable, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);

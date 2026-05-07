@@ -132,6 +132,33 @@ public class UniversalTablePanel extends JPanel {
         configureColumnWidths();
     }
 
+    public void setStatusColumn(int column) {
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                String status = value == null ? "" : String.valueOf(value);
+                label.setHorizontalAlignment(SwingConstants.LEFT);
+                label.setForeground(statusColor(status));
+                label.setBackground(isSelected ? AccommodationManagementHelper.ROW_SELECTION : Color.WHITE);
+                label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
+                label.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
+                        BorderFactory.createEmptyBorder(0, 16, 0, 14)
+                ));
+                return label;
+            }
+        };
+        table.getColumnModel().getColumn(column).setCellRenderer(renderer);
+        configureColumnWidths();
+    }
+
     public void setHugRows(boolean hugRows) {
         this.hugRows = hugRows;
         refresh();
@@ -436,6 +463,19 @@ public class UniversalTablePanel extends JPanel {
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBorderPainted(false);
+    }
+
+    private Color statusColor(String status) {
+        if (status.equalsIgnoreCase("Currently Staying")) {
+            return new Color(38, 128, 64);
+        }
+        if (status.equalsIgnoreCase("Upcoming")) {
+            return new Color(0, 112, 210);
+        }
+        if (status.equalsIgnoreCase("Departed")) {
+            return new Color(180, 60, 45);
+        }
+        return new Color(99, 115, 129);
     }
 
     private static class RoundedTableBorder extends AbstractBorder {

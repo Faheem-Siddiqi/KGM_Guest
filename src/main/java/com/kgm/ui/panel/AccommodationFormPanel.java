@@ -24,11 +24,12 @@ public class AccommodationFormPanel extends JPanel {
     );
     private final JTextField assignedStaffField = new JTextField("");
     private final JTextField amenityField = new JTextField("");
-    private final JPanel amenitiesListPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+    private final JPanel amenitiesListPanel = new AmenitiesListPanel();
     private final List<String> amenities = new ArrayList<>();
     private final JButton cancelButton = AccommodationManagementHelper.textButton("CANCEL");
     private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
     private final JButton saveButton = AccommodationManagementHelper.textButton("SAVE");
+    private JScrollPane amenitiesScrollPane;
 
     private final SaveHandler onSave;
     private final UpdateHandler onUpdate;
@@ -158,18 +159,24 @@ public class AccommodationFormPanel extends JPanel {
         addRow.add(addAmenity);
 
         amenitiesListPanel.setOpaque(false);
-        amenitiesListPanel.setBorder(new CompoundBorder(
-                new LineBorder(new Color(220, 226, 232)),
-                new EmptyBorder(8, 8, 8, 8)
-        ));
+        amenitiesListPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
 
-        amenitiesListPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        amenitiesScrollPane = new JScrollPane(amenitiesListPanel);
+        amenitiesScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        amenitiesScrollPane.setPreferredSize(new Dimension(704, 112));
+        amenitiesScrollPane.setMinimumSize(new Dimension(620, 82));
+        amenitiesScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 132));
+        amenitiesScrollPane.setBorder(new LineBorder(new Color(220, 226, 232)));
+        amenitiesScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        amenitiesScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        amenitiesScrollPane.getVerticalScrollBar().setUnitIncrement(12);
+        amenitiesScrollPane.getViewport().setBackground(Color.WHITE);
 
         amenitiesPanel.add(amenitiesLabel);
         amenitiesPanel.add(Box.createVerticalStrut(6));
         amenitiesPanel.add(addRow);
         amenitiesPanel.add(Box.createVerticalStrut(10));
-        amenitiesPanel.add(amenitiesListPanel);
+        amenitiesPanel.add(amenitiesScrollPane);
         return amenitiesPanel;
     }
 
@@ -205,6 +212,10 @@ public class AccommodationFormPanel extends JPanel {
         }
         amenitiesListPanel.revalidate();
         amenitiesListPanel.repaint();
+        if (amenitiesScrollPane != null) {
+            amenitiesScrollPane.revalidate();
+            amenitiesScrollPane.repaint();
+        }
     }
 
     private void saveAccommodation() {
@@ -370,5 +381,65 @@ public class AccommodationFormPanel extends JPanel {
 
     public interface UpdateHandler {
         boolean update(int row, AccommodationRecord accommodation);
+    }
+
+    private static class AmenitiesListPanel extends JPanel implements Scrollable {
+        private AmenitiesListPanel() {
+            super(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        }
+
+        public Dimension getPreferredSize() {
+            Container parent = getParent();
+            int width = parent == null || parent.getWidth() <= 0
+                    ? AccommodationManagementHelper.CONTENT_WIDTH - 156
+                    : parent.getWidth();
+            return wrappedPreferredSize(width);
+        }
+
+        public Dimension getPreferredScrollableViewportSize() {
+            return new Dimension(AccommodationManagementHelper.CONTENT_WIDTH - 156, 112);
+        }
+
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 16;
+        }
+
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return Math.max(16, visibleRect.height - 16);
+        }
+
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
+
+        private Dimension wrappedPreferredSize(int targetWidth) {
+            Insets insets = getInsets();
+            FlowLayout flowLayout = (FlowLayout) getLayout();
+            int maxWidth = Math.max(1, targetWidth - insets.left - insets.right);
+            int rowWidth = 0;
+            int rowHeight = 0;
+            int height = insets.top + flowLayout.getVgap();
+
+            for (Component component : getComponents()) {
+                if (!component.isVisible()) {
+                    continue;
+                }
+                Dimension size = component.getPreferredSize();
+                if (rowWidth > 0 && rowWidth + flowLayout.getHgap() + size.width > maxWidth) {
+                    height += rowHeight + flowLayout.getVgap();
+                    rowWidth = 0;
+                    rowHeight = 0;
+                }
+                rowWidth += (rowWidth == 0 ? 0 : flowLayout.getHgap()) + size.width;
+                rowHeight = Math.max(rowHeight, size.height);
+            }
+
+            height += rowHeight + flowLayout.getVgap() + insets.bottom;
+            return new Dimension(targetWidth, height);
+        }
     }
 }

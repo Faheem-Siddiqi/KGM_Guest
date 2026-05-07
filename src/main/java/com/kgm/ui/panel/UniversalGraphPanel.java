@@ -8,8 +8,8 @@ import java.awt.*;
 public class UniversalGraphPanel extends JPanel {
     private final String title;
     private final String subtitle;
-    private final String[] categories;
-    private final Series[] series;
+    private String[] categories;
+    private Series[] series;
 
     public UniversalGraphPanel(String title, String subtitle, String[] categories, Series... series) {
         this.title = title;
@@ -17,8 +17,20 @@ public class UniversalGraphPanel extends JPanel {
         this.categories = categories.clone();
         this.series = series.clone();
         setOpaque(false);
-        setPreferredSize(new Dimension(0, 340));
+        setPreferredSize(new Dimension(preferredGraphWidth(), 340));
         setMinimumSize(new Dimension(320, 300));
+    }
+
+    public void setGraphData(String[] categories, Series... series) {
+        this.categories = categories.clone();
+        this.series = series.clone();
+        setPreferredSize(new Dimension(preferredGraphWidth(), 340));
+        revalidate();
+        repaint();
+    }
+
+    public boolean needsHorizontalScroll() {
+        return categories.length > 5;
     }
 
     protected void paintComponent(Graphics g) {
@@ -69,9 +81,9 @@ public class UniversalGraphPanel extends JPanel {
 
     private void drawBars(Graphics2D g2, int width, int height) {
         int plotX = 52;
-        int plotY = 76;
+        int plotY = plotTopInset();
         int plotW = Math.max(120, width - 80);
-        int plotH = Math.max(120, height - 128);
+        int plotH = Math.max(120, height - plotY - 56);
         int baseY = plotY + plotH;
         int max = niceMax();
 
@@ -112,10 +124,25 @@ public class UniversalGraphPanel extends JPanel {
             }
 
             String label = categories[categoryIndex];
-            int labelWidth = metrics.stringWidth(label);
             g2.setColor(HomeViewHelper.TEXT_SECONDARY);
-            g2.drawString(label, plotX + categoryIndex * groupW + groupW / 2 - labelWidth / 2, baseY + 22);
+            drawCategoryLabel(g2, label, plotX + categoryIndex * groupW + groupW / 2, baseY + 18);
         }
+    }
+
+    private void drawCategoryLabel(Graphics2D g2, String label, int centerX, int startY) {
+        String[] lines = label.split("\\R", -1);
+        Font originalFont = g2.getFont();
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, lines.length > 1 ? 10 : 11));
+        FontMetrics labelMetrics = g2.getFontMetrics();
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            g2.drawString(line, centerX - labelMetrics.stringWidth(line) / 2, startY + i * 13);
+        }
+        g2.setFont(originalFont);
+    }
+
+    protected int plotTopInset() {
+        return 92;
     }
 
     private int niceMax() {
@@ -128,6 +155,11 @@ public class UniversalGraphPanel extends JPanel {
         int padded = (int) Math.ceil(max * 1.2);
         int interval = padded <= 20 ? 4 : 10;
         return Math.max(interval, ((padded + interval - 1) / interval) * interval);
+    }
+
+    private int preferredGraphWidth() {
+        int categoryWidth = series.length > 1 ? 92 : 78;
+        return Math.max(360, 110 + Math.max(1, categories.length) * categoryWidth);
     }
 
     public static class Series {

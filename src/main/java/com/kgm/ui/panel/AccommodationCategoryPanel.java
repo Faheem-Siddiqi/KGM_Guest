@@ -1,11 +1,14 @@
 package com.kgm.ui.panel;
 
+import com.kgm.dao.AccommodationCategoryDao;
 import com.kgm.ui.styling.AccommodationManagementHelper;
+import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -17,6 +20,8 @@ public class AccommodationCategoryPanel extends JPanel {
             "No categories added yet."
     );
     private final Consumer<List<String>> onCategoriesChanged;
+    private final AccommodationCategoryDao categoryDao = new AccommodationCategoryDao();
+    private final JButton cancelButton = AccommodationManagementHelper.textButton("CANCEL");
     private final JButton saveButton = AccommodationManagementHelper.textButton("SAVE");
     private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
     private final JButton deleteButton = AccommodationManagementHelper.dangerTextButton("DELETE");
@@ -44,11 +49,7 @@ public class AccommodationCategoryPanel extends JPanel {
         card.add(body, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
 
-        addCategory("Rooms");
-        addCategory("Suites");
-        addCategory("Guest House");
-        clearForm();
-        notifyCategoriesChanged();
+        loadCategories();
     }
 
     private JPanel createInlineForm() {
@@ -56,8 +57,6 @@ public class AccommodationCategoryPanel extends JPanel {
         form.setLayout(new BoxLayout(form, BoxLayout.X_AXIS));
         form.setOpaque(false);
         form.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JButton cancelButton = AccommodationManagementHelper.textButton("CANCEL");
 
         form.add(AccommodationManagementHelper.styleField(categoryNameField));
         form.add(Box.createHorizontalStrut(12));
@@ -86,6 +85,7 @@ public class AccommodationCategoryPanel extends JPanel {
                 updateActionStates();
             }
         });
+        updateActionStates();
         return form;
     }
 
@@ -100,9 +100,13 @@ public class AccommodationCategoryPanel extends JPanel {
         if (category.isEmpty()) {
             return;
         }
-        addCategory(category);
-        clearForm();
-        notifyCategoriesChanged();
+        try {
+            categoryDao.save(category);
+            loadCategories();
+            clearForm();
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Category not saved", exception.getMessage());
+        }
     }
 
     private void updateCategory() {
@@ -113,22 +117,44 @@ public class AccommodationCategoryPanel extends JPanel {
         if (category.isEmpty()) {
             return;
         }
-        categoryTable.updateRow(editingRow, new Object[]{category, "Edit"});
-        clearForm();
-        notifyCategoriesChanged();
+        String oldCategory = String.valueOf(categoryTable.getValueAt(editingRow, 0));
+        try {
+            categoryDao.updateName(oldCategory, category);
+            loadCategories();
+            clearForm();
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Category not updated", exception.getMessage());
+        }
     }
 
     private void deleteCategory() {
         if (editingRow < 0) {
             return;
         }
-        categoryTable.removeRow(editingRow);
-        clearForm();
-        notifyCategoriesChanged();
+        String category = String.valueOf(categoryTable.getValueAt(editingRow, 0));
+        try {
+            categoryDao.deleteByName(category);
+            loadCategories();
+            clearForm();
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Category not deleted", exception.getMessage());
+        }
     }
 
     private void addCategory(String category) {
         categoryTable.addRow(new Object[]{category, "Edit"});
+    }
+
+    private void loadCategories() {
+        try {
+            categoryTable.clearRows();
+            for (String category : categoryDao.findActiveNames()) {
+                addCategory(category);
+            }
+            notifyCategoriesChanged();
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Categories not loaded", exception.getMessage());
+        }
     }
 
     private void clearForm() {
@@ -144,6 +170,7 @@ public class AccommodationCategoryPanel extends JPanel {
 
         AccommodationManagementHelper.setTextButtonEnabled(saveButton, hasCategoryName && !editing);
         AccommodationManagementHelper.setTextButtonEnabled(updateButton, hasCategoryName && editing);
+        AccommodationManagementHelper.setTextButtonEnabled(cancelButton, hasCategoryName || editing);
         AccommodationManagementHelper.setDangerTextButtonEnabled(deleteButton, editing);
     }
 

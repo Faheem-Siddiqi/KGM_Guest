@@ -11,7 +11,7 @@ import java.util.function.BiConsumer;
 public class AccommodationTablePanel extends JPanel {
     private final List<AccommodationRecord> records = new ArrayList<>();
     private final UniversalTablePanel tablePanel = new UniversalTablePanel(
-            new String[]{"Name", "Category", "Capacity", "Status", "Assigned Staff", "Amenities", "Actions"},
+            new String[]{"Category", "Name", "Capacity", "Status", "Assigned Staff", "Amenities", "Actions"},
             "No accommodation records yet. Save the form above to create one."
     );
     private final BiConsumer<Integer, AccommodationRecord> onEdit;
@@ -37,6 +37,20 @@ public class AccommodationTablePanel extends JPanel {
         tablePanel.addRow(rowValues(accommodation));
     }
 
+    public void setAccommodations(List<AccommodationRecord> accommodations) {
+        records.clear();
+        records.addAll(accommodations);
+        List<Object[]> rows = new ArrayList<>();
+        for (AccommodationRecord accommodation : records) {
+            rows.add(rowValues(accommodation));
+        }
+        tablePanel.setRows(rows);
+    }
+
+    public AccommodationRecord getAccommodation(int row) {
+        return records.get(row);
+    }
+
     public void updateAccommodation(int row, AccommodationRecord accommodation) {
         records.set(row, accommodation);
         tablePanel.updateRow(row, rowValues(accommodation));
@@ -44,8 +58,8 @@ public class AccommodationTablePanel extends JPanel {
 
     private Object[] rowValues(AccommodationRecord accommodation) {
         return new Object[]{
-                accommodation.getName(),
                 accommodation.getCategory(),
+                accommodation.getName(),
                 accommodation.getCapacity(),
                 accommodation.getStatus(),
                 accommodation.getAssignedStaff(),

@@ -1,5 +1,6 @@
 package com.kgm.ui;
 
+import com.kgm.database.DatabaseInitializer;
 import com.kgm.ui.panel.AccommodationManagementPanel;
 import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
@@ -10,6 +11,7 @@ import java.awt.*;
 public class AccommodationManagement extends JFrame {
 
     public AccommodationManagement() {
+        DatabaseInitializer.init();
         setTitle("Accommodation Management");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
@@ -33,6 +35,7 @@ public class AccommodationManagement extends JFrame {
     }
 
     public static void main(String[] args) {
+        DatabaseInitializer.init();
         SwingUtilities.invokeLater(() -> new AccommodationManagement().setVisible(true));
     }
 }

@@ -1,5 +1,10 @@
 package com.kgm.ui;
 
+import com.kgm.dao.AccommodationCategoryDao;
+import com.kgm.dao.AccommodationDao;
+import com.kgm.dao.GuestDao;
+import com.kgm.database.DatabaseInitializer;
+import com.kgm.model.Guest;
 import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.styling.AddGuestHelper;
@@ -9,10 +14,17 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 
 public class AddGuest extends JFrame {
+    private static final GuestDao GUEST_DAO = new GuestDao();
+    private static final AccommodationDao ACCOMMODATION_DAO = new AccommodationDao();
+    private static final AccommodationCategoryDao ACCOMMODATION_CATEGORY_DAO = new AccommodationCategoryDao();
+
     public AddGuest() {
         setTitle("Add Guest");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -37,12 +49,13 @@ public class AddGuest extends JFrame {
     }
 
     public static JComponent createContent(Runnable onBack) {
+        DatabaseInitializer.init();
         final JScrollPane[] scrollRef = new JScrollPane[1];
         JPanel page = AddGuestHelper.pagePanel();
         page.add(AddGuestHelper.screenHeader(onBack), AddGuestHelper.pageConstraints(0));
 
         JTextField guestNameField = new JTextField("");
-        JTextField guestCnicField = new JTextField("1234512345671");
+        JTextField guestCnicField = new JTextField("");
         JComboBox<String> guestNationalityCombo = AddGuestHelper.editableCombo(
                 "Pakistani", "Afghan", "Chinese", "Turkish", "Other (Specify)"
         );
@@ -58,18 +71,18 @@ public class AddGuest extends JFrame {
         JTextField approvedByField = new JTextField("");
         JTextField accommodatedByField = new JTextField("");
 
-        Date initialArrivalDate = dateTimeValue(2026, Calendar.MAY, 10, 9, 0);
-        Date initialDepartureDate = dateTimeValue(2026, Calendar.MAY, 15, 9, 0);
+        Date initialArrivalDate = dateTimeValue(0, 0);
+        Date initialDepartureDate = dateTimeValue(1, 0);
         JSpinner arrivalDate = dateTimeSpinner(initialArrivalDate);
         JSpinner departureDate = dateTimeSpinner(initialDepartureDate);
         JTextField tenureField = new JTextField();
         tenureField.setEditable(false);
         tenureField.setFocusable(false);
         tenureField.setBackground(Color.WHITE);
-        JComboBox<String> accommodationCombo = AddGuestHelper.combo("Guest Room", "Guest House");
-        JComboBox<String> roomCombo = AddGuestHelper.combo(
-                "Room I", "Room II", "Room III", "Room IV", "Room V", "Room VI", "Room VII"
-        );
+        JComboBox<String> accommodationCombo = AddGuestHelper.combo(accommodationCategoryItems());
+        JComboBox<String> roomCombo = AddGuestHelper.combo();
+        updateRoomCombo(accommodationCombo, roomCombo);
+        accommodationCombo.addActionListener(event -> updateRoomCombo(accommodationCombo, roomCombo));
         JTextArea remarks = AddGuestHelper.remarksArea("N/A");
 
         updateTenure(arrivalDate, departureDate, tenureField);
@@ -101,7 +114,7 @@ public class AddGuest extends JFrame {
         AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Arrival Date", arrivalDate);
         AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Departure Date", departureDate);
         AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Tenure", tenureField);
-        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Accommodation", accommodationCombo);
+        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Accommodation Category", accommodationCombo);
         AddGuestHelper.addField(stayCard, stayGbc, y++, 0, "Room", roomCombo);
 
         JLabel remarksLabel = AddGuestHelper.label("Remarks");
@@ -125,7 +138,7 @@ public class AddGuest extends JFrame {
         AddGuestHelper.styleReset(reset);
         reset.addActionListener(e -> {
             guestNameField.setText("");
-            guestCnicField.setText("1234512345671");
+            guestCnicField.setText("");
             guestNationalityCombo.setSelectedItem("Pakistani");
             guestCategoryCombo.setSelectedIndex(0);
             guestAddressField.setText("");
@@ -135,8 +148,8 @@ public class AddGuest extends JFrame {
             accommodatedByField.setText("");
             arrivalDate.setValue(initialArrivalDate);
             departureDate.setValue(initialDepartureDate);
-            accommodationCombo.setSelectedIndex(0);
-            roomCombo.setSelectedIndex(0);
+            selectFirstItem(accommodationCombo);
+            updateRoomCombo(accommodationCombo, roomCombo);
             remarks.setText("N/A");
             updateTenure(arrivalDate, departureDate, tenureField);
         });
@@ -221,6 +234,7 @@ public class AddGuest extends JFrame {
     }
 
     public static void main(String[] args) {
+        DatabaseInitializer.init();
         SwingUtilities.invokeLater(() -> new AddGuest().setVisible(true));
     }
 
@@ -246,14 +260,14 @@ public class AddGuest extends JFrame {
         String guestName = guestNameField.getText().trim();
         String guestCnic = guestCnicField.getText().trim();
         String guestNationality = String.valueOf(guestNationalityCombo.getEditor().getItem()).trim();
-        String guestCategory = String.valueOf(guestCategoryCombo.getSelectedItem()).trim();
+        String guestCategory = selectedText(guestCategoryCombo);
         String guestAddress = guestAddressField.getText().trim();
         String requestedBy = requestedByField.getText().trim();
         String requestedDepartment = String.valueOf(requestedDepartmentCombo.getEditor().getItem()).trim();
         String approvedBy = approvedByField.getText().trim();
         String accommodatedBy = accommodatedByField.getText().trim();
-        String accommodation = String.valueOf(accommodationCombo.getSelectedItem()).trim();
-        String room = String.valueOf(roomCombo.getSelectedItem()).trim();
+        String accommodation = selectedText(accommodationCombo);
+        String room = selectedText(roomCombo);
         String remarksText = remarks.getText().trim();
 
         if (guestName.isEmpty()) {
@@ -288,41 +302,128 @@ public class AddGuest extends JFrame {
             errors.append(tenureField.getText()).append(".\n");
         }
         if (accommodation.isEmpty()) {
-            errors.append("Accommodation is required.\n");
+            errors.append("Accommodation Category is required.\n");
         }
         if (room.isEmpty()) {
             errors.append("Room is required.\n");
-        }
-        if (remarksText.isEmpty()) {
-            errors.append("Remarks are required.\n");
         }
         if (errors.length() > 0) {
             DialogHelper.error(parent, "Please complete required fields", errors.toString());
             return;
         }
 
-        System.out.println("Guest Name: " + guestName);
-        System.out.println("Guest CNIC: " + guestCnic);
-        System.out.println("Guest Nationality: " + guestNationality);
-        System.out.println("Guest Category: " + guestCategory);
-        System.out.println("Guest Address: " + guestAddress);
-        System.out.println("Requested By: " + requestedBy);
-        System.out.println("Requested Department: " + requestedDepartment);
-        System.out.println("Approved By: " + approvedBy);
-        System.out.println("Accommodated By: " + accommodatedBy);
-        System.out.println("Arrival Date: " + arrivalDate.getValue());
-        System.out.println("Departure Date: " + departureDate.getValue());
-        System.out.println("Tenure: " + tenureField.getText());
-        System.out.println("Accommodation: " + accommodation);
-        System.out.println("Room: " + room);
-        System.out.println("Remarks: " + remarksText);
+        Guest guest = new Guest();
+        guest.setGuestName(guestName);
+        guest.setCnic(guestCnic);
+        guest.setNationality(guestNationality);
+        guest.setGuestCategory(guestCategory);
+        guest.setAddress(guestAddress);
+        guest.setRequestedBy(requestedBy);
+        guest.setRequestedDepartment(requestedDepartment);
+        guest.setApprovedBy(approvedBy);
+        guest.setAccommodatedBy(accommodatedBy);
+        guest.setArrivalAt((Date) arrivalDate.getValue());
+        guest.setDepartureAt((Date) departureDate.getValue());
+        guest.setAccommodation(accommodation);
+        guest.setRoomName(room);
+        guest.setRemarks(remarksText.isEmpty() ? "N/A" : remarksText);
 
-        DialogHelper.success(parent, "Guest added successfully.");
+        try {
+            GUEST_DAO.save(guest);
+            DialogHelper.success(parent, "Guest added successfully. Record ID: " + guest.getId());
+        } catch (SQLException exception) {
+            DialogHelper.error(parent, "Guest not saved", exception.getMessage());
+        }
+    }
+
+    private static String[] accommodationCategoryItems() {
+        try {
+            return itemsOrFallback(
+                    ACCOMMODATION_CATEGORY_DAO.findActiveNames(),
+                    new String[0]
+            );
+        } catch (SQLException exception) {
+            return new String[0];
+        }
+    }
+
+    private static String[] roomItems(String accommodationCategory) {
+        if (accommodationCategory == null || accommodationCategory.trim().isEmpty()) {
+            return new String[0];
+        }
+        try {
+            return itemsOrFallback(
+                    ACCOMMODATION_DAO.findReadyNamesByCategory(accommodationCategory),
+                    new String[0]
+            );
+        } catch (SQLException exception) {
+            return new String[0];
+        }
+    }
+
+    private static void updateRoomCombo(JComboBox<String> accommodationCombo, JComboBox<String> roomCombo) {
+        String accommodation = selectedText(accommodationCombo);
+        setComboItems(roomCombo, roomItems(accommodation));
+        roomCombo.setEnabled(!accommodation.isEmpty() && roomCombo.getItemCount() > 0);
+    }
+
+    private static String[] itemsOrFallback(List<String> values, String... fallback) {
+        List<String> cleanValues = new ArrayList<>();
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                cleanValues.add(value.trim());
+            }
+        }
+        return cleanValues.isEmpty() ? fallback : cleanValues.toArray(new String[0]);
+    }
+
+    private static void setComboItems(JComboBox<String> comboBox, String[] items) {
+        Object selected = comboBox.getSelectedItem();
+        comboBox.removeAllItems();
+        for (String item : items) {
+            comboBox.addItem(item);
+        }
+        if (selected != null && containsItem(comboBox, String.valueOf(selected))) {
+            comboBox.setSelectedItem(selected);
+        }
+        if (comboBox.getSelectedIndex() < 0 && comboBox.getItemCount() > 0) {
+            comboBox.setSelectedIndex(0);
+        }
+    }
+
+    private static void selectFirstItem(JComboBox<String> comboBox) {
+        if (comboBox.getItemCount() > 0) {
+            comboBox.setSelectedIndex(0);
+        }
+    }
+
+    private static String selectedText(JComboBox<String> comboBox) {
+        Object selected = comboBox.getSelectedItem();
+        return selected == null ? "" : String.valueOf(selected).trim();
+    }
+
+    private static boolean containsItem(JComboBox<String> comboBox, String value) {
+        for (int i = 0; i < comboBox.getItemCount(); i++) {
+            if (String.valueOf(comboBox.getItemAt(i)).equals(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Date dateTimeValue(int year, int month, int day, int hour, int minute) {
         Calendar calendar = Calendar.getInstance();
         calendar.set(year, month, day, hour, minute, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        return calendar.getTime();
+    }
+
+    private static Date dateTimeValue(int daysFromToday, int hour) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.add(Calendar.DATE, daysFromToday);
+        calendar.set(Calendar.HOUR_OF_DAY, hour);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         return calendar.getTime();
     }
@@ -355,7 +456,13 @@ public class AddGuest extends JFrame {
         long days = totalHours / 24;
         long hours = totalHours % 24;
 
-        tenureField.setText(days + " days " + hours + " hours");
+        tenureField.setText(tenureText(days, hours));
+    }
+
+    private static String tenureText(long days, long hours) {
+        String dayText = days + (days == 1 ? " day" : " days");
+        String hourText = hours + (hours == 1 ? " hour" : " hours");
+        return dayText + " " + hourText;
     }
 
     private static void addDateTimeEditListener(JSpinner spinner, Runnable onChange) {

@@ -1,6 +1,7 @@
 package com.kgm.dao;
 
 import com.kgm.config.DatabaseConnection;
+import com.kgm.database.DatabaseInitializer;
 import com.kgm.ui.panel.AccommodationRecord;
 
 import java.sql.Connection;
@@ -12,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AccommodationDao {
+    private static final String ROOM_PREFIX = "Room-";
+
     private final AccommodationCategoryDao categoryDao = new AccommodationCategoryDao();
 
     public List<AccommodationRecord> findAll() throws SQLException {
@@ -42,7 +45,119 @@ public class AccommodationDao {
         return accommodations;
     }
 
+    public List<String> findActiveNames() throws SQLException {
+        String sql = """
+                SELECT name
+                FROM accommodations
+                WHERE active = TRUE
+                ORDER BY name
+                """;
+        List<String> names = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                names.add(resultSet.getString("name"));
+            }
+        }
+        return names;
+    }
+
+    public List<String> findActiveNamesByCategory(String category) throws SQLException {
+        String sql = """
+                SELECT a.name
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                WHERE a.active = TRUE AND c.name = ?
+                ORDER BY a.name
+                """;
+        List<String> names = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, category);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    names.add(resultSet.getString("name"));
+                }
+            }
+        }
+        return names;
+    }
+
+    public List<String> findReadyNamesByCategory(String category) throws SQLException {
+        String sql = """
+                SELECT a.name
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                WHERE a.active = TRUE
+                  AND a.status = 'Ready for Assignment'
+                  AND c.name = ?
+                ORDER BY a.name
+                """;
+        List<String> names = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, category);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    names.add(resultSet.getString("name"));
+                }
+            }
+        }
+        return names;
+    }
+
+    public Long findIdByName(String name) throws SQLException {
+        String sql = "SELECT id FROM accommodations WHERE name = ? AND active = TRUE";
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, name);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong("id") : null;
+            }
+        }
+    }
+
+    public Long findIdByCategoryAndName(String category, String name) throws SQLException {
+        String sql = """
+                SELECT a.id
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                WHERE c.name = ? AND a.name = ? AND a.active = TRUE
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, category);
+            statement.setString(2, name);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong("id") : null;
+            }
+        }
+    }
+
+    public Long findReadyIdByCategoryAndName(String category, String name) throws SQLException {
+        String sql = """
+                SELECT a.id
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                WHERE c.name = ?
+                  AND a.name = ?
+                  AND a.status = 'Ready for Assignment'
+                  AND a.active = TRUE
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, category);
+            statement.setString(2, name);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong("id") : null;
+            }
+        }
+    }
+
     public AccommodationRecord save(AccommodationRecord accommodation) throws SQLException {
+        accommodation.setName(requiredRoomName(accommodation.getName()));
+        DatabaseInitializer.ensureAccommodationNameCanRepeatAcrossCategories();
         long categoryId = categoryDao.findOrCreate(accommodation.getCategory());
         String sql = """
                 INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff, active)
@@ -71,6 +186,8 @@ public class AccommodationDao {
             return save(accommodation);
         }
 
+        accommodation.setName(requiredRoomName(accommodation.getName()));
+        DatabaseInitializer.ensureAccommodationNameCanRepeatAcrossCategories();
         long categoryId = categoryDao.findOrCreate(accommodation.getCategory());
         String sql = """
                 UPDATE accommodations
@@ -143,5 +260,30 @@ public class AccommodationDao {
             }
             statement.executeBatch();
         }
+    }
+
+    private String requiredRoomName(String value) throws SQLException {
+        String name = roomNameValue(value);
+        if (ROOM_PREFIX.equals(name)) {
+            throw new SQLException("Accommodation name must start with Room- and include a value.");
+        }
+        return name;
+    }
+
+    private String roomNameValue(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isEmpty()) {
+            return ROOM_PREFIX;
+        }
+        if (text.regionMatches(true, 0, ROOM_PREFIX, 0, ROOM_PREFIX.length())) {
+            return ROOM_PREFIX + text.substring(ROOM_PREFIX.length()).trim();
+        }
+        if (text.equalsIgnoreCase("Room")) {
+            return ROOM_PREFIX;
+        }
+        if (text.toLowerCase().startsWith("room ")) {
+            return ROOM_PREFIX + text.substring("room ".length()).trim();
+        }
+        return ROOM_PREFIX + text;
     }
 }

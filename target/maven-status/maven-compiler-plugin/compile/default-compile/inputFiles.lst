@@ -1,8 +1,13 @@
 D:\KGM_Guest\src\main\java\com\kgm\config\DatabaseConfig.java
 D:\KGM_Guest\src\main\java\com\kgm\config\DatabaseConnection.java
 D:\KGM_Guest\src\main\java\com\kgm\controller\UserSessions.java
+D:\KGM_Guest\src\main\java\com\kgm\dao\AccommodationCategoryDao.java
+D:\KGM_Guest\src\main\java\com\kgm\dao\AccommodationDao.java
+D:\KGM_Guest\src\main\java\com\kgm\dao\DashboardDao.java
+D:\KGM_Guest\src\main\java\com\kgm\dao\GuestDao.java
 D:\KGM_Guest\src\main\java\com\kgm\database\DatabaseInitializer.java
 D:\KGM_Guest\src\main\java\com\kgm\Main.java
+D:\KGM_Guest\src\main\java\com\kgm\model\Guest.java
 D:\KGM_Guest\src\main\java\com\kgm\model\UserSession.java
 D:\KGM_Guest\src\main\java\com\kgm\service\AuthService.java
 D:\KGM_Guest\src\main\java\com\kgm\service\EmployeeService.java

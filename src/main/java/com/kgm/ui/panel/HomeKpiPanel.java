@@ -1,12 +1,13 @@
 package com.kgm.ui.panel;
 
+import com.kgm.dao.DashboardDao;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
 
 public class HomeKpiPanel extends JPanel {
-    public HomeKpiPanel() {
+    public HomeKpiPanel(DashboardDao.DashboardStats stats) {
         setLayout(new BorderLayout());
         setOpaque(false);
 
@@ -15,7 +16,7 @@ public class HomeKpiPanel extends JPanel {
 
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Total Seats",
-                "120",
+                String.valueOf(stats.totalSeats()),
                 "Accommodation capacity",
                 HomeViewHelper.PRIMARY_DARK,
                 HomeViewHelper.PRIMARY_LIGHT,
@@ -23,7 +24,7 @@ public class HomeKpiPanel extends JPanel {
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Vacant Seats",
-                "38",
+                String.valueOf(stats.vacantSeats()),
                 "Ready for assignment",
                 HomeViewHelper.VACANT_DARK,
                 HomeViewHelper.VACANT_LIGHT,
@@ -31,7 +32,7 @@ public class HomeKpiPanel extends JPanel {
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Occupied Seats",
-                "82",
+                String.valueOf(stats.occupiedSeats()),
                 "Currently in use",
                 HomeViewHelper.OCCUPIED_DARK,
                 HomeViewHelper.OCCUPIED_LIGHT,
@@ -39,7 +40,7 @@ public class HomeKpiPanel extends JPanel {
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Monthly Occupancy",
-                "82%",
+                stats.occupancyPercent() + "%",
                 "Across active accommodation",
                 HomeViewHelper.KPI_AMBER_DARK,
                 HomeViewHelper.KPI_AMBER_LIGHT,
@@ -47,7 +48,7 @@ public class HomeKpiPanel extends JPanel {
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Avg Stay Duration",
-                "2.4 hrs",
+                String.format("%.1f hrs", stats.averageStayHours()),
                 "Guest stay average",
                 HomeViewHelper.KPI_SKY_DARK,
                 HomeViewHelper.KPI_SKY_LIGHT,
@@ -55,7 +56,7 @@ public class HomeKpiPanel extends JPanel {
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Peak Arrival",
-                "11:00 AM",
+                stats.peakArrival(),
                 "Highest check-in window",
                 HomeViewHelper.KPI_ROSE_DARK,
                 HomeViewHelper.KPI_ROSE_LIGHT,

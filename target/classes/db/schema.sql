@@ -27,16 +27,20 @@ CREATE TABLE IF NOT EXISTS accommodation_categories (
 CREATE TABLE IF NOT EXISTS accommodations (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     category_id BIGINT NOT NULL,
-    name VARCHAR(120) NOT NULL UNIQUE,
+    name VARCHAR(120) NOT NULL,
     capacity INT NOT NULL,
     status VARCHAR(60) NOT NULL,
     assigned_staff VARCHAR(120) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT chk_accommodations_room_name_prefix
+        CHECK (active = FALSE OR name LIKE 'Room-%'),
     CONSTRAINT fk_accommodations_category
         FOREIGN KEY (category_id)
-        REFERENCES accommodation_categories (id)
+        REFERENCES accommodation_categories (id),
+    CONSTRAINT uq_accommodations_category_name
+        UNIQUE (category_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS accommodation_amenities (
@@ -65,7 +69,8 @@ CREATE TABLE IF NOT EXISTS guests (
     accommodated_by VARCHAR(120) NOT NULL,
     arrival_at DATETIME NOT NULL,
     departure_at DATETIME NOT NULL,
-    accommodation_id BIGINT,
+    accommodation_category VARCHAR(120) NOT NULL DEFAULT '',
+    accommodation_id BIGINT NOT NULL,
     room_name VARCHAR(120) NOT NULL,
     remarks TEXT,
     review TEXT,
@@ -87,48 +92,3 @@ VALUES ('admin', 'admin');
 
 INSERT IGNORE INTO guest_categories (name)
 VALUES ('Family'), ('Non-Family');
-
-INSERT IGNORE INTO accommodation_categories (name)
-VALUES ('Rooms'), ('Suites'), ('Guest House');
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room I', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room II', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room III', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room IV', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room V', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room VI', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);
-
-INSERT INTO accommodations (category_id, name, capacity, status, assigned_staff)
-SELECT id, 'Room VII', 2, 'Ready for Assignment', 'Admin Office'
-FROM accommodation_categories
-WHERE name = 'Rooms'
-ON DUPLICATE KEY UPDATE capacity = VALUES(capacity);

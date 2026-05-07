@@ -1,17 +1,23 @@
 package com.kgm.ui.panel;
 
+import com.kgm.dao.AccommodationDao;
+import com.kgm.database.DatabaseInitializer;
 import com.kgm.ui.styling.AccommodationManagementHelper;
+import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.sql.SQLException;
 
 public class AccommodationManagementPanel extends JPanel {
+    private final AccommodationDao accommodationDao = new AccommodationDao();
     private AccommodationFormPanel accommodationFormPanel;
     private AccommodationTablePanel accommodationTablePanel;
     private AccommodationCategoryPanel categoryPanel;
     private JScrollPane scroll;
 
     public AccommodationManagementPanel(Runnable onBack) {
+        DatabaseInitializer.init();
         setLayout(new BorderLayout());
         setBackground(AccommodationManagementHelper.PAGE_BACKGROUND);
 
@@ -21,8 +27,8 @@ public class AccommodationManagementPanel extends JPanel {
                 accommodationFormPanel.editAccommodation(row, accommodation)
         );
         accommodationFormPanel = new AccommodationFormPanel(
-                accommodation -> accommodationTablePanel.addAccommodation(accommodation),
-                (row, accommodation) -> accommodationTablePanel.updateAccommodation(row, accommodation)
+                this::saveAccommodation,
+                this::updateAccommodation
         );
         categoryPanel = new AccommodationCategoryPanel(categories ->
                 accommodationFormPanel.setCategories(categories)
@@ -63,6 +69,41 @@ public class AccommodationManagementPanel extends JPanel {
             scroll.getVerticalScrollBar().setValue(0);
             scroll.getHorizontalScrollBar().setValue(0);
         });
+
+        loadAccommodations();
+    }
+
+    private void loadAccommodations() {
+        try {
+            accommodationTablePanel.setAccommodations(accommodationDao.findAll());
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Accommodations not loaded", exception.getMessage());
+        }
+    }
+
+    private boolean saveAccommodation(AccommodationRecord accommodation) {
+        try {
+            AccommodationRecord saved = accommodationDao.save(accommodation);
+            accommodationTablePanel.addAccommodation(saved);
+            DialogHelper.success(this, "Accommodation saved successfully.");
+            return true;
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Accommodation not saved", exception.getMessage());
+            return false;
+        }
+    }
+
+    private boolean updateAccommodation(int row, AccommodationRecord accommodation) {
+        try {
+            accommodation.setId(accommodationTablePanel.getAccommodation(row).getId());
+            AccommodationRecord updated = accommodationDao.update(accommodation);
+            accommodationTablePanel.updateAccommodation(row, updated);
+            DialogHelper.success(this, "Accommodation updated successfully.");
+            return true;
+        } catch (SQLException exception) {
+            DialogHelper.error(this, "Accommodation not updated", exception.getMessage());
+            return false;
+        }
     }
 
     private void scrollToSection(JComponent section) {

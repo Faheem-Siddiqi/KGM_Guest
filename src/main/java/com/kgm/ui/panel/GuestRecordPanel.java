@@ -1,12 +1,15 @@
 package com.kgm.ui.panel;
 
+import com.kgm.dao.GuestDao;
+import com.kgm.model.Guest;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
-import java.time.LocalDate;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoUnit;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -26,17 +29,11 @@ public class GuestRecordPanel extends JPanel {
     public static final int ACCOMMODATION = 11;
     public static final int ROOM = 12;
     public static final int REVIEW = 13;
+    public static final int ID = 14;
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private final Object[][] allData = {
-            {"Ali Khan", "3520112345671", "Foreigner", "Family", "Islamabad", "Mate", "IT", "Mate", "Admin Office", "2026-05-01", "2026-05-01", "Guest Room", "Room I", "Comfortable stay."},
-            {"Sara Ahmed", "3520112345672", "Pakistani", "Non-Family", "Rawalpindi", "HR Desk", "HR", "Mate", "Admin Office", "2026-05-02", "2026-05-02", "Guest House", "Room II", "Arrived on schedule."},
-            {"Usman Tariq", "3520112345673", "Foreigner", "Family", "Lahore", "Ops Coordinator", "Ops", "Adnan Latif", "Admin Office", "2026-05-02", "2026-05-03", "Guest Room", "Room III", "Requires transport follow-up."},
-            {"Hassan Raza", "3520112345674", "Pakistani", "Family", "Faisalabad", "Finance Desk", "Finance", "Adnan Latif", "Admin Office", "2026-05-03", "2026-05-04", "Guest House", "Room IV", "No issues reported."},
-            {"Bilal Khan", "3520112345675", "Foreigner", "Non-Family", "Karachi", "Sales Desk", "Sales", "Adnan Latif", "Admin Office", "2026-05-04", "2026-05-04", "Guest Room", "Room V", "Short stay completed."},
-            {"Ayesha Noor", "3520112345676", "Pakistani", "Family", "Multan", "IT Desk", "IT", "Adnan Latif", "Admin Office", "2026-05-04", "2026-05-05", "Guest House", "Room VI", "Extended checkout requested."},
-            {"Zain Ali", "3520112345677", "Foreigner", "Non-Family", "Peshawar", "HR Desk", "HR", "Adnan Latif", "Admin Office", "2026-05-05", "2026-05-05", "Guest Room", "Room VII", "Guest checked in smoothly."},
-            {"Noman", "3520112345678", "Pakistani", "Non-Family", "Quetta", "Ops Desk", "Ops", "Adnan Latif", "Admin Office", "2026-05-05", "2026-05-06", "Guest House", "Room I", "Monitor departure timing."}
-    };
+    private final GuestDao guestDao = new GuestDao();
+    private final List<Object[]> allData = new ArrayList<>();
     private final List<Object[]> visibleRecords = new ArrayList<>();
     private final Consumer<Object[]> onViewGuest;
 
@@ -52,9 +49,22 @@ public class GuestRecordPanel extends JPanel {
 
         JPanel card = HomeViewHelper.sectionCard("Recent Guest Records", "Current guest movements and approvals.");
         guestTable.setActionColumn(5, "View", row -> showGuestDetails(row));
-        setVisibleRecords(allRows());
+        refreshFromDatabase();
         card.add(guestTable, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
+    }
+
+    public void refreshFromDatabase() {
+        try {
+            allData.clear();
+            for (Guest guest : guestDao.findAll()) {
+                allData.add(toRecord(guest));
+            }
+            reset();
+        } catch (SQLException exception) {
+            allData.clear();
+            setVisibleRecords(new ArrayList<>());
+        }
     }
 
     public void search(String query) {
@@ -110,75 +120,86 @@ public class GuestRecordPanel extends JPanel {
             return true;
         }
 
-        LocalDate today = LocalDate.now();
-        LocalDate arrival = parseDate(record[ARRIVAL]);
-        LocalDate departure = parseDate(record[DEPARTURE]);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime arrival = parseDateTime(record[ARRIVAL]);
+        LocalDateTime departure = parseDateTime(record[DEPARTURE]);
         if (arrival == null || departure == null) {
             return false;
         }
 
         if (status.equalsIgnoreCase("Currently Staying")) {
-            return !today.isBefore(arrival) && !today.isAfter(departure);
+            return !arrival.isAfter(now) && departure.isAfter(now);
         }
         if (status.equalsIgnoreCase("Departed")) {
-            return departure.isBefore(today);
+            return !departure.isAfter(now);
         }
         if (status.equalsIgnoreCase("Upcoming")) {
-            return arrival.isAfter(today);
+            return arrival.isAfter(now);
         }
         return true;
     }
 
     private boolean dateMatches(Object[] record, String date) {
         return date.isEmpty()
-                || String.valueOf(record[ARRIVAL]).equals(date)
-                || String.valueOf(record[DEPARTURE]).equals(date);
-    }
-
-    private LocalDate parseDate(Object value) {
-        try {
-            return LocalDate.parse(String.valueOf(value));
-        } catch (DateTimeParseException exception) {
-            return null;
-        }
+                || String.valueOf(record[ARRIVAL]).startsWith(date)
+                || String.valueOf(record[DEPARTURE]).startsWith(date);
     }
 
     private String dateTimeText(Object value) {
-        return String.valueOf(value) + " 09:00";
+        return String.valueOf(value);
     }
 
     private String statusText(Object[] record) {
-        LocalDate today = LocalDate.now();
-        LocalDate arrival = parseDate(record[ARRIVAL]);
-        LocalDate departure = parseDate(record[DEPARTURE]);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime arrival = parseDateTime(record[ARRIVAL]);
+        LocalDateTime departure = parseDateTime(record[DEPARTURE]);
         if (arrival == null || departure == null) {
             return "Unknown";
         }
-        if (departure.isBefore(today)) {
+        if (!departure.isAfter(now)) {
             return "Departed";
         }
-        if (arrival.isAfter(today)) {
+        if (arrival.isAfter(now)) {
             return "Upcoming";
         }
         return "Currently Staying";
     }
 
+    private LocalDateTime parseDateTime(Object value) {
+        try {
+            String text = String.valueOf(value);
+            if (text.length() >= 16) {
+                text = text.substring(0, 16);
+            }
+            return LocalDateTime.parse(text, DATE_TIME);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
+    }
+
     private String tenureText(Object[] record) {
-        LocalDate arrival = parseDate(record[ARRIVAL]);
-        LocalDate departure = parseDate(record[DEPARTURE]);
+        LocalDateTime arrival = parseDateTime(record[ARRIVAL]);
+        LocalDateTime departure = parseDateTime(record[DEPARTURE]);
         if (arrival == null || departure == null) {
             return "-";
         }
-        long days = Math.max(1, ChronoUnit.DAYS.between(arrival, departure) + 1);
-        return days + (days == 1 ? " day" : " days");
+        if (departure.isBefore(arrival)) {
+            return "-";
+        }
+        long totalHours = java.time.Duration.between(arrival, departure).toHours();
+        long days = totalHours / 24;
+        long hours = totalHours % 24;
+        return tenureText(days, hours);
+    }
+
+    private String tenureText(long days, long hours) {
+        String dayText = days + (days == 1 ? " day" : " days");
+        String hourText = hours + (hours == 1 ? " hour" : " hours");
+        return dayText + " " + hourText;
     }
 
     private List<Object[]> allRows() {
-        List<Object[]> rows = new ArrayList<>();
-        for (Object[] row : allData) {
-            rows.add(row);
-        }
-        return rows;
+        return new ArrayList<>(allData);
     }
 
     private void setVisibleRecords(List<Object[]> records) {
@@ -211,5 +232,39 @@ public class GuestRecordPanel extends JPanel {
             return;
         }
         onViewGuest.accept(visibleRecords.get(row));
+    }
+
+    private Object[] toRecord(Guest guest) {
+        return new Object[]{
+                guest.getGuestName(),
+                guest.getCnic(),
+                guest.getNationality(),
+                guest.getGuestCategory(),
+                guest.getAddress(),
+                guest.getRequestedBy(),
+                guest.getRequestedDepartment(),
+                guest.getApprovedBy(),
+                guest.getAccommodatedBy(),
+                formatDateTime(guest.getArrivalAt()),
+                formatDateTime(guest.getDepartureAt()),
+                guest.getAccommodation(),
+                guest.getRoomName(),
+                firstText(guest.getReview(), guest.getRemarks()),
+                guest.getId()
+        };
+    }
+
+    private String formatDateTime(java.util.Date date) {
+        if (date == null) {
+            return "";
+        }
+        return LocalDateTime.ofInstant(date.toInstant(), java.time.ZoneId.systemDefault()).format(DATE_TIME);
+    }
+
+    private String firstText(String first, String second) {
+        if (first != null && !first.trim().isEmpty()) {
+            return first;
+        }
+        return second == null ? "" : second;
     }
 }

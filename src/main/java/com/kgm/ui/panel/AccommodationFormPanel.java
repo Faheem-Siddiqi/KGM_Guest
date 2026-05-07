@@ -4,21 +4,21 @@ import com.kgm.ui.styling.AccommodationManagementHelper;
 import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class AccommodationFormPanel extends JPanel {
     private static final String ROOM_PREFIX = "Room-";
 
     private final JTextField nameField = new JTextField(ROOM_PREFIX);
     private final JComboBox<String> categoryCombo = AccommodationManagementHelper.combo();
-    private final JSpinner capacitySpinner = new JSpinner(new SpinnerNumberModel(2, 1, 100, 1));
+    private final JSpinner capacitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
     private final JComboBox<String> statusCombo = AccommodationManagementHelper.combo(
             "Ready for Assignment", "Temporarily Unavailable", "Under Maintenance", "Reserved"
     );
@@ -26,23 +26,34 @@ public class AccommodationFormPanel extends JPanel {
     private final JTextField amenityField = new JTextField("");
     private final JPanel amenitiesListPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
     private final List<String> amenities = new ArrayList<>();
+    private final JButton cancelButton = AccommodationManagementHelper.textButton("CANCEL");
     private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
     private final JButton saveButton = AccommodationManagementHelper.textButton("SAVE");
 
-    private final Consumer<AccommodationRecord> onSave;
-    private final BiConsumer<Integer, AccommodationRecord> onUpdate;
+    private final SaveHandler onSave;
+    private final UpdateHandler onUpdate;
+    private String currentNamePrefix = ROOM_PREFIX;
     private int editingRow = -1;
 
-    public AccommodationFormPanel(Consumer<AccommodationRecord> onSave, BiConsumer<Integer, AccommodationRecord> onUpdate) {
+    public AccommodationFormPanel(SaveHandler onSave, UpdateHandler onUpdate) {
         this.onSave = onSave;
         this.onUpdate = onUpdate;
         setLayout(new BorderLayout());
         setOpaque(false);
         nameField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent event) {
-                nameField.setText(roomNameValue(nameField.getText()));
+                nameField.setText(accommodationNameValue(nameField.getText()));
+                updateActionStates();
             }
         });
+        categoryCombo.addActionListener(e -> {
+            syncNamePrefix();
+            updateActionStates();
+        });
+        statusCombo.addActionListener(e -> updateActionStates());
+        capacitySpinner.addChangeListener(e -> updateActionStates());
+        addDocumentListener(nameField, this::updateActionStates);
+        addDocumentListener(assignedStaffField, this::updateActionStates);
         amenityField.addActionListener(e -> addAmenity());
 
         JPanel card = AccommodationManagementHelper.sectionCard(
@@ -60,25 +71,28 @@ public class AccommodationFormPanel extends JPanel {
         for (String category : categories) {
             categoryCombo.addItem(category);
         }
-        if (selected != null) {
+        if (selected != null && containsItem(categoryCombo, String.valueOf(selected))) {
             categoryCombo.setSelectedItem(selected);
         }
         if (categoryCombo.getSelectedIndex() < 0 && categoryCombo.getItemCount() > 0) {
             categoryCombo.setSelectedIndex(0);
         }
+        syncNamePrefix();
+        updateActionStates();
     }
 
     public void editAccommodation(int row, AccommodationRecord accommodation) {
         editingRow = row;
-        nameField.setText(roomNameValue(accommodation.getName()));
         categoryCombo.setSelectedItem(accommodation.getCategory());
+        currentNamePrefix = ROOM_PREFIX;
+        nameField.setText(accommodationNameValue(accommodation.getName()));
         capacitySpinner.setValue(accommodation.getCapacity());
         statusCombo.setSelectedItem(accommodation.getStatus());
         assignedStaffField.setText(accommodation.getAssignedStaff());
         amenities.clear();
         amenities.addAll(accommodation.getAmenities());
         refreshAmenities();
-        setEditMode(true);
+        updateActionStates();
     }
 
     private JPanel createFormBody() {
@@ -86,8 +100,8 @@ public class AccommodationFormPanel extends JPanel {
         body.setOpaque(false);
         GridBagConstraints gbc = AccommodationManagementHelper.formConstraints();
 
-        addField(body, gbc, 0, 0, "Name", nameField);
-        addField(body, gbc, 0, 1, "Category", categoryCombo);
+        addField(body, gbc, 0, 0, "Category", categoryCombo);
+        addField(body, gbc, 0, 1, "Name", nameField);
         addField(body, gbc, 1, 0, "Capacity", capacitySpinner);
         addField(body, gbc, 1, 1, "Status", statusCombo);
         addField(body, gbc, 2, 0, "Assigned Staff", assignedStaffField);
@@ -98,8 +112,7 @@ public class AccommodationFormPanel extends JPanel {
         body.add(createAmenitiesPanel(), gbc);
 
         JPanel actions = AccommodationManagementHelper.textActionsPanel();
-        JButton cancel = AccommodationManagementHelper.textButton("CANCEL");
-        actions.add(cancel);
+        actions.add(cancelButton);
         actions.add(updateButton);
         actions.add(saveButton);
 
@@ -108,10 +121,10 @@ public class AccommodationFormPanel extends JPanel {
         gbc.insets = new Insets(4, 0, 0, 0);
         body.add(actions, gbc);
 
-        cancel.addActionListener(e -> clearForm());
+        cancelButton.addActionListener(e -> clearForm());
         saveButton.addActionListener(e -> saveAccommodation());
         updateButton.addActionListener(e -> updateAccommodation());
-        setEditMode(false);
+        updateActionStates();
         return body;
     }
 
@@ -168,11 +181,13 @@ public class AccommodationFormPanel extends JPanel {
         amenities.add(amenity);
         amenityField.setText("");
         refreshAmenities();
+        updateActionStates();
     }
 
     private void removeAmenity(String amenity) {
         amenities.remove(amenity);
         refreshAmenities();
+        updateActionStates();
     }
 
     private void refreshAmenities() {
@@ -197,8 +212,9 @@ public class AccommodationFormPanel extends JPanel {
         if (accommodation == null) {
             return;
         }
-        onSave.accept(accommodation);
-        clearForm();
+        if (onSave.save(accommodation)) {
+            clearForm();
+        }
     }
 
     private void updateAccommodation() {
@@ -210,22 +226,22 @@ public class AccommodationFormPanel extends JPanel {
         if (accommodation == null) {
             return;
         }
-        onUpdate.accept(editingRow, accommodation);
-        clearForm();
+        if (onUpdate.update(editingRow, accommodation)) {
+            clearForm();
+        }
     }
 
     private AccommodationRecord collectAccommodation() {
-        Object selectedCategory = categoryCombo.getSelectedItem();
-        String name = roomNameValue(nameField.getText().trim());
+        String category = selectedCategory();
+        String name = accommodationNameValue(nameField.getText().trim());
         nameField.setText(name);
-        String category = selectedCategory == null ? "" : String.valueOf(selectedCategory).trim();
         int capacity = (Integer) capacitySpinner.getValue();
         String status = String.valueOf(statusCombo.getSelectedItem()).trim();
         String assignedStaff = assignedStaffField.getText().trim();
 
         StringBuilder errors = new StringBuilder();
         if (name.equals(ROOM_PREFIX)) {
-            errors.append("Name is required.\n");
+            errors.append("Name is required after Room-.\n");
         }
         if (category.isEmpty()) {
             errors.append("Category is required.\n");
@@ -246,29 +262,113 @@ public class AccommodationFormPanel extends JPanel {
 
     private void clearForm() {
         editingRow = -1;
-        nameField.setText(ROOM_PREFIX);
         if (categoryCombo.getItemCount() > 0) {
             categoryCombo.setSelectedIndex(0);
         }
+        currentNamePrefix = ROOM_PREFIX;
+        nameField.setText(currentNamePrefix);
         capacitySpinner.setValue(1);
         statusCombo.setSelectedIndex(0);
         assignedStaffField.setText("");
         amenityField.setText("");
         amenities.clear();
         refreshAmenities();
-        setEditMode(false);
+        updateActionStates();
     }
 
-    private void setEditMode(boolean editing) {
-        AccommodationManagementHelper.setTextButtonEnabled(updateButton, editing);
-        AccommodationManagementHelper.setTextButtonEnabled(saveButton, !editing);
+    private void updateActionStates() {
+        boolean editing = editingRow >= 0;
+        boolean validName = isValidRoomName(nameField.getText());
+        boolean validCategory = !selectedCategory().isEmpty();
+        boolean hasAssignedStaff = !assignedStaffField.getText().trim().isEmpty();
+        boolean canSubmit = validName && validCategory && hasAssignedStaff;
+
+        AccommodationManagementHelper.setTextButtonEnabled(saveButton, canSubmit && !editing);
+        AccommodationManagementHelper.setTextButtonEnabled(updateButton, canSubmit && editing);
+        AccommodationManagementHelper.setTextButtonEnabled(cancelButton, editing || isFormDirty());
     }
 
-    private String roomNameValue(String value) {
+    private boolean isFormDirty() {
+        return !ROOM_PREFIX.equals(nameField.getText().trim())
+                || !assignedStaffField.getText().trim().isEmpty()
+                || !amenities.isEmpty()
+                || capacitySpinner.getValue() instanceof Integer && (Integer) capacitySpinner.getValue() != 1
+                || statusCombo.getSelectedIndex() > 0
+                || categoryCombo.getSelectedIndex() > 0;
+    }
+
+    private boolean isValidRoomName(String value) {
+        String name = accommodationNameValue(value);
+        return !ROOM_PREFIX.equals(name);
+    }
+
+    private void syncNamePrefix() {
+        String nextPrefix = ROOM_PREFIX;
+        String text = nameField.getText().trim();
+        if (text.isEmpty() || text.equals(currentNamePrefix)) {
+            nameField.setText(nextPrefix);
+        } else {
+            nameField.setText(accommodationNameValue(text));
+        }
+        currentNamePrefix = nextPrefix;
+    }
+
+    private String selectedCategory() {
+        Object selectedCategory = categoryCombo.getSelectedItem();
+        return selectedCategory == null ? "" : String.valueOf(selectedCategory).trim();
+    }
+
+    private boolean containsItem(JComboBox<String> comboBox, String value) {
+        for (int i = 0; i < comboBox.getItemCount(); i++) {
+            if (String.valueOf(comboBox.getItemAt(i)).equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String accommodationNameValue(String value) {
         String text = value == null ? "" : value.trim();
         if (text.isEmpty()) {
             return ROOM_PREFIX;
         }
-        return text.startsWith(ROOM_PREFIX) ? text : ROOM_PREFIX + text;
+        if (startsWithIgnoreCase(text, ROOM_PREFIX)) {
+            return ROOM_PREFIX + text.substring(ROOM_PREFIX.length()).trim();
+        }
+        if (text.equalsIgnoreCase("Room")) {
+            return ROOM_PREFIX;
+        }
+        if (text.toLowerCase().startsWith("room ")) {
+            return ROOM_PREFIX + text.substring("room ".length()).trim();
+        }
+        return ROOM_PREFIX + text;
+    }
+
+    private boolean startsWithIgnoreCase(String text, String prefix) {
+        return text.regionMatches(true, 0, prefix, 0, prefix.length());
+    }
+
+    private void addDocumentListener(JTextField field, Runnable onChange) {
+        field.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent event) {
+                onChange.run();
+            }
+
+            public void removeUpdate(DocumentEvent event) {
+                onChange.run();
+            }
+
+            public void changedUpdate(DocumentEvent event) {
+                onChange.run();
+            }
+        });
+    }
+
+    public interface SaveHandler {
+        boolean save(AccommodationRecord accommodation);
+    }
+
+    public interface UpdateHandler {
+        boolean update(int row, AccommodationRecord accommodation);
     }
 }

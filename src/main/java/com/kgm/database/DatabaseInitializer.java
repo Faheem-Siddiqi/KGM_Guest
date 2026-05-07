@@ -31,11 +31,32 @@ public final class DatabaseInitializer {
         try {
             boolean created = ensureDatabase();
             applySchema();
+            ensureSchemaMigrations();
+            removeUnusedSeedData();
+            ensureAccommodationRoomPrefixCheck();
             initialized = true;
-            System.out.println(created ? "DB created" : "DB connected");
+            System.out.println(created
+                    ? "DB is connected :: DB created :: " + connectionInfo()
+                    : "DB is connected :: DB connected :: " + connectionInfo());
         } catch (SQLException | IOException exception) {
+            System.err.println("DB connection error :: " + connectionInfo() + " :: " + exception.getMessage());
             throw new IllegalStateException("Database setup failed: " + exception.getMessage(), exception);
         }
+    }
+
+    public static synchronized void ensureAccommodationNameCanRepeatAcrossCategories() throws SQLException {
+        ensureAccommodationCategoryNameUniqueKey();
+        ensureAccommodationRoomPrefixCheck();
+    }
+
+    private static String connectionInfo() {
+        return DatabaseConfig.username()
+                + "@"
+                + DatabaseConfig.host()
+                + ":"
+                + DatabaseConfig.port()
+                + "/"
+                + DatabaseConfig.databaseName();
     }
 
     private static boolean ensureDatabase() throws SQLException {
@@ -69,6 +90,185 @@ public final class DatabaseInitializer {
             for (String sql : schemaStatements()) {
                 statement.execute(sql);
             }
+        }
+    }
+
+    private static void ensureSchemaMigrations() throws SQLException {
+        ensureColumn(
+                "guests",
+                "accommodation_category",
+                "ALTER TABLE guests ADD COLUMN accommodation_category VARCHAR(120) NOT NULL DEFAULT '' AFTER departure_at"
+        );
+        ensureAccommodationCategoryNameUniqueKey();
+    }
+
+    private static void ensureColumn(String tableName, String columnName, String alterSql) throws SQLException {
+        String sql = """
+                SELECT COUNT(*) AS column_count
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = ?
+                  AND TABLE_NAME = ?
+                  AND COLUMN_NAME = ?
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, DatabaseConfig.databaseName());
+            statement.setString(2, tableName);
+            statement.setString(3, columnName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next() && resultSet.getInt("column_count") > 0) {
+                    return;
+                }
+            }
+
+            try (Statement alterStatement = connection.createStatement()) {
+                alterStatement.executeUpdate(alterSql);
+            }
+        }
+    }
+
+    private static void ensureAccommodationCategoryNameUniqueKey() throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            for (String indexName : accommodationNameOnlyUniqueIndexes(connection)) {
+                try (Statement statement = connection.createStatement()) {
+                    statement.executeUpdate("ALTER TABLE accommodations DROP INDEX " + quoteIdentifier(indexName));
+                }
+            }
+
+            if (!hasAccommodationCategoryNameUniqueIndex(connection)) {
+                try (Statement statement = connection.createStatement()) {
+                    statement.executeUpdate("""
+                            ALTER TABLE accommodations
+                            ADD CONSTRAINT uq_accommodations_category_name UNIQUE (category_id, name)
+                            """);
+                }
+            }
+        }
+    }
+
+    private static List<String> accommodationNameOnlyUniqueIndexes(Connection connection) throws SQLException {
+        String sql = """
+                SELECT INDEX_NAME
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = ?
+                  AND TABLE_NAME = 'accommodations'
+                  AND NON_UNIQUE = 0
+                  AND INDEX_NAME <> 'PRIMARY'
+                GROUP BY INDEX_NAME
+                HAVING COUNT(*) = 1
+                   AND SUM(CASE WHEN COLUMN_NAME = 'name' THEN 1 ELSE 0 END) = 1
+                """;
+        List<String> indexes = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, DatabaseConfig.databaseName());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    indexes.add(resultSet.getString("INDEX_NAME"));
+                }
+            }
+        }
+        return indexes;
+    }
+
+    private static boolean hasAccommodationCategoryNameUniqueIndex(Connection connection) throws SQLException {
+        String sql = """
+                SELECT INDEX_NAME
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = ?
+                  AND TABLE_NAME = 'accommodations'
+                  AND NON_UNIQUE = 0
+                  AND INDEX_NAME <> 'PRIMARY'
+                GROUP BY INDEX_NAME
+                HAVING COUNT(*) = 2
+                   AND SUM(CASE WHEN SEQ_IN_INDEX = 1 AND COLUMN_NAME = 'category_id' THEN 1 ELSE 0 END) = 1
+                   AND SUM(CASE WHEN SEQ_IN_INDEX = 2 AND COLUMN_NAME = 'name' THEN 1 ELSE 0 END) = 1
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, DatabaseConfig.databaseName());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    private static String quoteIdentifier(String identifier) {
+        return "`" + identifier.replace("`", "``") + "`";
+    }
+
+    private static void ensureAccommodationRoomPrefixCheck() throws SQLException {
+        String constraintName = "chk_accommodations_room_name_prefix";
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            if (hasTableConstraint(connection, "accommodations", constraintName)) {
+                return;
+            }
+            if (hasActiveAccommodationWithoutRoomPrefix(connection)) {
+                return;
+            }
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate("""
+                        ALTER TABLE accommodations
+                        ADD CONSTRAINT chk_accommodations_room_name_prefix
+                        CHECK (active = FALSE OR name LIKE 'Room-%')
+                        """);
+            }
+        }
+    }
+
+    private static boolean hasTableConstraint(
+            Connection connection,
+            String tableName,
+            String constraintName
+    ) throws SQLException {
+        String sql = """
+                SELECT COUNT(*) AS constraint_count
+                FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = ?
+                  AND TABLE_NAME = ?
+                  AND CONSTRAINT_NAME = ?
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, DatabaseConfig.databaseName());
+            statement.setString(2, tableName);
+            statement.setString(3, constraintName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() && resultSet.getInt("constraint_count") > 0;
+            }
+        }
+    }
+
+    private static boolean hasActiveAccommodationWithoutRoomPrefix(Connection connection) throws SQLException {
+        String sql = """
+                SELECT COUNT(*) AS accommodation_count
+                FROM accommodations
+                WHERE active = TRUE
+                  AND name NOT LIKE 'Room-%'
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            return resultSet.next() && resultSet.getInt("accommodation_count") > 0;
+        }
+    }
+
+    private static void removeUnusedSeedData() throws SQLException {
+        String seedAccommodationSql = """
+                UPDATE accommodations a
+                LEFT JOIN guests g ON g.accommodation_id = a.id
+                SET a.active = FALSE
+                WHERE g.id IS NULL
+                  AND a.assigned_staff = 'Admin Office'
+                  AND a.name IN ('Room I', 'Room II', 'Room III', 'Room IV', 'Room V', 'Room VI', 'Room VII')
+                """;
+        String seedCategorySql = """
+                UPDATE accommodation_categories c
+                LEFT JOIN accommodations a ON a.category_id = c.id AND a.active = TRUE
+                SET c.active = FALSE
+                WHERE a.id IS NULL
+                  AND c.name IN ('Rooms', 'Suites', 'Guest House')
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate(seedAccommodationSql);
+            statement.executeUpdate(seedCategorySql);
         }
     }
 

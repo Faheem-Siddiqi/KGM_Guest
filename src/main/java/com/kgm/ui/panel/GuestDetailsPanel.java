@@ -1,5 +1,6 @@
 package com.kgm.ui.panel;
 
+import com.kgm.dao.GuestDao;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
 
@@ -7,20 +8,28 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.HierarchyEvent;
+import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class GuestDetailsPanel extends JPanel {
     private static final SimpleDateFormat DATE_TIME = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+    private final GuestDao guestDao = new GuestDao();
 
     public GuestDetailsPanel(Object[] record, Runnable onBack) {
-        setLayout(new BorderLayout());
-        setBackground(Color.WHITE);
-        add(createContent(record, onBack), BorderLayout.CENTER);
+        this(record, onBack, () -> {
+        });
     }
 
-    private JComponent createContent(Object[] record, Runnable onBack) {
+    public GuestDetailsPanel(Object[] record, Runnable onBack, Runnable onUpdated) {
+        setLayout(new BorderLayout());
+        setBackground(Color.WHITE);
+        add(createContent(record, onBack, onUpdated), BorderLayout.CENTER);
+    }
+
+    private JComponent createContent(Object[] record, Runnable onBack, Runnable onUpdated) {
         final JScrollPane[] scrollRef = new JScrollPane[1];
         JPanel page = AddGuestHelper.pagePanel();
         page.add(AddGuestHelper.screenHeader(
@@ -29,17 +38,18 @@ public class GuestDetailsPanel extends JPanel {
                 onBack
         ), AddGuestHelper.pageConstraints(0));
 
-        Date arrivalValue = parseDate(value(record, GuestRecordPanel.ARRIVAL) + " 09:00");
-        Date departureValue = parseDate(value(record, GuestRecordPanel.DEPARTURE) + " 09:00");
+        Date arrivalValue = parseDate(value(record, GuestRecordPanel.ARRIVAL));
+        Date departureValue = parseDate(value(record, GuestRecordPanel.DEPARTURE));
         JSpinner arrivalDate = dateTimeSpinner(arrivalValue);
         JSpinner departureDate = dateTimeSpinner(departureValue);
         JTextField tenureField = lockedField("");
+        JTextField statusField = lockedField("");
         JTextArea review = AddGuestHelper.remarksArea(value(record, GuestRecordPanel.REVIEW));
 
         arrivalDate.setEnabled(false);
-        updateTenure(arrivalDate, departureDate, tenureField);
-        departureDate.addChangeListener(e -> updateTenure(arrivalDate, departureDate, tenureField));
-        addDateTimeEditListener(departureDate, () -> updateTenure(arrivalDate, departureDate, tenureField));
+        updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
+        departureDate.addChangeListener(e -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
+        addDateTimeEditListener(departureDate, () -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
 
         JPanel basicCard = AddGuestHelper.cardPanel();
         GridBagConstraints basicGbc = AddGuestHelper.formConstraints();
@@ -64,8 +74,9 @@ public class GuestDetailsPanel extends JPanel {
         AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Arrival Date", arrivalDate);
         AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Departure Date", departureDate);
         AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Tenure", tenureField);
-        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Accommodation", lockedField(value(record, GuestRecordPanel.ACCOMMODATION)));
-        AddGuestHelper.addField(stayCard, stayGbc, y++, 0, "Room", lockedField(value(record, GuestRecordPanel.ROOM)));
+        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Accommodation Category", lockedField(value(record, GuestRecordPanel.ACCOMMODATION)));
+        AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Room", lockedField(value(record, GuestRecordPanel.ROOM)));
+        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Status", statusField);
 
         JLabel reviewLabel = AddGuestHelper.label("Review");
         stayGbc.gridx = 0;
@@ -90,12 +101,21 @@ public class GuestDetailsPanel extends JPanel {
         JButton update = new JButton("Update Guest");
         AddGuestHelper.stylePrimary(update);
         update.addActionListener(e -> {
-            updateTenure(arrivalDate, departureDate, tenureField);
+            updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
             if (tenureField.getText().startsWith("Departure must")) {
                 DialogHelper.error(this, "Invalid departure", tenureField.getText());
                 return;
             }
-            DialogHelper.success(this, "Guest details updated.");
+            try {
+                guestDao.updateDepartureAndReview(recordId(record), (Date) departureDate.getValue(), review.getText().trim());
+                record[GuestRecordPanel.DEPARTURE] = DATE_TIME.format((Date) departureDate.getValue());
+                record[GuestRecordPanel.REVIEW] = review.getText().trim();
+                updateStatus(arrivalDate, departureDate, statusField);
+                onUpdated.run();
+                DialogHelper.success(this, "Guest details updated.");
+            } catch (SQLException exception) {
+                DialogHelper.error(this, "Guest not updated", exception.getMessage());
+            }
         });
         actions.add(back);
         actions.add(update);
@@ -127,6 +147,13 @@ public class GuestDetailsPanel extends JPanel {
             scroll.getVerticalScrollBar().setValue(0);
             scroll.getHorizontalScrollBar().setValue(0);
         });
+        Timer statusTimer = new Timer(1000, event -> updateStatus(arrivalDate, departureDate, statusField));
+        statusTimer.start();
+        scroll.addHierarchyListener(event -> {
+            if ((event.getChangeFlags() & HierarchyEvent.DISPLAYABILITY_CHANGED) != 0 && !scroll.isDisplayable()) {
+                statusTimer.stop();
+            }
+        });
         return scroll;
     }
 
@@ -135,6 +162,20 @@ public class GuestDetailsPanel extends JPanel {
             return "";
         }
         return String.valueOf(record[index]);
+    }
+
+    private long recordId(Object[] record) {
+        if (record == null || GuestRecordPanel.ID >= record.length || record[GuestRecordPanel.ID] == null) {
+            return 0;
+        }
+        if (record[GuestRecordPanel.ID] instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(record[GuestRecordPanel.ID]));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
     }
 
     private JTextField lockedField(String value) {
@@ -182,7 +223,48 @@ public class GuestDetailsPanel extends JPanel {
         long days = totalHours / 24;
         long hours = totalHours % 24;
 
-        tenureField.setText(days + " days " + hours + " hours");
+        tenureField.setText(tenureText(days, hours));
+    }
+
+    private static String tenureText(long days, long hours) {
+        String dayText = days + (days == 1 ? " day" : " days");
+        String hourText = hours + (hours == 1 ? " hour" : " hours");
+        return dayText + " " + hourText;
+    }
+
+    private static void updateStaySummary(
+            JSpinner arrivalDate,
+            JSpinner departureDate,
+            JTextField tenureField,
+            JTextField statusField
+    ) {
+        updateTenure(arrivalDate, departureDate, tenureField);
+        updateStatus(arrivalDate, departureDate, statusField);
+    }
+
+    private static void updateStatus(JSpinner arrivalDate, JSpinner departureDate, JTextField statusField) {
+        Date arrival = (Date) arrivalDate.getValue();
+        Date departure = (Date) departureDate.getValue();
+        Date now = new Date();
+
+        if (departure.before(arrival)) {
+            statusField.setForeground(new Color(180, 60, 45));
+            statusField.setText("Invalid Dates");
+            return;
+        }
+        if (!departure.after(now)) {
+            statusField.setForeground(new Color(180, 60, 45));
+            statusField.setText("Departed");
+            return;
+        }
+        if (arrival.after(now)) {
+            statusField.setForeground(new Color(0, 112, 210));
+            statusField.setText("Upcoming");
+            return;
+        }
+
+        statusField.setForeground(new Color(38, 128, 64));
+        statusField.setText("Currently Staying");
     }
 
     private static void addDateTimeEditListener(JSpinner spinner, Runnable onChange) {

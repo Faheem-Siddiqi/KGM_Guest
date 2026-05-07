@@ -1,16 +1,17 @@
 package com.kgm.ui.panel;
 
+import com.kgm.dao.DashboardDao;
 import com.kgm.ui.styling.HomeViewHelper;
 
 public class DepartmentAnalysisGraphPanel extends UniversalGraphPanel {
-    public DepartmentAnalysisGraphPanel() {
+    public DepartmentAnalysisGraphPanel(DashboardDao.DepartmentChartData data) {
         super(
                 "Department Analysis",
                 "Guest records grouped by department",
-                new String[]{"IT", "HR", "Ops", "Sales", "Finance"},
+                data.labels(),
                 new UniversalGraphPanel.Series(
                         "Guests",
-                        new int[]{12, 7, 10, 9, 6},
+                        data.guests(),
                         HomeViewHelper.GRAPH_PLUM_LIGHT,
                         HomeViewHelper.GRAPH_PLUM_DARK
                 )

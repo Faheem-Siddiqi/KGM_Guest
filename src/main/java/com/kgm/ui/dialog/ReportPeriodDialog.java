@@ -54,7 +54,7 @@ public class ReportPeriodDialog extends JDialog {
         JLabel title = new JLabel("Download Guest Report");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
         title.setForeground(Color.WHITE);
-        JLabel subtitle = new JLabel("Choose an A4 report period and generate a professional DOCX file.");
+        JLabel subtitle = new JLabel("Select a report period and generate a PDF report.");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subtitle.setForeground(new Color(226, 239, 249));
         text.add(title);

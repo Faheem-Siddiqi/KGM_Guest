@@ -52,7 +52,7 @@ public class GuestDetailsPanel extends JPanel {
         review.setBackground(canEditReview ? Color.WHITE : new Color(248, 248, 248));
 
         arrivalDate.setEnabled(false);
-        departureDate.setEnabled(!isDeparted(departureValue));
+        departureDate.setEnabled(!isNaturallyDeparted(arrivalValue, departureValue));
         updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
         departureDate.addChangeListener(e -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
         addDateTimeEditListener(departureDate, () -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
@@ -163,7 +163,7 @@ public class GuestDetailsPanel extends JPanel {
         });
         Timer statusTimer = new Timer(1000, event -> {
             updateStatus(arrivalDate, departureDate, statusField);
-            if (isDeparted((Date) departureDate.getValue())) {
+            if (isNaturallyDeparted((Date) arrivalDate.getValue(), (Date) departureDate.getValue())) {
                 departureDate.setEnabled(false);
             }
         });
@@ -216,6 +216,13 @@ public class GuestDetailsPanel extends JPanel {
 
     private static boolean isDeparted(Date departure) {
         return departure != null && !departure.after(new Date());
+    }
+
+    private static boolean isNaturallyDeparted(Date arrival, Date departure) {
+        return arrival != null
+                && departure != null
+                && !departure.before(arrival)
+                && isDeparted(departure);
     }
 
     private static Date parseDate(String value) {

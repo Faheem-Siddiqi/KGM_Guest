@@ -10,7 +10,11 @@ public class HomeKpiPanel extends JPanel {
     public HomeKpiPanel(DashboardDao.DashboardStats stats) {
         setLayout(new BorderLayout());
         setOpaque(false);
+        updateStats(stats);
+    }
 
+    public void updateStats(DashboardDao.DashboardStats stats) {
+        removeAll();
         JPanel kpiGrid = new JPanel(new GridLayout(2, 3, 16, 16));
         kpiGrid.setOpaque(false);
 
@@ -64,5 +68,7 @@ public class HomeKpiPanel extends JPanel {
         ));
 
         add(kpiGrid, BorderLayout.CENTER);
+        revalidate();
+        repaint();
     }
 }

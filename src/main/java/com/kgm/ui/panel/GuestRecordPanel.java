@@ -2,10 +2,13 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
+import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -41,6 +44,7 @@ public class GuestRecordPanel extends JPanel {
     private JButton refreshButton;
     private Timer refreshAnimation;
     private SwingWorker<List<Object[]>, Void> refreshWorker;
+    private final Runnable onReportRequest;
 
     private final UniversalTablePanel guestTable = new UniversalTablePanel(
             new String[]{"Guest Name", "Arrival", "Departure", "Status", "Tenure", "Actions"},
@@ -48,14 +52,20 @@ public class GuestRecordPanel extends JPanel {
     );
 
     public GuestRecordPanel(Consumer<Object[]> onViewGuest) {
+        this(onViewGuest, () -> {
+        });
+    }
+
+    public GuestRecordPanel(Consumer<Object[]> onViewGuest, Runnable onReportRequest) {
         this.onViewGuest = onViewGuest;
+        this.onReportRequest = onReportRequest;
         setLayout(new BorderLayout());
         setOpaque(false);
 
         JPanel card = HomeViewHelper.sectionCard(
                 "Recent Guest Records",
                 "Current guest movements and approvals.",
-                refreshButton()
+                headerActions()
         );
         guestTable.setActionColumn(5, "View", row -> showGuestDetails(row));
         guestTable.setStatusColumn(3);
@@ -91,6 +101,36 @@ public class GuestRecordPanel extends JPanel {
         return button;
     }
 
+    private JPanel headerActions() {
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        actions.setOpaque(false);
+        actions.add(reportLabel());
+        actions.add(refreshButton());
+        return actions;
+    }
+
+    private JLabel reportLabel() {
+        JLabel label = new JLabel("Download Report");
+        label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        label.setForeground(HomeViewHelper.PRIMARY);
+        label.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
+        label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        label.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent event) {
+                onReportRequest.run();
+            }
+
+            public void mouseEntered(MouseEvent event) {
+                label.setForeground(HomeViewHelper.PRIMARY_DARK);
+            }
+
+            public void mouseExited(MouseEvent event) {
+                label.setForeground(HomeViewHelper.PRIMARY);
+            }
+        });
+        return label;
+    }
+
     private void refreshFromDatabaseAsync() {
         if (refreshWorker != null && !refreshWorker.isDone()) {
             return;
@@ -105,14 +145,16 @@ public class GuestRecordPanel extends JPanel {
             protected void done() {
                 try {
                     setGuestRecords(get());
+                    DialogHelper.success(GuestRecordPanel.this, "Data refreshed successfully.");
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
                     allData.clear();
                     setVisibleRecords(new ArrayList<>());
                     Throwable cause = exception.getCause();
-                    System.err.println("Guest records refresh failed: "
-                            + (cause == null ? exception.getMessage() : cause.getMessage()));
+                    String message = cause == null ? exception.getMessage() : cause.getMessage();
+                    System.err.println("Guest records refresh failed: " + message);
+                    DialogHelper.error(GuestRecordPanel.this, "Refresh failed", message);
                 } finally {
                     stopRefreshAnimation();
                     refreshWorker = null;

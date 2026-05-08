@@ -3,6 +3,9 @@ package com.kgm.ui;
 import com.kgm.dao.DashboardDao;
 import com.kgm.database.DatabaseInitializer;
 import com.kgm.service.ExcelImportService;
+import com.kgm.service.GuestReportService;
+import com.kgm.ui.dialog.ReportPeriodDialog;
+import com.kgm.ui.dialog.ReportProgressDialog;
 import com.kgm.ui.panel.AccommodationManagementPanel;
 import com.kgm.ui.panel.DepartmentAnalysisGraphPanel;
 import com.kgm.ui.panel.GuestFilterPanel;
@@ -23,6 +26,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.sql.SQLException;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ExecutionException;
 
 public class HomeView extends JFrame {
@@ -30,19 +34,25 @@ public class HomeView extends JFrame {
     private static final int ADD_GUEST_TAB = 1;
     // KPI bottom margin; adjust this value to tune space below KPI cards.
     private static final int KPI_BOTTOM_MARGIN = 36;
+    private static final int DASHBOARD_REFRESH_DELAY_MS = 5000;
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
+    private static final DateTimeFormatter REPORT_FILE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private GuestFilterPanel guestFilterPanel;
     private GuestRecordPanel guestRecordPanel;
+    private HomeKpiPanel homeKpiPanel;
     private final DashboardDao dashboardDao = new DashboardDao();
     private final ExcelImportService excelImportService = new ExcelImportService();
+    private final GuestReportService guestReportService = new GuestReportService();
     private JPanel dashboardScreens;
     private JPanel dashboardPage;
     private Component guestDetailsScreen;
     private JTabbedPane mainTabs;
     private boolean refreshingAddGuestTab;
     private JButton importExcelButton;
+    private Timer dashboardStatsTimer;
+    private SwingWorker<DashboardDao.DashboardStats, Void> dashboardStatsWorker;
 
     public HomeView() {
         DatabaseInitializer.init();
@@ -61,6 +71,7 @@ public class HomeView extends JFrame {
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setVisible(true);
+        startDashboardStatsTimer();
     }
 
     private JTabbedPane createBody() {
@@ -91,8 +102,10 @@ public class HomeView extends JFrame {
         int selectedIndex = tabs.getSelectedIndex();
         if (selectedIndex == DASHBOARD_TAB) {
             showDashboard();
+            startDashboardStatsTimer();
             return;
         }
+        stopDashboardStatsTimer();
         if (selectedIndex == ADD_GUEST_TAB) {
             refreshAddGuestTab(tabs);
         }
@@ -134,7 +147,7 @@ public class HomeView extends JFrame {
             return;
         }
         dashboardPage.removeAll();
-        guestRecordPanel = new GuestRecordPanel(this::showGuestDetails);
+        guestRecordPanel = new GuestRecordPanel(this::showGuestDetails, this::showReportDialog);
         guestFilterPanel = new GuestFilterPanel(
                 this::performSearch,
                 this::clearSearch
@@ -142,7 +155,8 @@ public class HomeView extends JFrame {
 
         GridBagConstraints gbc = HomeViewHelper.pageConstraints(0);
         gbc.insets = new Insets(0, 0, KPI_BOTTOM_MARGIN, 0);
-        dashboardPage.add(new HomeKpiPanel(loadDashboardStats()), gbc);
+        homeKpiPanel = new HomeKpiPanel(loadDashboardStats());
+        dashboardPage.add(homeKpiPanel, gbc);
 
         gbc = HomeViewHelper.pageConstraints(1);
         dashboardPage.add(createImportActionsRow(), gbc);
@@ -189,6 +203,69 @@ public class HomeView extends JFrame {
 
     private void refreshDashboard() {
         populateDashboardPage(null);
+        refreshDashboardStatsAsync();
+    }
+
+    private void startDashboardStatsTimer() {
+        if (!isDashboardTabOpen()) {
+            return;
+        }
+        if (dashboardStatsTimer == null) {
+            dashboardStatsTimer = new Timer(DASHBOARD_REFRESH_DELAY_MS, event -> refreshDashboardStatsAsync());
+            dashboardStatsTimer.setRepeats(true);
+        }
+        if (!dashboardStatsTimer.isRunning()) {
+            dashboardStatsTimer.start();
+        }
+        refreshDashboardStatsAsync();
+    }
+
+    private void stopDashboardStatsTimer() {
+        if (dashboardStatsTimer != null) {
+            dashboardStatsTimer.stop();
+        }
+    }
+
+    private boolean isDashboardTabOpen() {
+        return mainTabs != null
+                && mainTabs.getSelectedIndex() == DASHBOARD_TAB
+                && isDashboardCardOpen();
+    }
+
+    private boolean isDashboardCardOpen() {
+        return dashboardScreens == null || guestDetailsScreen == null || !guestDetailsScreen.isShowing();
+    }
+
+    private void refreshDashboardStatsAsync() {
+        if (!isDashboardTabOpen() || homeKpiPanel == null) {
+            return;
+        }
+        if (dashboardStatsWorker != null && !dashboardStatsWorker.isDone()) {
+            return;
+        }
+
+        dashboardStatsWorker = new SwingWorker<>() {
+            protected DashboardDao.DashboardStats doInBackground() throws Exception {
+                return dashboardDao.loadStats();
+            }
+
+            protected void done() {
+                try {
+                    if (isDashboardTabOpen() && homeKpiPanel != null) {
+                        homeKpiPanel.updateStats(get());
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    System.err.println("Dashboard KPI refresh failed: "
+                            + (cause == null ? exception.getMessage() : cause.getMessage()));
+                } finally {
+                    dashboardStatsWorker = null;
+                }
+            }
+        };
+        dashboardStatsWorker.execute();
     }
 
     private void refreshGuestRecords() {
@@ -309,16 +386,12 @@ public class HomeView extends JFrame {
     }
 
     private void showHeaderImportError(String message) {
-        Object[] options = {"Download Sample", "OK"};
-        int selected = JOptionPane.showOptionDialog(
+        int selected = DialogHelper.option(
                 this,
-                message,
                 "Excel header issue",
-                JOptionPane.DEFAULT_OPTION,
-                JOptionPane.ERROR_MESSAGE,
-                null,
-                options,
-                options[1]
+                message,
+                "Download Sample",
+                "OK"
         );
         if (selected == 0) {
             downloadSampleExcel();
@@ -387,6 +460,75 @@ public class HomeView extends JFrame {
         importExcelButton.setEnabled(enabled);
         importExcelButton.setText(enabled ? "Import Excel" : "Importing...");
         importExcelButton.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    private void showReportDialog() {
+        ReportPeriodDialog dialog = new ReportPeriodDialog(this);
+        dialog.setVisible(true);
+        GuestReportService.ReportRange range = dialog.getSelectedRange();
+        if (range == null) {
+            return;
+        }
+
+        File target = chooseReportTarget(range);
+        if (target == null) {
+            return;
+        }
+        generateGuestReport(range, target);
+    }
+
+    private File chooseReportTarget(GuestReportService.ReportRange range) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Download Guest Report");
+        chooser.setSelectedFile(new File(defaultReportFileName(range)));
+        chooser.setFileFilter(new FileNameExtensionFilter("Word document (*.docx)", "docx"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+        return docxFile(chooser.getSelectedFile());
+    }
+
+    private String defaultReportFileName(GuestReportService.ReportRange range) {
+        String label = range.label().toLowerCase().replaceAll("[^a-z0-9]+", "_");
+        return "guest_report_"
+                + label
+                + "_"
+                + range.startDate().format(REPORT_FILE_DATE)
+                + "_"
+                + range.endDate().format(REPORT_FILE_DATE)
+                + ".docx";
+    }
+
+    private File docxFile(File file) {
+        String path = file.getAbsolutePath();
+        return path.toLowerCase().endsWith(".docx") ? file : new File(path + ".docx");
+    }
+
+    private void generateGuestReport(GuestReportService.ReportRange range, File target) {
+        ReportProgressDialog progress = new ReportProgressDialog(this);
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            protected Void doInBackground() throws Exception {
+                guestReportService.generateReport(target, range);
+                return null;
+            }
+
+            protected void done() {
+                progress.dispose();
+                try {
+                    get();
+                    DialogHelper.success(HomeView.this, "Report downloaded successfully:\n" + target.getAbsolutePath());
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    DialogHelper.error(HomeView.this, "Report generation stopped", "Report generation was interrupted.");
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    String message = cause == null ? exception.getMessage() : cause.getMessage();
+                    DialogHelper.error(HomeView.this, "Report generation failed", message);
+                }
+            }
+        };
+        progress.setVisible(true);
+        worker.execute();
     }
 
     private JComponent graphScroll(UniversalGraphPanel graph) {

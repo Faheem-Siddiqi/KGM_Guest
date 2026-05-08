@@ -221,9 +221,9 @@ public class ExcelImportService {
                 %s
 
                 2026 accommodation category values:
-                - Guest-House: use Room-1 to Room-7
-                - Guest-Rooms: use Room-1 to Room-10
-                - Guest-Room is accepted in Excel and treated as Guest-Rooms
+                - Guest House: use Room-1 to Room-7
+                - Guest Rooms: use Room-1 to Room-10
+                - Guest-Room is accepted in Excel and treated as Guest Rooms
 
                 This import is only for guest data. It checks existing accommodation categories and rooms from DB; it does not create, edit, or rename accommodation records.
                 """.formatted(templateHeaderLine());
@@ -235,31 +235,31 @@ public class ExcelImportService {
                         "Ali Khan", "3520212345671", "Pakistani", "Family",
                         "House 12 Lahore", "Ahmed Raza", "HR", "Manager Khan",
                         "Faheem Siddiqi", "2026-05-08 09:00", "2026-05-09 09:00",
-                        "Guest-House", "Room-1", "N/A"
+                        "Guest House", "Room-1", "N/A"
                 },
                 {
                         "Sara Ahmed", "3520212345672", "Pakistani", "Non-Family",
                         "Street 4 Karachi", "Ayesha Noor", "Admin", "Admin Head",
                         "Faheem Siddiqi", "2026-05-08 10:00", "2026-05-10 10:00",
-                        "Guest-House", "Room-2", "N/A"
+                        "Guest House", "Room-2", "N/A"
                 },
                 {
                         "Bilal Hussain", "3520212345673", "Pakistani", "Family",
                         "Model Town Lahore", "Usman Ali", "Finance", "Finance Head",
                         "Faheem Siddiqi", "2026-05-08 11:00", "2026-05-09 18:00",
-                        "Guest-Rooms", "Room-1", "N/A"
+                        "Guest Rooms", "Room-1", "N/A"
                 },
                 {
                         "Mariam Iqbal", "3520212345674", "Pakistani", "Non-Family",
                         "Gulberg Lahore", "Hassan Raza", "Spinning", "Plant Head",
                         "Faheem Siddiqi", "2026-05-08 12:00", "2026-05-11 12:00",
-                        "Guest-Rooms", "Room-2", "N/A"
+                        "Guest Rooms", "Room-2", "N/A"
                 },
                 {
                         "Omer Farooq", "3520212345675", "Pakistani", "Family",
                         "Satellite Town Rawalpindi", "Zain Malik", "Others",
                         "Operations Head", "Faheem Siddiqi", "2026-05-08 13:00",
-                        "2026-05-09 13:00", "Guest-Room", "Room-3", "N/A"
+                        "2026-05-09 13:00", "Guest Rooms", "Room-3", "N/A"
                 }
         };
     }

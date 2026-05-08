@@ -119,6 +119,45 @@ public class GuestDao {
         return guests;
     }
 
+    public List<Guest> findByArrivalRange(Date startInclusive, Date endExclusive) throws SQLException {
+        String sql = """
+                SELECT
+                    g.id,
+                    g.guest_name,
+                    g.cnic,
+                    g.nationality,
+                    gc.name AS guest_category,
+                    g.address,
+                    g.requested_by,
+                    g.requested_department,
+                    g.approved_by,
+                    g.accommodated_by,
+                    g.arrival_at,
+                    g.departure_at,
+                    g.accommodation_category,
+                    g.room_name,
+                    g.remarks,
+                    g.review
+                FROM guests g
+                JOIN guest_categories gc ON gc.id = g.guest_category_id
+                WHERE g.arrival_at >= ?
+                  AND g.arrival_at < ?
+                ORDER BY g.arrival_at DESC, g.id DESC
+                """;
+        List<Guest> guests = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setTimestamp(1, timestamp(startInclusive));
+            statement.setTimestamp(2, timestamp(endExclusive));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    guests.add(mapGuest(resultSet));
+                }
+            }
+        }
+        return guests;
+    }
+
     public boolean existsByNameOnArrivalDate(String guestName, Date arrivalAt) throws SQLException {
         String sql = """
                 SELECT 1

@@ -1,5 +1,6 @@
 package com.kgm.service;
 
+import com.kgm.dao.AccommodationCategoryDao;
 import com.kgm.dao.AccommodationDao;
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
@@ -8,6 +9,7 @@ import com.kgm.ui.panel.AccommodationRecord;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.DateUtil;
@@ -24,6 +26,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.sql.SQLException;
@@ -117,12 +121,13 @@ public class ExcelImportService {
 
     private final GuestDao guestDao = new GuestDao();
     private final AccommodationDao accommodationDao = new AccommodationDao();
+    private final AccommodationCategoryDao accommodationCategoryDao = new AccommodationCategoryDao();
+    private Map<String, String> accommodationCategoryLookup;
 
     public ImportResult importGuests(File file) throws IOException {
         List<String> skippedRows = new ArrayList<>();
         int imported = 0;
-        System.out.println("Starting Excel guest import: " + file.getAbsolutePath());
-        System.out.println(importGuideMessage());
+        accommodationCategoryLookup = null;
 
         try (Workbook workbook = openWorkbook(file)) {
             Sheet sheet = workbook.getNumberOfSheets() == 0 ? null : workbook.getSheetAt(0);
@@ -135,14 +140,21 @@ public class ExcelImportService {
             Map<String, Integer> headers = readHeaders(sheet, formatter, evaluator);
             validateHeaders(headers);
 
+            boolean hasGuestRows = false;
             for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (isBlankRow(row, formatter, evaluator)) {
                     continue;
                 }
+                hasGuestRows = true;
 
                 try {
                     Guest guest = guestFromRow(row, headers, formatter, evaluator);
+                    String accommodationCategory = resolveAccommodationCategory(
+                            guest.getAccommodation(),
+                            guest.getRoomName()
+                    );
+                    guest.setAccommodation(accommodationCategory);
                     validateAccommodation(guest.getAccommodation(), guest.getRoomName());
                     if (guestDao.existsByNameOnArrivalDate(guest.getGuestName(), guest.getArrivalAt())) {
                         throw new RowImportException("Guest name already exists for this arrival date: "
@@ -159,10 +171,11 @@ public class ExcelImportService {
                     addSkippedRow(skippedRows, rowIndex + 1, friendlySqlMessage(exception));
                 }
             }
+            if (!hasGuestRows) {
+                throw new IllegalArgumentException("No guest rows found. Add guest records below the header row before importing.");
+            }
         }
 
-        System.out.println("Excel guest import completed. Imported guests: " + imported
-                + ", skipped rows: " + skippedRows.size());
         return new ImportResult(imported, skippedRows);
     }
 
@@ -191,6 +204,7 @@ public class ExcelImportService {
         try (Workbook workbook = new XSSFWorkbook();
              FileOutputStream output = new FileOutputStream(file)) {
             List<SampleAccommodation> accommodations = sampleAccommodations();
+            List<String> accommodationCategories = sampleAccommodationCategories();
             List<String> guestCategories = sampleGuestCategories();
 
             Sheet sheet = workbook.createSheet("Guest Import");
@@ -222,7 +236,7 @@ public class ExcelImportService {
                 sheet.autoSizeColumn(index);
             }
 
-            writeValidValuesSheet(workbook, headerStyle, accommodations, guestCategories);
+            writeValidValuesSheet(workbook, headerStyle, accommodationCategories, accommodations, guestCategories);
             workbook.write(output);
         } catch (SQLException exception) {
             throw new IOException("Could not create the sample Excel file from current accommodation and guest category data.", exception);
@@ -234,44 +248,40 @@ public class ExcelImportService {
                 Guest import sample columns:
                 %s
 
-                2026 accommodation category values:
-                - Guest House: use Room-1 to Room-7
-                - Guest Rooms: use Room-1 to Room-10
-                - Guest-Room is accepted in Excel and treated as Guest Rooms
+                Current accommodation and guest category values:
+                Download the sample file and review the Valid Values sheet. It is generated from the current database and includes active accommodation categories, all active rooms, room status, available beds, and all active guest categories.
 
                 This import is only for guest data. It checks existing accommodation categories and rooms from DB; it does not create, edit, or rename accommodation records.
                 """.formatted(templateHeaderLine());
     }
 
     private static List<String[]> sampleRows(List<SampleAccommodation> accommodations, List<String> guestCategories) {
-        List<SampleAccommodation> importable = importableAccommodations(accommodations);
-        if (importable.isEmpty()) {
-            importable = accommodations.isEmpty() ? fallbackAccommodations() : accommodations;
-        }
-
-        int rowCount = Math.max(importable.size(), guestCategories.size());
+        List<String> sampleGuestCategories = guestCategories.isEmpty() ? fallbackGuestCategories() : guestCategories;
         List<String[]> rows = new ArrayList<>();
-        for (int index = 0; index < rowCount; index++) {
-            SampleAccommodation accommodation = importable.get(index % importable.size());
-            String guestCategory = guestCategories.get(index % guestCategories.size());
-            LocalDateTime arrival = LocalDate.now().plusDays(index + 1L).atTime(9 + index % 8, 0);
-            LocalDateTime departure = arrival.plusDays(1);
-            rows.add(new String[]{
-                    sampleGuestName(index),
-                    sampleCnic(index),
-                    "Pakistani",
-                    guestCategory,
-                    "Sample address " + (index + 1),
-                    "Sample Requester",
-                    sampleDepartment(index),
-                    "Sample Approver",
-                    "Admin Office",
-                    arrival.format(DATE_TIME_FORMATS.get(0)),
-                    departure.format(DATE_TIME_FORMATS.get(0)),
-                    accommodation.category(),
-                    accommodation.room(),
-                    "Sample row. Replace with real guest data before import."
-            });
+        int rowIndex = 0;
+        // Include every configured room/category scenario so the sample stays current with the database.
+        for (SampleAccommodation accommodation : accommodations) {
+            for (String guestCategory : sampleGuestCategories) {
+                LocalDateTime arrival = LocalDate.now().plusDays(rowIndex + 1L).atTime(9 + rowIndex % 8, 0);
+                LocalDateTime departure = arrival.plusDays(1);
+                rows.add(new String[]{
+                        sampleGuestName(rowIndex),
+                        sampleCnic(rowIndex),
+                        "Pakistani",
+                        guestCategory,
+                        "Sample address " + (rowIndex + 1),
+                        "Sample Requester",
+                        sampleDepartment(rowIndex),
+                        "Sample Approver",
+                        "Admin Office",
+                        arrival.format(DATE_TIME_FORMATS.get(0)),
+                        departure.format(DATE_TIME_FORMATS.get(0)),
+                        accommodation.category(),
+                        accommodation.room(),
+                        sampleRemark(accommodation)
+                });
+                rowIndex++;
+            }
         }
         return rows;
     }
@@ -282,45 +292,46 @@ public class ExcelImportService {
             values.add(new SampleAccommodation(
                     record.getCategory(),
                     record.getName(),
-                    record.getStatus()
-            ));
+                    record.getStatus(),
+                    record.getCapacity(),
+                    record.getAvailableSeats()
+                ));
         }
-        return values.isEmpty() ? fallbackAccommodations() : values;
+        return values;
     }
 
-    private static List<SampleAccommodation> importableAccommodations(List<SampleAccommodation> accommodations) {
-        List<SampleAccommodation> importable = new ArrayList<>();
-        for (SampleAccommodation accommodation : accommodations) {
-            if ("Ready for Assignment".equalsIgnoreCase(accommodation.status())) {
-                importable.add(accommodation);
-            }
-        }
-        return importable;
-    }
-
-    private static List<SampleAccommodation> fallbackAccommodations() {
-        return List.of(
-                new SampleAccommodation("Guest-House", "Room-1", "Ready for Assignment"),
-                new SampleAccommodation("Guest-Rooms", "Room-1", "Ready for Assignment")
-        );
+    private static List<String> sampleAccommodationCategories() throws SQLException {
+        return new AccommodationCategoryDao().findActiveNames();
     }
 
     private static List<String> sampleGuestCategories() throws SQLException {
         Set<String> categories = new LinkedHashSet<>();
-        categories.add("Family");
-        categories.add("Non-Family");
+        categories.addAll(fallbackGuestCategories());
         categories.addAll(new GuestDao().findActiveGuestCategoryNames());
         return new ArrayList<>(categories);
+    }
+
+    private static List<String> fallbackGuestCategories() {
+        return List.of("Family", "Non-Family");
     }
 
     private static void writeValidValuesSheet(
             Workbook workbook,
             CellStyle headerStyle,
+            List<String> accommodationCategories,
             List<SampleAccommodation> accommodations,
             List<String> guestCategories
     ) {
         Sheet values = workbook.createSheet("Valid Values");
-        String[] headers = {"Guest Category", "Accommodation Category", "Room", "Room Status", "Importable"};
+        String[] headers = {
+                "Guest Category",
+                "Accommodation Category",
+                "Room",
+                "Room Status",
+                "Capacity",
+                "Available Beds",
+                "Importable"
+        };
         Row header = values.createRow(0);
         for (int index = 0; index < headers.length; index++) {
             Cell cell = header.createCell(index);
@@ -328,24 +339,58 @@ public class ExcelImportService {
             cell.setCellStyle(headerStyle);
         }
 
-        int rowCount = Math.max(guestCategories.size(), accommodations.size());
-        for (int index = 0; index < rowCount; index++) {
-            Row row = values.createRow(index + 1);
-            if (index < guestCategories.size()) {
-                row.createCell(0).setCellValue(guestCategories.get(index));
+        Set<String> coveredCategories = new LinkedHashSet<>();
+        int rowIndex = 1;
+        int guestCategoryIndex = 0;
+        for (SampleAccommodation accommodation : accommodations) {
+            coveredCategories.add(accommodation.category());
+            Row row = values.createRow(rowIndex++);
+            if (guestCategoryIndex < guestCategories.size()) {
+                row.createCell(0).setCellValue(guestCategories.get(guestCategoryIndex++));
             }
-            if (index < accommodations.size()) {
-                SampleAccommodation accommodation = accommodations.get(index);
-                row.createCell(1).setCellValue(accommodation.category());
-                row.createCell(2).setCellValue(accommodation.room());
-                row.createCell(3).setCellValue(accommodation.status());
-                row.createCell(4).setCellValue("Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No");
+            writeAccommodationValueRow(row, accommodation);
+        }
+
+        for (String category : accommodationCategories) {
+            if (coveredCategories.contains(category)) {
+                continue;
             }
+            Row row = values.createRow(rowIndex++);
+            if (guestCategoryIndex < guestCategories.size()) {
+                row.createCell(0).setCellValue(guestCategories.get(guestCategoryIndex++));
+            }
+            row.createCell(1).setCellValue(category);
+            row.createCell(2).setCellValue("No active rooms configured");
+            row.createCell(3).setCellValue("Not importable");
+            row.createCell(6).setCellValue("No");
+        }
+
+        while (guestCategoryIndex < guestCategories.size()) {
+            Row row = values.createRow(rowIndex++);
+            row.createCell(0).setCellValue(guestCategories.get(guestCategoryIndex++));
         }
 
         for (int index = 0; index < headers.length; index++) {
             values.autoSizeColumn(index);
         }
+    }
+
+    private static void writeAccommodationValueRow(Row row, SampleAccommodation accommodation) {
+        row.createCell(1).setCellValue(accommodation.category());
+        row.createCell(2).setCellValue(accommodation.room());
+        row.createCell(3).setCellValue(accommodation.status());
+        row.createCell(4).setCellValue(accommodation.capacity());
+        row.createCell(5).setCellValue(accommodation.availableBeds());
+        row.createCell(6).setCellValue("Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No");
+    }
+
+    private static String sampleRemark(SampleAccommodation accommodation) {
+        String importHint = "Ready for Assignment".equalsIgnoreCase(accommodation.status())
+                ? "Import-ready room."
+                : "Reference row: this room may not import until it is ready.";
+        return "Sample scenario. Status: " + accommodation.status()
+                + ", available beds: " + accommodation.availableBeds()
+                + ". " + importHint;
     }
 
     private static String sampleGuestName(int index) {
@@ -371,28 +416,38 @@ public class ExcelImportService {
             DataFormatter formatter,
             FormulaEvaluator evaluator
     ) throws RowImportException {
-        String guestName = requiredText(row, headers, GUEST_NAME, formatter, evaluator);
-        String cnic = digitsOnly(requiredText(row, headers, CNIC, formatter, evaluator));
-        String nationality = requiredText(row, headers, NATIONALITY, formatter, evaluator);
-        String guestCategory = requiredText(row, headers, GUEST_CATEGORY, formatter, evaluator);
-        String address = requiredText(row, headers, ADDRESS, formatter, evaluator);
-        String requestedBy = requiredText(row, headers, REQUESTED_BY, formatter, evaluator);
-        String requestedDepartment = requiredText(row, headers, REQUESTED_DEPARTMENT, formatter, evaluator);
-        String approvedBy = requiredText(row, headers, APPROVED_BY, formatter, evaluator);
-        String accommodatedBy = requiredText(row, headers, ACCOMMODATED_BY, formatter, evaluator);
-        Date arrivalAt = requiredDate(row, headers, ARRIVAL_DATE_TIME, formatter, evaluator);
-        Date departureAt = requiredDate(row, headers, DEPARTURE_DATE_TIME, formatter, evaluator);
+        String guestName = optionalText(row, headers, GUEST_NAME, formatter, evaluator);
+        String cnic = cnicValue(rowCell(row, headers, CNIC), formatter, evaluator);
+        String nationality = optionalText(row, headers, NATIONALITY, formatter, evaluator);
+        String guestCategory = optionalText(row, headers, GUEST_CATEGORY, formatter, evaluator);
+        String address = optionalText(row, headers, ADDRESS, formatter, evaluator);
+        String requestedBy = optionalText(row, headers, REQUESTED_BY, formatter, evaluator);
+        String requestedDepartment = optionalText(row, headers, REQUESTED_DEPARTMENT, formatter, evaluator);
+        String approvedBy = optionalText(row, headers, APPROVED_BY, formatter, evaluator);
+        String accommodatedBy = optionalText(row, headers, ACCOMMODATED_BY, formatter, evaluator);
         String accommodationCategory = accommodationCategoryValue(
-                requiredText(row, headers, ACCOMMODATION_CATEGORY, formatter, evaluator)
+                optionalText(row, headers, ACCOMMODATION_CATEGORY, formatter, evaluator)
         );
-        String room = roomNameValue(requiredText(row, headers, ROOM, formatter, evaluator));
+        String room = roomNameValue(optionalText(row, headers, ROOM, formatter, evaluator));
         String remarks = optionalText(row, headers, REMARKS, formatter, evaluator);
+        Date arrivalAt = dateValue(rowCell(row, headers, ARRIVAL_DATE_TIME), formatter, evaluator);
+        Date departureAt = dateValue(rowCell(row, headers, DEPARTURE_DATE_TIME), formatter, evaluator);
 
-        if (!cnic.matches("\\d{13}")) {
-            throw new RowImportException("CNIC must contain exactly 13 digits.");
+        List<String> issues = rowIssues(
+                row,
+                headers,
+                formatter,
+                evaluator,
+                cnic,
+                arrivalAt,
+                departureAt
+        );
+        if (!issues.isEmpty()) {
+            throw new RowImportException(String.join(" ", issues));
         }
-        if (!departureAt.after(arrivalAt)) {
-            throw new RowImportException("Departure Date Time must be after Arrival Date Time.");
+
+        if (ROOM_PREFIX.equals(room)) {
+            room = "";
         }
 
         Guest guest = new Guest();
@@ -413,16 +468,99 @@ public class ExcelImportService {
         return guest;
     }
 
+    private List<String> rowIssues(
+            Row row,
+            Map<String, Integer> headers,
+            DataFormatter formatter,
+            FormulaEvaluator evaluator,
+            String cnic,
+            Date arrivalAt,
+            Date departureAt
+    ) {
+        List<String> issues = new ArrayList<>();
+        List<String> missing = missingRequiredFields(row, headers, formatter, evaluator);
+        if (!missing.isEmpty()) {
+            issues.add("Missing required fields: " + String.join(", ", missing) + ".");
+        }
+
+        if (!missing.contains(CNIC) && !cnic.matches("\\d{13}")) {
+            issues.add("CNIC must contain exactly 13 digits.");
+        }
+        if (!missing.contains(ARRIVAL_DATE_TIME) && arrivalAt == null) {
+            issues.add(ARRIVAL_DATE_TIME + " must be a valid date/time.");
+        }
+        if (!missing.contains(DEPARTURE_DATE_TIME) && departureAt == null) {
+            issues.add(DEPARTURE_DATE_TIME + " must be a valid date/time.");
+        }
+        if (arrivalAt != null && departureAt != null && !departureAt.after(arrivalAt)) {
+            issues.add("Departure Date Time must be after Arrival Date Time.");
+        }
+        return issues;
+    }
+
+    private List<String> missingRequiredFields(
+            Row row,
+            Map<String, Integer> headers,
+            DataFormatter formatter,
+            FormulaEvaluator evaluator
+    ) {
+        List<String> missing = new ArrayList<>();
+        for (String header : REQUIRED_HEADERS) {
+            if (optionalText(row, headers, header, formatter, evaluator).isEmpty()) {
+                missing.add(header);
+            }
+        }
+        return missing;
+    }
+
     private void validateAccommodation(String accommodationCategory, String room) throws RowImportException, SQLException {
         if (accommodationDao.findActiveNamesByCategory(accommodationCategory).isEmpty()) {
-            throw new RowImportException("Accommodation Category not found in DB: " + accommodationCategory);
+            throw new RowImportException("Accommodation Category not found in DB: "
+                    + accommodationRoomText(accommodationCategory, room));
         }
         if (accommodationDao.findIdByCategoryAndName(accommodationCategory, room) == null) {
-            throw new RowImportException("Room not found in DB for category '" + accommodationCategory + "': " + room);
+            throw new RowImportException("Room not found in DB: "
+                    + accommodationRoomText(accommodationCategory, room));
         }
         if (accommodationDao.findReadyIdByCategoryAndName(accommodationCategory, room) == null) {
-            throw new RowImportException("Room is not ready for assignment: " + accommodationCategory + " / " + room);
+            throw new RowImportException("Room is not ready for assignment: "
+                    + accommodationRoomText(accommodationCategory, room));
         }
+    }
+
+    private String resolveAccommodationCategory(String accommodationCategory, String room)
+            throws SQLException, RowImportException {
+        String text = accommodationCategoryValue(accommodationCategory);
+        Map<String, String> lookup = accommodationCategoryLookup();
+        for (String key : categoryLookupKeys(text)) {
+            String resolved = lookup.get(key);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+        throw new RowImportException("Accommodation Category not found in DB: "
+                + accommodationRoomText(text, room)
+                + ". Use a category from the sample file's Valid Values sheet.");
+    }
+
+    private String accommodationRoomText(String accommodationCategory, String room) {
+        return "Accommodation Category '" + accommodationCategory + "', Room '" + room + "'";
+    }
+
+    private Map<String, String> accommodationCategoryLookup() throws SQLException {
+        if (accommodationCategoryLookup != null) {
+            return accommodationCategoryLookup;
+        }
+
+        Map<String, String> lookup = new LinkedHashMap<>();
+        for (String category : accommodationCategoryDao.findActiveNames()) {
+            lookup.putIfAbsent(normalizeLookupValue(category), category);
+        }
+        for (AccommodationRecord record : accommodationDao.findAll()) {
+            lookup.putIfAbsent(normalizeLookupValue(record.getCategory()), record.getCategory());
+        }
+        accommodationCategoryLookup = lookup;
+        return accommodationCategoryLookup;
     }
 
     private Map<String, Integer> readHeaders(Sheet sheet, DataFormatter formatter, FormulaEvaluator evaluator) {
@@ -451,7 +589,6 @@ public class ExcelImportService {
             }
         }
         if (!missing.isEmpty()) {
-            System.err.println("Excel import missing headers: " + String.join(", ", missing));
             throw new HeaderImportException("Header issue detected. Download the sample file for the correct header format.");
         }
     }
@@ -495,6 +632,11 @@ public class ExcelImportService {
             return "";
         }
         return cellText(row.getCell(index), formatter, evaluator).trim();
+    }
+
+    private Cell rowCell(Row row, Map<String, Integer> headers, String header) {
+        Integer index = headers.get(header);
+        return row == null || index == null ? null : row.getCell(index);
     }
 
     private Date requiredDate(
@@ -552,6 +694,38 @@ public class ExcelImportService {
         return formatter.formatCellValue(cell, evaluator).trim();
     }
 
+    private String cnicValue(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
+        if (cell == null || cell.getCellType() == CellType.BLANK) {
+            return "";
+        }
+        if (cell.getCellType() == CellType.NUMERIC) {
+            return numericIdentifier(cell.getNumericCellValue());
+        }
+        if (cell.getCellType() == CellType.FORMULA && evaluator != null) {
+            CellValue value = evaluator.evaluate(cell);
+            if (value == null) {
+                return "";
+            }
+            if (value.getCellType() == CellType.NUMERIC) {
+                return numericIdentifier(value.getNumberValue());
+            }
+            if (value.getCellType() == CellType.STRING) {
+                return digitsOnly(value.getStringValue());
+            }
+        }
+        return digitsOnly(cellText(cell, formatter, evaluator));
+    }
+
+    private String numericIdentifier(double value) {
+        if (!Double.isFinite(value)) {
+            return "";
+        }
+        return BigDecimal.valueOf(value)
+                .setScale(0, RoundingMode.HALF_UP)
+                .toPlainString()
+                .replaceAll("\\D", "");
+    }
+
     private String canonicalHeader(String header) {
         if (header == null || header.trim().isEmpty()) {
             return null;
@@ -588,6 +762,22 @@ public class ExcelImportService {
         return value == null ? "" : value.toLowerCase().replaceAll("[^a-z0-9]", "");
     }
 
+    private static Set<String> categoryLookupKeys(String value) {
+        Set<String> keys = new LinkedHashSet<>();
+        String key = normalizeLookupValue(value);
+        keys.add(key);
+        if ("guestroom".equals(key)) {
+            keys.add("guestrooms");
+        } else if ("guestrooms".equals(key)) {
+            keys.add("guestroom");
+        }
+        return keys;
+    }
+
+    private static String normalizeLookupValue(String value) {
+        return value == null ? "" : value.toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+
     private String digitsOnly(String value) {
         return value == null ? "" : value.replaceAll("\\D", "");
     }
@@ -619,21 +809,12 @@ public class ExcelImportService {
     }
 
     private String accommodationCategoryValue(String value) {
-        String text = value == null ? "" : value.trim();
-        String key = text.toLowerCase().replaceAll("[^a-z0-9]", "");
-        if ("guesthouse".equals(key)) {
-            return "Guest-House";
-        }
-        if ("guestroom".equals(key) || "guestrooms".equals(key)) {
-            return "Guest-Rooms";
-        }
-        return text;
+        return value == null ? "" : value.trim();
     }
 
     private void addSkippedRow(List<String> skippedRows, int rowNumber, String reason) {
         String message = "Row " + rowNumber + ": " + reason;
         skippedRows.add(message);
-        System.err.println("Excel import skipped - " + message);
     }
 
     private String friendlySqlMessage(SQLException exception) {
@@ -641,7 +822,7 @@ public class ExcelImportService {
         return message == null || message.isBlank() ? "Database error while importing row." : message;
     }
 
-    private record SampleAccommodation(String category, String room, String status) {
+    private record SampleAccommodation(String category, String room, String status, int capacity, int availableBeds) {
     }
 
     public record ImportResult(int importedCount, List<String> skippedRows) {

@@ -4,6 +4,8 @@ import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class UniversalGraphPanel extends JPanel {
     private static final int MIN_VISIBLE_BAR_HEIGHT = 4;
@@ -21,6 +23,8 @@ public class UniversalGraphPanel extends JPanel {
         setOpaque(false);
         setPreferredSize(new Dimension(preferredGraphWidth(), 340));
         setMinimumSize(new Dimension(320, 300));
+        setToolTipText("");
+        installHoverCursor();
     }
 
     public void setGraphData(String[] categories, Series... series) {
@@ -54,6 +58,26 @@ public class UniversalGraphPanel extends JPanel {
         drawBars(g2, width, height);
 
         g2.dispose();
+    }
+
+    public String getToolTipText(MouseEvent event) {
+        HoverBar hoverBar = hoverBarAt(event.getPoint());
+        return hoverBar == null ? null : tooltipText(hoverBar.categoryIndex(), hoverBar.seriesIndex());
+    }
+
+    private void installHoverCursor() {
+        addMouseMotionListener(new MouseAdapter() {
+            public void mouseMoved(MouseEvent event) {
+                setCursor(Cursor.getPredefinedCursor(
+                        hoverBarAt(event.getPoint()) == null ? Cursor.DEFAULT_CURSOR : Cursor.HAND_CURSOR
+                ));
+            }
+        });
+        addMouseListener(new MouseAdapter() {
+            public void mouseExited(MouseEvent event) {
+                setCursor(Cursor.getDefaultCursor());
+            }
+        });
     }
 
     private void drawHeader(Graphics2D g2, int width) {
@@ -132,6 +156,97 @@ public class UniversalGraphPanel extends JPanel {
         }
     }
 
+    private HoverBar hoverBarAt(Point point) {
+        if (point == null || categories.length == 0 || series.length == 0) {
+            return null;
+        }
+
+        GraphLayout layout = graphLayout(getWidth(), getHeight());
+        int groupW = layout.plotW() / categories.length;
+        int seriesGap = 4;
+        int barW = Math.max(8, Math.min(28, (groupW - 18) / series.length - seriesGap));
+        int totalBarsW = series.length * barW + Math.max(0, series.length - 1) * seriesGap;
+
+        for (int categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
+            int groupStart = layout.plotX() + categoryIndex * groupW + (groupW - totalBarsW) / 2;
+            for (int seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
+                int value = categoryIndex < series[seriesIndex].values.length
+                        ? Math.max(0, series[seriesIndex].values[categoryIndex])
+                        : 0;
+                int scaledBarH = (int) ((value / (double) layout.max()) * layout.plotH());
+                int barH = Math.min(layout.plotH(), Math.max(MIN_VISIBLE_BAR_HEIGHT, scaledBarH));
+                int x = groupStart + seriesIndex * (barW + seriesGap);
+                int y = layout.baseY() - barH;
+                Rectangle bounds = new Rectangle(x - 3, y - 3, barW + 6, barH + 6);
+                if (bounds.contains(point)) {
+                    return new HoverBar(categoryIndex, seriesIndex);
+                }
+            }
+        }
+        return null;
+    }
+
+    private String tooltipText(int categoryIndex, int hoveredSeriesIndex) {
+        StringBuilder tooltip = new StringBuilder("<html>");
+        tooltip.append("<b>").append(html(title)).append("</b><br>");
+        tooltip.append(html(categoryLabel(categoryIndex))).append("<br>");
+        for (int seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
+            Series item = series[seriesIndex];
+            int value = categoryIndex < item.values.length ? Math.max(0, item.values[categoryIndex]) : 0;
+            if (seriesIndex == hoveredSeriesIndex) {
+                tooltip.append("<b>");
+            }
+            tooltip.append(html(item.name)).append(": ").append(value);
+            if (seriesIndex == hoveredSeriesIndex) {
+                tooltip.append("</b>");
+            }
+            tooltip.append("<br>");
+        }
+        Integer availableBeds = availableBeds(categoryIndex);
+        if (availableBeds != null) {
+            tooltip.append("Available Beds: ").append(availableBeds).append("<br>");
+        }
+        tooltip.append("</html>");
+        return tooltip.toString();
+    }
+
+    private Integer availableBeds(int categoryIndex) {
+        Integer capacity = null;
+        Integer occupied = null;
+        for (Series item : series) {
+            if (categoryIndex >= item.values.length) {
+                continue;
+            }
+            if ("Capacity".equalsIgnoreCase(item.name)) {
+                capacity = Math.max(0, item.values[categoryIndex]);
+            } else if ("Occupied".equalsIgnoreCase(item.name)) {
+                occupied = Math.max(0, item.values[categoryIndex]);
+            }
+        }
+        return capacity == null || occupied == null ? null : Math.max(0, capacity - occupied);
+    }
+
+    private String categoryLabel(int categoryIndex) {
+        return categoryIndex < categories.length && categories[categoryIndex] != null
+                ? categories[categoryIndex].replaceAll("\\R", " / ")
+                : "";
+    }
+
+    private String html(String text) {
+        return text == null
+                ? ""
+                : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private GraphLayout graphLayout(int width, int height) {
+        int plotX = 52;
+        int plotY = plotTopInset();
+        int plotW = Math.max(120, width - 80);
+        int plotH = Math.max(120, height - plotY - 56);
+        int baseY = plotY + plotH;
+        return new GraphLayout(plotX, plotY, plotW, plotH, baseY, niceMax());
+    }
+
     private void drawCategoryLabel(Graphics2D g2, String label, int centerX, int startY) {
         String[] lines = label.split("\\R", -1);
         Font originalFont = g2.getFont();
@@ -163,6 +278,12 @@ public class UniversalGraphPanel extends JPanel {
     private int preferredGraphWidth() {
         int categoryWidth = series.length > 1 ? 92 : 78;
         return Math.max(360, 110 + Math.max(1, categories.length) * categoryWidth);
+    }
+
+    private record GraphLayout(int plotX, int plotY, int plotW, int plotH, int baseY, int max) {
+    }
+
+    private record HoverBar(int categoryIndex, int seriesIndex) {
     }
 
     public static class Series {

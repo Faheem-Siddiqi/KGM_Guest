@@ -350,8 +350,6 @@ public class HomeView extends JFrame {
     }
 
     private void importGuestsFromExcel(File file) {
-        System.out.println("Selected Excel import file: " + file.getAbsolutePath());
-        System.out.println(ExcelImportService.importGuideMessage());
         setImportButtonEnabled(false);
         SwingWorker<ExcelImportService.ImportResult, Void> worker = new SwingWorker<>() {
             protected ExcelImportService.ImportResult doInBackground() throws Exception {
@@ -373,14 +371,15 @@ public class HomeView extends JFrame {
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
                     String message = cause == null ? exception.getMessage() : cause.getMessage();
-                    Throwable logCause = cause == null ? exception : cause;
-                    System.err.println("Excel import failed: " + message);
-                    logCause.printStackTrace(System.err);
                     if (cause instanceof ExcelImportService.HeaderImportException) {
                         showHeaderImportError();
                         return;
                     }
-                    DialogHelper.error(HomeView.this, "Excel import failed", message);
+                    DialogHelper.error(
+                            HomeView.this,
+                            "Excel import needs attention",
+                            friendlyImportFailureMessage(message)
+                    );
                 }
             }
         };
@@ -389,14 +388,14 @@ public class HomeView extends JFrame {
 
     private void showHeaderImportError() {
         String friendlyMessage = """
-                Header issue detected.
+                Header issue
 
-                The selected Excel file does not match the guest import format.
-                Download the sample file, keep its header row unchanged, and import again.
+                This file does not match the guest import format.
+                Download the sample file, keep the first row unchanged, and paste your guest data below it.
                 """;
         int selected = DialogHelper.option(
                 this,
-                "Excel Header Issue",
+                "Excel header needs attention",
                 friendlyMessage,
                 "Download Sample",
                 "Close"
@@ -418,11 +417,8 @@ public class HomeView extends JFrame {
         File target = xlsxFile(chooser.getSelectedFile());
         try {
             ExcelImportService.writeSampleWorkbook(target);
-            System.out.println("Excel import sample downloaded: " + target.getAbsolutePath());
             DialogHelper.success(this, "Sample Excel file saved:\n" + target.getAbsolutePath());
         } catch (Exception exception) {
-            System.err.println("Sample Excel download failed: " + exception.getMessage());
-            exception.printStackTrace(System.err);
             DialogHelper.error(this, "Sample not saved", exception.getMessage());
         }
     }
@@ -434,12 +430,12 @@ public class HomeView extends JFrame {
 
     private void showImportResult(ExcelImportService.ImportResult result) {
         if (result.skippedRows().isEmpty()) {
-            DialogHelper.success(this, importSummaryMessage(result, "Import completed"));
+            DialogHelper.success(this, importSummaryMessage(result, "Import complete"));
         } else {
             DialogHelper.warningSections(
                     this,
-                    "Excel import completed with skipped rows",
-                    importSummaryMessage(result, "Import summary"),
+                    "Import completed with rows to review",
+                    importSummaryMessage(result, "Import result"),
                     skippedRowsMessage(result)
             );
         }
@@ -447,23 +443,120 @@ public class HomeView extends JFrame {
 
     private String importSummaryMessage(ExcelImportService.ImportResult result, String heading) {
         return heading
-                + "\nImported guests: " + result.importedCount()
-                + "\nSkipped rows: " + result.skippedRows().size();
+                + "\nImported: " + result.importedCount() + " guest" + plural(result.importedCount())
+                + "\nNeeds review: " + result.skippedRows().size() + " row" + plural(result.skippedRows().size())
+                + (result.skippedRows().isEmpty()
+                ? "\nAll readable rows were imported successfully."
+                : "\nThe rows below were left unchanged. Fix them in Excel and import again.");
     }
 
     private String skippedRowsMessage(ExcelImportService.ImportResult result) {
         StringBuilder message = new StringBuilder();
-        message.append("Skipped rows\n");
-        int limit = Math.min(20, result.skippedRows().size());
-        for (int i = 0; i < limit; i++) {
-            message.append(result.skippedRows().get(i)).append("\n");
-        }
-        if (result.skippedRows().size() > limit) {
-            message.append("...and ")
-                    .append(result.skippedRows().size() - limit)
-                    .append(" more skipped rows.");
+        message.append("Rows to review\n");
+        for (String skippedRow : result.skippedRows()) {
+            message.append(friendlySkippedRowMessage(skippedRow)).append("\n");
         }
         return message.toString().trim();
+    }
+
+    private String friendlyImportFailureMessage(String message) {
+        String detail = message == null || message.isBlank() ? "The file could not be imported." : message.trim();
+        if (detail.toLowerCase().contains("open or locked by another process")) {
+            return "Excel file is open\nClose the file in Excel, then try the import again.";
+        }
+        if (detail.toLowerCase().contains("no guest rows found")) {
+            return "No guest rows found\nAdd guest records below the header row, then import again.";
+        }
+        return "The file could not be imported\nMake sure it is a valid Excel workbook and try again.\n\nDetails: "
+                + detail;
+    }
+
+    private String friendlySkippedRowMessage(String rowMessage) {
+        String rowPrefix = rowPrefix(rowMessage);
+        String reason = rowReason(rowMessage);
+
+        if (reason.startsWith("Missing required fields:")) {
+            String fields = reason.substring("Missing required fields:".length()).trim();
+            return rowPrefix + "Add required fields: " + fields;
+        }
+        if (reason.endsWith(" is required.")) {
+            String field = reason.substring(0, reason.length() - " is required.".length());
+            return rowPrefix + "Add " + field + ".";
+        }
+        if (reason.endsWith(" must be a valid date/time.")) {
+            String field = reason.substring(0, reason.length() - " must be a valid date/time.".length());
+            return rowPrefix + "Use a valid " + field + " using yyyy-MM-dd HH:mm.";
+        }
+        if (reason.endsWith(" is required and must be a date/time.")) {
+            String field = reason.substring(0, reason.length() - " is required and must be a date/time.".length());
+            return rowPrefix + "Add a valid " + field + " using yyyy-MM-dd HH:mm.";
+        }
+        if (reason.equals("CNIC must contain exactly 13 digits.")) {
+            return rowPrefix + "CNIC must be exactly 13 digits.";
+        }
+        if (reason.equals("Departure Date Time must be after Arrival Date Time.")) {
+            return rowPrefix + "Departure date must be after arrival date.";
+        }
+        if (reason.startsWith("Guest name already exists for this arrival date:")) {
+            return rowPrefix + "Guest name already exists for this arrival date.";
+        }
+        if (reason.startsWith("This CNIC already has an overlapping guest stay.")) {
+            return rowPrefix + "This CNIC already has an overlapping stay. A guest cannot be assigned to more than one room at the same time.";
+        }
+        if (reason.startsWith("Accommodation Category not found in DB:")) {
+            String category = quotedValue(reason, "Accommodation Category '");
+            String room = quotedValue(reason, "Room '");
+            return rowPrefix + "Accommodation category '" + valueOrDash(category)
+                    + "' is not available for room '" + valueOrDash(room)
+                    + "'. Use the Valid Values sheet from the sample file.";
+        }
+        if (reason.startsWith("Room not found in DB:")) {
+            String category = quotedValue(reason, "Accommodation Category '");
+            String room = quotedValue(reason, "Room '");
+            return rowPrefix + "Room '" + valueOrDash(room)
+                    + "' is not available under '" + valueOrDash(category) + "'.";
+        }
+        if (reason.startsWith("Room is not ready for assignment:")) {
+            String category = quotedValue(reason, "Accommodation Category '");
+            String room = quotedValue(reason, "Room '");
+            return rowPrefix + "Room '" + valueOrDash(room)
+                    + "' under '" + valueOrDash(category) + "' is not ready for assignment.";
+        }
+        return rowPrefix + reason;
+    }
+
+    private String rowPrefix(String rowMessage) {
+        int separator = rowMessage == null ? -1 : rowMessage.indexOf(':');
+        if (separator < 0) {
+            return "";
+        }
+        return rowMessage.substring(0, separator).trim() + ": ";
+    }
+
+    private String rowReason(String rowMessage) {
+        int separator = rowMessage == null ? -1 : rowMessage.indexOf(':');
+        if (separator < 0) {
+            return rowMessage == null ? "" : rowMessage.trim();
+        }
+        return rowMessage.substring(separator + 1).trim();
+    }
+
+    private String quotedValue(String text, String marker) {
+        int start = text.indexOf(marker);
+        if (start < 0) {
+            return "";
+        }
+        start += marker.length();
+        int end = text.indexOf("'", start);
+        return end < 0 ? "" : text.substring(start, end);
+    }
+
+    private String valueOrDash(String text) {
+        return text == null || text.isBlank() ? "-" : text;
+    }
+
+    private String plural(int count) {
+        return count == 1 ? "" : "s";
     }
 
     private void setImportButtonEnabled(boolean enabled) {

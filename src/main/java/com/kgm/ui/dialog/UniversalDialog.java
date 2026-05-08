@@ -309,7 +309,8 @@ public final class UniversalDialog {
     }
 
     private static boolean isScrollableSection(String heading) {
-        return "Skipped rows".equalsIgnoreCase(heading);
+        return "Skipped rows".equalsIgnoreCase(heading)
+                || "Rows to review".equalsIgnoreCase(heading);
     }
 
     private static int wrappedRows(String message, int columns) {

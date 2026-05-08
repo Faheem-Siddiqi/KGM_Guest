@@ -40,6 +40,8 @@ public class GuestFilterPanel extends JPanel {
         useDateFilter.addActionListener(e -> dateFilter.setEnabled(useDateFilter.isSelected()));
 
         searchField.addActionListener(e -> onSearch.run());
+        searchField.setToolTipText("Search by guest name or CNIC");
+        searchField.getAccessibleContext().setAccessibleName("Search by guest name or CNIC");
         searchButton.addActionListener(e -> onSearch.run());
         clearButton.addActionListener(e -> {
             onClear.run();
@@ -85,7 +87,7 @@ public class GuestFilterPanel extends JPanel {
         block.setOpaque(false);
         block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
 
-        JLabel label = HomeViewHelper.label("Search Guest");
+        JLabel label = HomeViewHelper.label("Search Name or CNIC");
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel row = new JPanel();

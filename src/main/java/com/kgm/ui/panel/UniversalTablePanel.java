@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 
 public class UniversalTablePanel extends JPanel {
     // UPDATE PAGINATION 
-    private static final int PAGE_SIZE = 7;
+    private static final int PAGE_SIZE = 12;
     private static final int MIN_VIEWPORT_HEIGHT = 118;
 
     private final JTable table;

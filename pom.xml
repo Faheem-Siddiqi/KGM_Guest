@@ -16,6 +16,13 @@
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.5</version>
         </dependency>
+        <!-- Runtime logger used by Apache POI's Log4j API dependency -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.21.1</version>
+            <scope>runtime</scope>
+        </dependency>
         <!-- Optional: logging for large/bulk imports -->
         <dependency>
             <groupId>org.slf4j</groupId>

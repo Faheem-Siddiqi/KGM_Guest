@@ -32,8 +32,9 @@ public class GuestRecordPanel extends JPanel {
     public static final int DEPARTURE = 10;
     public static final int ACCOMMODATION = 11;
     public static final int ROOM = 12;
-    public static final int REVIEW = 13;
-    public static final int ID = 14;
+    public static final int REMARKS = 13;
+    public static final int REVIEW = 14;
+    public static final int ID = 15;
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final GuestDao guestDao = new GuestDao();
@@ -242,12 +243,11 @@ public class GuestRecordPanel extends JPanel {
     }
 
     private boolean recordMatches(Object[] record, String query) {
+        if (cnicMatches(record[CNIC], query)) {
+            return true;
+        }
         Object[] values = {
-                record[NAME],
-                dateTimeText(record[ARRIVAL]),
-                dateTimeText(record[DEPARTURE]),
-                statusText(record),
-                tenureText(record)
+                record[NAME]
         };
         for (Object value : values) {
             if (String.valueOf(value).toLowerCase().contains(query)) {
@@ -255,6 +255,20 @@ public class GuestRecordPanel extends JPanel {
             }
         }
         return false;
+    }
+
+    private boolean cnicMatches(Object cnic, String query) {
+        String cnicText = String.valueOf(cnic).toLowerCase();
+        if (cnicText.contains(query)) {
+            return true;
+        }
+        String cnicDigits = digitsOnly(cnicText);
+        String queryDigits = digitsOnly(query);
+        return !queryDigits.isEmpty() && cnicDigits.contains(queryDigits);
+    }
+
+    private String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
     }
 
     private boolean statusMatches(Object[] record, String status) {
@@ -391,7 +405,8 @@ public class GuestRecordPanel extends JPanel {
                 formatDateTime(guest.getDepartureAt()),
                 guest.getAccommodation(),
                 guest.getRoomName(),
-                firstText(guest.getReview(), guest.getRemarks()),
+                guest.getRemarks(),
+                guest.getReview(),
                 guest.getId()
         };
     }
@@ -401,13 +416,6 @@ public class GuestRecordPanel extends JPanel {
             return "";
         }
         return LocalDateTime.ofInstant(date.toInstant(), java.time.ZoneId.systemDefault()).format(DATE_TIME);
-    }
-
-    private String firstText(String first, String second) {
-        if (first != null && !first.trim().isEmpty()) {
-            return first;
-        }
-        return second == null ? "" : second;
     }
 
     private static class RefreshIcon implements Icon {

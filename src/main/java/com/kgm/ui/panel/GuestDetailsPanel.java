@@ -34,25 +34,23 @@ public class GuestDetailsPanel extends JPanel {
         JPanel page = AddGuestHelper.pagePanel();
         page.add(AddGuestHelper.screenHeader(
                 "Viewing Guest",
-                "Review guest details and update departure or review notes.",
+                "Review guest details and update departure or remarks.",
                 onBack
         ), AddGuestHelper.pageConstraints(0));
 
         Date arrivalValue = parseDate(value(record, GuestRecordPanel.ARRIVAL));
         Date departureValue = parseDate(value(record, GuestRecordPanel.DEPARTURE));
+        boolean canEditStay = !isNaturallyDeparted(arrivalValue, departureValue);
         JSpinner arrivalDate = dateTimeSpinner(arrivalValue);
         JSpinner departureDate = dateTimeSpinner(departureValue);
         JTextField tenureField = lockedField("");
         JTextField statusField = lockedField("");
-        String reviewText = value(record, GuestRecordPanel.REVIEW);
-        JTextArea review = AddGuestHelper.remarksArea(reviewText);
-        boolean canEditReview = canEditReview(reviewText);
-        review.setEditable(canEditReview);
-        review.setFocusable(canEditReview);
-        review.setBackground(canEditReview ? Color.WHITE : new Color(248, 248, 248));
+        String remarksText = value(record, GuestRecordPanel.REMARKS);
+        JTextArea remarks = AddGuestHelper.remarksArea(remarksText);
+        setRemarksEditable(remarks, canEditStay);
 
         arrivalDate.setEnabled(false);
-        departureDate.setEnabled(!isNaturallyDeparted(arrivalValue, departureValue));
+        departureDate.setEnabled(canEditStay);
         updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
         departureDate.addChangeListener(e -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
         addDateTimeEditListener(departureDate, () -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
@@ -84,18 +82,18 @@ public class GuestDetailsPanel extends JPanel {
         AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Room", lockedField(value(record, GuestRecordPanel.ROOM)));
         AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Status", statusField);
 
-        JLabel reviewLabel = AddGuestHelper.label("Review");
+        JLabel remarksLabel = AddGuestHelper.label("Remarks");
         stayGbc.gridx = 0;
         stayGbc.gridy = y++;
         stayGbc.gridwidth = 4;
-        stayCard.add(reviewLabel, stayGbc);
+        stayCard.add(remarksLabel, stayGbc);
 
         stayGbc.gridx = 0;
         stayGbc.gridy = y++;
         stayGbc.gridwidth = 4;
         stayGbc.fill = GridBagConstraints.BOTH;
         stayGbc.ipady = 80;
-        stayCard.add(review, stayGbc);
+        stayCard.add(remarks, stayGbc);
         stayGbc.fill = GridBagConstraints.HORIZONTAL;
         stayGbc.ipady = 0;
         stayGbc.gridwidth = 1;
@@ -106,8 +104,9 @@ public class GuestDetailsPanel extends JPanel {
         back.addActionListener(e -> onBack.run());
         JButton update = new JButton("Update Guest");
         AddGuestHelper.stylePrimary(update);
+        update.setEnabled(canEditStay);
         update.addActionListener(e -> {
-            if (!canEditReview && !departureDate.isEnabled()) {
+            if (!remarks.isEditable() && !departureDate.isEnabled()) {
                 DialogHelper.warning(this, "No editable fields", "This departed guest record cannot be changed.");
                 return;
             }
@@ -117,14 +116,22 @@ public class GuestDetailsPanel extends JPanel {
                 return;
             }
             try {
-                String nextReview = review.getText().trim();
-                if (!canEditReview) {
-                    nextReview = value(record, GuestRecordPanel.REVIEW);
+                String nextRemarks = remarks.getText().trim();
+                if (!remarks.isEditable()) {
+                    nextRemarks = value(record, GuestRecordPanel.REMARKS);
                 }
-                guestDao.updateDepartureAndReview(recordId(record), (Date) departureDate.getValue(), nextReview);
+                if (nextRemarks.isEmpty()) {
+                    nextRemarks = "N/A";
+                }
+                guestDao.updateDepartureAndRemarks(recordId(record), (Date) departureDate.getValue(), nextRemarks);
                 record[GuestRecordPanel.DEPARTURE] = DATE_TIME.format((Date) departureDate.getValue());
-                record[GuestRecordPanel.REVIEW] = nextReview;
+                record[GuestRecordPanel.REMARKS] = nextRemarks;
                 updateStatus(arrivalDate, departureDate, statusField);
+                if (isNaturallyDeparted((Date) arrivalDate.getValue(), (Date) departureDate.getValue())) {
+                    departureDate.setEnabled(false);
+                    setRemarksEditable(remarks, false);
+                    update.setEnabled(false);
+                }
                 onUpdated.run();
                 DialogHelper.success(this, "Guest details updated.");
             } catch (SQLException exception) {
@@ -165,6 +172,8 @@ public class GuestDetailsPanel extends JPanel {
             updateStatus(arrivalDate, departureDate, statusField);
             if (isNaturallyDeparted((Date) arrivalDate.getValue(), (Date) departureDate.getValue())) {
                 departureDate.setEnabled(false);
+                setRemarksEditable(remarks, false);
+                update.setEnabled(false);
             }
         });
         statusTimer.start();
@@ -206,12 +215,10 @@ public class GuestDetailsPanel extends JPanel {
         return field;
     }
 
-    private static boolean canEditReview(String value) {
-        String text = value == null ? "" : value.trim();
-        return text.isEmpty()
-                || text.equalsIgnoreCase("N/A")
-                || text.equals("''")
-                || text.equals("' '");
+    private static void setRemarksEditable(JTextArea remarks, boolean editable) {
+        remarks.setEditable(editable);
+        remarks.setFocusable(editable);
+        remarks.setBackground(editable ? Color.WHITE : new Color(248, 248, 248));
     }
 
     private static boolean isDeparted(Date departure) {

@@ -223,16 +223,16 @@ public class GuestDao {
         }
     }
 
-    public void updateDepartureAndReview(long guestId, Date departureAt, String review) throws SQLException {
+    public void updateDepartureAndRemarks(long guestId, Date departureAt, String remarks) throws SQLException {
         String sql = """
                 UPDATE guests
-                SET departure_at = ?, review = ?
+                SET departure_at = ?, remarks = ?
                 WHERE id = ?
                 """;
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setTimestamp(1, timestamp(departureAt));
-            statement.setString(2, review);
+            statement.setString(2, remarks);
             statement.setLong(3, guestId);
             statement.executeUpdate();
         }

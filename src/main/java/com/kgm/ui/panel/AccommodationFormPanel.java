@@ -16,12 +16,13 @@ import java.util.List;
 
 public class AccommodationFormPanel extends JPanel {
     private static final String ROOM_PREFIX = "Room-";
+    private static final String DEFAULT_STATUS = "Ready for Assignment";
 
     private final JTextField nameField = new JTextField(ROOM_PREFIX);
     private final JComboBox<String> categoryCombo = AccommodationManagementHelper.combo();
     private final JSpinner capacitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
     private final JComboBox<String> statusCombo = AccommodationManagementHelper.combo(
-            "Ready for Assignment", "Temporarily Unavailable", "Under Maintenance", "Reserved"
+            DEFAULT_STATUS, "Temporarily Unavailable", "Under Maintenance", "Reserved"
     );
     private final JTextField assignedStaffField = new JTextField("");
     private final JTextField amenityField = new JTextField("");
@@ -65,6 +66,7 @@ public class AccommodationFormPanel extends JPanel {
         card.add(createFormBody(), BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
         refreshAmenities();
+        setDefaultStatus();
     }
 
     public void setCategories(List<String> categories) {
@@ -367,7 +369,7 @@ public class AccommodationFormPanel extends JPanel {
         currentNamePrefix = ROOM_PREFIX;
         nameField.setText(currentNamePrefix);
         capacitySpinner.setValue(1);
-        statusCombo.setSelectedIndex(0);
+        setDefaultStatus();
         assignedStaffField.setText("");
         amenityField.setText("");
         amenities.clear();
@@ -394,6 +396,13 @@ public class AccommodationFormPanel extends JPanel {
                 || capacitySpinner.getValue() instanceof Integer && (Integer) capacitySpinner.getValue() != 1
                 || statusCombo.getSelectedIndex() > 0
                 || categoryCombo.getSelectedIndex() > 0;
+    }
+
+    private void setDefaultStatus() {
+        statusCombo.setSelectedItem(DEFAULT_STATUS);
+        if (statusCombo.getSelectedItem() == null && statusCombo.getItemCount() > 0) {
+            statusCombo.setSelectedIndex(0);
+        }
     }
 
     private boolean isValidRoomName(String value) {

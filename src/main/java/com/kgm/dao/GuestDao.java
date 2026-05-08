@@ -17,6 +17,10 @@ public class GuestDao {
     private final AccommodationDao accommodationDao = new AccommodationDao();
 
     public Guest save(Guest guest) throws SQLException {
+        if (hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
+            throw new SQLException("This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.");
+        }
+
         long guestCategoryId = findOrCreateGuestCategory(guest.getGuestCategory());
         Long accommodationId = accommodationDao.findReadyIdByCategoryAndName(
                 guest.getAccommodation(),
@@ -170,6 +174,49 @@ public class GuestDao {
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, guestName);
             statement.setTimestamp(2, timestamp(arrivalAt));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    public List<String> findActiveGuestCategoryNames() throws SQLException {
+        String sql = """
+                SELECT name
+                FROM guest_categories
+                WHERE active = TRUE
+                ORDER BY name
+                """;
+        List<String> categories = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                categories.add(resultSet.getString("name"));
+            }
+        }
+        return categories;
+    }
+
+    public boolean hasOverlappingStayByCnic(String cnic, Date arrivalAt, Date departureAt) throws SQLException {
+        String normalizedCnic = cnic == null ? "" : cnic.trim();
+        if (normalizedCnic.isEmpty() || arrivalAt == null || departureAt == null) {
+            return false;
+        }
+
+        String sql = """
+                SELECT 1
+                FROM guests
+                WHERE TRIM(cnic) = ?
+                  AND arrival_at < ?
+                  AND departure_at > ?
+                LIMIT 1
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedCnic);
+            statement.setTimestamp(2, timestamp(departureAt));
+            statement.setTimestamp(3, timestamp(arrivalAt));
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next();
             }

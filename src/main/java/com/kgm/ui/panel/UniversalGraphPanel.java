@@ -6,6 +6,8 @@ import javax.swing.*;
 import java.awt.*;
 
 public class UniversalGraphPanel extends JPanel {
+    private static final int MIN_VISIBLE_BAR_HEIGHT = 4;
+
     private final String title;
     private final String subtitle;
     private String[] categories;
@@ -114,8 +116,9 @@ public class UniversalGraphPanel extends JPanel {
 
             for (int seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
                 Series item = series[seriesIndex];
-                int value = categoryIndex < item.values.length ? item.values[categoryIndex] : 0;
-                int barH = (int) ((value / (double) max) * plotH);
+                int value = categoryIndex < item.values.length ? Math.max(0, item.values[categoryIndex]) : 0;
+                int scaledBarH = (int) ((value / (double) max) * plotH);
+                int barH = Math.min(plotH, Math.max(MIN_VISIBLE_BAR_HEIGHT, scaledBarH));
                 int x = groupStart + seriesIndex * (barW + seriesGap);
                 int y = baseY - barH;
 

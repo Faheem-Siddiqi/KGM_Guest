@@ -19,7 +19,7 @@ public class HomeKpiPanel extends JPanel {
         kpiGrid.setOpaque(false);
 
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Total Seats",
+                "Total Beds",
                 String.valueOf(stats.totalSeats()),
                 "Accommodation capacity",
                 HomeViewHelper.PRIMARY_DARK,
@@ -27,7 +27,7 @@ public class HomeKpiPanel extends JPanel {
                 true
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Vacant Seats",
+                "Vacant Beds",
                 String.valueOf(stats.vacantSeats()),
                 "Ready for assignment",
                 HomeViewHelper.VACANT_DARK,
@@ -35,7 +35,7 @@ public class HomeKpiPanel extends JPanel {
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Occupied Seats",
+                "Occupied Beds",
                 String.valueOf(stats.occupiedSeats()),
                 "Currently in use",
                 HomeViewHelper.OCCUPIED_DARK,

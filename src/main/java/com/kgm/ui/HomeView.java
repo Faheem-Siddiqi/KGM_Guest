@@ -24,7 +24,9 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.io.File;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ExecutionException;
@@ -495,11 +497,11 @@ public class HomeView extends JFrame {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Download Guest Report");
         chooser.setSelectedFile(new File(defaultReportFileName(range)));
-        chooser.setFileFilter(new FileNameExtensionFilter("Word document (*.docx)", "docx"));
+        chooser.setFileFilter(new FileNameExtensionFilter("PDF document (*.pdf)", "pdf"));
         if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
             return null;
         }
-        return docxFile(chooser.getSelectedFile());
+        return pdfFile(chooser.getSelectedFile());
     }
 
     private String defaultReportFileName(GuestReportService.ReportRange range) {
@@ -510,12 +512,12 @@ public class HomeView extends JFrame {
                 + range.startDate().format(REPORT_FILE_DATE)
                 + "_"
                 + range.endDate().format(REPORT_FILE_DATE)
-                + ".docx";
+                + ".pdf";
     }
 
-    private File docxFile(File file) {
+    private File pdfFile(File file) {
         String path = file.getAbsolutePath();
-        return path.toLowerCase().endsWith(".docx") ? file : new File(path + ".docx");
+        return path.toLowerCase().endsWith(".pdf") ? file : new File(path + ".pdf");
     }
 
     private boolean confirmReportGeneration(GuestReportService.ReportRange range, File target) {
@@ -528,17 +530,16 @@ public class HomeView extends JFrame {
 
     private void generateGuestReport(GuestReportService.ReportRange range, File target) {
         ReportProgressDialog progress = new ReportProgressDialog(this, range, target);
-        SwingWorker<Void, Void> worker = new SwingWorker<>() {
-            protected Void doInBackground() throws Exception {
-                guestReportService.generateReport(target, range);
-                return null;
+        SwingWorker<File, Void> worker = new SwingWorker<>() {
+            protected File doInBackground() throws Exception {
+                return guestReportService.generateReport(target, range);
             }
 
             protected void done() {
                 progress.dispose();
                 try {
-                    get();
-                    DialogHelper.success(HomeView.this, "Report downloaded successfully:\n" + target.getAbsolutePath());
+                    File savedFile = get();
+                    showReportSavedDialog(savedFile, sameFilePath(savedFile, target));
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                     DialogHelper.error(HomeView.this, "Report generation stopped", "Report generation was interrupted.");
@@ -553,14 +554,133 @@ public class HomeView extends JFrame {
         worker.execute();
     }
 
+    private void showReportSavedDialog(File savedFile, boolean savedToRequestedPath) {
+        String message = savedToRequestedPath
+                ? "Your PDF report is ready:\n" + savedFile.getAbsolutePath()
+                : "The selected file was open, so a new PDF copy was saved:\n" + savedFile.getAbsolutePath();
+        int selected = DialogHelper.successOption(
+                this,
+                "Report Saved",
+                message,
+                "Open PDF",
+                "Close"
+        );
+        if (selected == 0) {
+            openSavedReport(savedFile);
+        }
+    }
+
+    private void openSavedReport(File file) {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+            DialogHelper.warning(
+                    this,
+                    "Open PDF unavailable",
+                    "The report was saved, but this system does not allow the app to open files automatically.\n"
+                            + file.getAbsolutePath()
+            );
+            return;
+        }
+
+        try {
+            Desktop.getDesktop().open(file);
+        } catch (IOException exception) {
+            DialogHelper.error(
+                    this,
+                    "PDF not opened",
+                    "The report was saved, but it could not be opened automatically.\n"
+                            + file.getAbsolutePath()
+                            + "\n\n" + exception.getMessage()
+            );
+        }
+    }
+
+    private boolean sameFilePath(File first, File second) {
+        return first.toPath().toAbsolutePath().normalize().equals(second.toPath().toAbsolutePath().normalize());
+    }
+
     private JComponent graphScroll(UniversalGraphPanel graph) {
         JScrollPane scroll = new JScrollPane(graph);
         scroll.setBorder(null);
         scroll.getViewport().setBackground(Color.WHITE);
+        scroll.setWheelScrollingEnabled(false);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.getHorizontalScrollBar().setUnitIncrement(16);
+        scroll.getHorizontalScrollBar().setBlockIncrement(96);
+        scroll.addMouseWheelListener(event -> forwardGraphMouseWheel(event, scroll));
+        scroll.getViewport().addMouseWheelListener(event -> forwardGraphMouseWheel(event, scroll));
+        installGraphWheelForwarding(graph, scroll);
         return scroll;
+    }
+
+    private void installGraphWheelForwarding(Component component, JScrollPane graphScroll) {
+        component.addMouseWheelListener(event -> forwardGraphMouseWheel(event, graphScroll));
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                installGraphWheelForwarding(child, graphScroll);
+            }
+        }
+    }
+
+    private void forwardGraphMouseWheel(MouseWheelEvent event, JScrollPane graphScroll) {
+        if (event.isShiftDown() && scrollGraphHorizontally(event, graphScroll)) {
+            return;
+        }
+
+        JScrollPane pageScroll = findPageScrollPane(graphScroll);
+        if (pageScroll == null) {
+            return;
+        }
+
+        MouseWheelEvent pageEvent = new MouseWheelEvent(
+                pageScroll,
+                event.getID(),
+                event.getWhen(),
+                event.getModifiersEx(),
+                0,
+                0,
+                event.getXOnScreen(),
+                event.getYOnScreen(),
+                event.getClickCount(),
+                event.isPopupTrigger(),
+                event.getScrollType(),
+                event.getScrollAmount(),
+                event.getWheelRotation(),
+                event.getPreciseWheelRotation()
+        );
+        pageScroll.dispatchEvent(pageEvent);
+        event.consume();
+    }
+
+    private boolean scrollGraphHorizontally(MouseWheelEvent event, JScrollPane graphScroll) {
+        JScrollBar horizontalBar = graphScroll.getHorizontalScrollBar();
+        if (horizontalBar == null || !horizontalBar.isVisible()) {
+            return false;
+        }
+        scrollBar(horizontalBar, event);
+        event.consume();
+        return true;
+    }
+
+    private JScrollPane findPageScrollPane(Component component) {
+        Container parent = component.getParent();
+        while (parent != null) {
+            if (parent instanceof JScrollPane scrollPane) {
+                return scrollPane;
+            }
+            parent = parent.getParent();
+        }
+        return null;
+    }
+
+    private void scrollBar(JScrollBar scrollBar, MouseWheelEvent event) {
+        int direction = event.getWheelRotation() < 0 ? -1 : 1;
+        int amount = event.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL
+                ? event.getUnitsToScroll() * scrollBar.getUnitIncrement(direction)
+                : event.getWheelRotation() * scrollBar.getBlockIncrement(direction);
+        int max = scrollBar.getMaximum() - scrollBar.getVisibleAmount();
+        int value = Math.max(scrollBar.getMinimum(), Math.min(max, scrollBar.getValue() + amount));
+        scrollBar.setValue(value);
     }
 
     private DashboardDao.DashboardStats loadDashboardStats() {

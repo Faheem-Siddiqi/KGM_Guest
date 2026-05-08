@@ -3,6 +3,7 @@ package com.kgm.service;
 import com.kgm.dao.AccommodationDao;
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
+import com.kgm.ui.panel.AccommodationRecord;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -35,9 +36,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ExcelImportService {
     private static final String GUEST_NAME = "Guest Name";
@@ -145,6 +148,9 @@ public class ExcelImportService {
                         throw new RowImportException("Guest name already exists for this arrival date: "
                                 + guest.getGuestName());
                     }
+                    if (guestDao.hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
+                        throw new RowImportException("This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.");
+                    }
                     guestDao.save(guest);
                     imported++;
                 } catch (RowImportException exception) {
@@ -184,6 +190,9 @@ public class ExcelImportService {
     public static void writeSampleWorkbook(File file) throws IOException {
         try (Workbook workbook = new XSSFWorkbook();
              FileOutputStream output = new FileOutputStream(file)) {
+            List<SampleAccommodation> accommodations = sampleAccommodations();
+            List<String> guestCategories = sampleGuestCategories();
+
             Sheet sheet = workbook.createSheet("Guest Import");
             CellStyle headerStyle = workbook.createCellStyle();
             Font headerFont = workbook.createFont();
@@ -200,18 +209,23 @@ public class ExcelImportService {
                 cell.setCellStyle(headerStyle);
             }
 
-            String[][] rows = sampleRows();
-            for (int rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+            List<String[]> rows = sampleRows(accommodations, guestCategories);
+            for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
                 Row row = sheet.createRow(rowIndex + 1);
-                for (int cellIndex = 0; cellIndex < rows[rowIndex].length; cellIndex++) {
-                    row.createCell(cellIndex).setCellValue(rows[rowIndex][cellIndex]);
+                String[] values = rows.get(rowIndex);
+                for (int cellIndex = 0; cellIndex < values.length; cellIndex++) {
+                    row.createCell(cellIndex).setCellValue(values[cellIndex]);
                 }
             }
 
             for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
                 sheet.autoSizeColumn(index);
             }
+
+            writeValidValuesSheet(workbook, headerStyle, accommodations, guestCategories);
             workbook.write(output);
+        } catch (SQLException exception) {
+            throw new IOException("Could not create the sample Excel file from current accommodation and guest category data.", exception);
         }
     }
 
@@ -229,39 +243,126 @@ public class ExcelImportService {
                 """.formatted(templateHeaderLine());
     }
 
-    private static String[][] sampleRows() {
-        return new String[][]{
-                {
-                        "Ali Khan", "3520212345671", "Pakistani", "Family",
-                        "House 12 Lahore", "Ahmed Raza", "HR", "Manager Khan",
-                        "Faheem Siddiqi", "2026-05-08 09:00", "2026-05-09 09:00",
-                        "Guest House", "Room-1", "N/A"
-                },
-                {
-                        "Sara Ahmed", "3520212345672", "Pakistani", "Non-Family",
-                        "Street 4 Karachi", "Ayesha Noor", "Admin", "Admin Head",
-                        "Faheem Siddiqi", "2026-05-08 10:00", "2026-05-10 10:00",
-                        "Guest House", "Room-2", "N/A"
-                },
-                {
-                        "Bilal Hussain", "3520212345673", "Pakistani", "Family",
-                        "Model Town Lahore", "Usman Ali", "Finance", "Finance Head",
-                        "Faheem Siddiqi", "2026-05-08 11:00", "2026-05-09 18:00",
-                        "Guest Rooms", "Room-1", "N/A"
-                },
-                {
-                        "Mariam Iqbal", "3520212345674", "Pakistani", "Non-Family",
-                        "Gulberg Lahore", "Hassan Raza", "Spinning", "Plant Head",
-                        "Faheem Siddiqi", "2026-05-08 12:00", "2026-05-11 12:00",
-                        "Guest Rooms", "Room-2", "N/A"
-                },
-                {
-                        "Omer Farooq", "3520212345675", "Pakistani", "Family",
-                        "Satellite Town Rawalpindi", "Zain Malik", "Others",
-                        "Operations Head", "Faheem Siddiqi", "2026-05-08 13:00",
-                        "2026-05-09 13:00", "Guest Rooms", "Room-3", "N/A"
-                }
+    private static List<String[]> sampleRows(List<SampleAccommodation> accommodations, List<String> guestCategories) {
+        List<SampleAccommodation> importable = importableAccommodations(accommodations);
+        if (importable.isEmpty()) {
+            importable = accommodations.isEmpty() ? fallbackAccommodations() : accommodations;
+        }
+
+        int rowCount = Math.max(importable.size(), guestCategories.size());
+        List<String[]> rows = new ArrayList<>();
+        for (int index = 0; index < rowCount; index++) {
+            SampleAccommodation accommodation = importable.get(index % importable.size());
+            String guestCategory = guestCategories.get(index % guestCategories.size());
+            LocalDateTime arrival = LocalDate.now().plusDays(index + 1L).atTime(9 + index % 8, 0);
+            LocalDateTime departure = arrival.plusDays(1);
+            rows.add(new String[]{
+                    sampleGuestName(index),
+                    sampleCnic(index),
+                    "Pakistani",
+                    guestCategory,
+                    "Sample address " + (index + 1),
+                    "Sample Requester",
+                    sampleDepartment(index),
+                    "Sample Approver",
+                    "Admin Office",
+                    arrival.format(DATE_TIME_FORMATS.get(0)),
+                    departure.format(DATE_TIME_FORMATS.get(0)),
+                    accommodation.category(),
+                    accommodation.room(),
+                    "Sample row. Replace with real guest data before import."
+            });
+        }
+        return rows;
+    }
+
+    private static List<SampleAccommodation> sampleAccommodations() throws SQLException {
+        List<SampleAccommodation> values = new ArrayList<>();
+        for (AccommodationRecord record : new AccommodationDao().findAll()) {
+            values.add(new SampleAccommodation(
+                    record.getCategory(),
+                    record.getName(),
+                    record.getStatus()
+            ));
+        }
+        return values.isEmpty() ? fallbackAccommodations() : values;
+    }
+
+    private static List<SampleAccommodation> importableAccommodations(List<SampleAccommodation> accommodations) {
+        List<SampleAccommodation> importable = new ArrayList<>();
+        for (SampleAccommodation accommodation : accommodations) {
+            if ("Ready for Assignment".equalsIgnoreCase(accommodation.status())) {
+                importable.add(accommodation);
+            }
+        }
+        return importable;
+    }
+
+    private static List<SampleAccommodation> fallbackAccommodations() {
+        return List.of(
+                new SampleAccommodation("Guest-House", "Room-1", "Ready for Assignment"),
+                new SampleAccommodation("Guest-Rooms", "Room-1", "Ready for Assignment")
+        );
+    }
+
+    private static List<String> sampleGuestCategories() throws SQLException {
+        Set<String> categories = new LinkedHashSet<>();
+        categories.add("Family");
+        categories.add("Non-Family");
+        categories.addAll(new GuestDao().findActiveGuestCategoryNames());
+        return new ArrayList<>(categories);
+    }
+
+    private static void writeValidValuesSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            List<SampleAccommodation> accommodations,
+            List<String> guestCategories
+    ) {
+        Sheet values = workbook.createSheet("Valid Values");
+        String[] headers = {"Guest Category", "Accommodation Category", "Room", "Room Status", "Importable"};
+        Row header = values.createRow(0);
+        for (int index = 0; index < headers.length; index++) {
+            Cell cell = header.createCell(index);
+            cell.setCellValue(headers[index]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        int rowCount = Math.max(guestCategories.size(), accommodations.size());
+        for (int index = 0; index < rowCount; index++) {
+            Row row = values.createRow(index + 1);
+            if (index < guestCategories.size()) {
+                row.createCell(0).setCellValue(guestCategories.get(index));
+            }
+            if (index < accommodations.size()) {
+                SampleAccommodation accommodation = accommodations.get(index);
+                row.createCell(1).setCellValue(accommodation.category());
+                row.createCell(2).setCellValue(accommodation.room());
+                row.createCell(3).setCellValue(accommodation.status());
+                row.createCell(4).setCellValue("Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No");
+            }
+        }
+
+        for (int index = 0; index < headers.length; index++) {
+            values.autoSizeColumn(index);
+        }
+    }
+
+    private static String sampleGuestName(int index) {
+        String[] names = {
+                "Ali Khan", "Sara Ahmed", "Bilal Hussain", "Mariam Iqbal", "Omer Farooq",
+                "Ayesha Noor", "Hassan Raza", "Zain Malik", "Nida Aslam", "Usman Ali"
         };
+        return names[index % names.length] + " " + (index + 1);
+    }
+
+    private static String sampleCnic(int index) {
+        return String.format("35202%08d", index + 1);
+    }
+
+    private static String sampleDepartment(int index) {
+        String[] departments = {"HR", "Admin", "Finance", "Spinning", "Operations", "IT"};
+        return departments[index % departments.length];
     }
 
     private Guest guestFromRow(
@@ -538,6 +639,9 @@ public class ExcelImportService {
     private String friendlySqlMessage(SQLException exception) {
         String message = exception.getMessage();
         return message == null || message.isBlank() ? "Database error while importing row." : message;
+    }
+
+    private record SampleAccommodation(String category, String room, String status) {
     }
 
     public record ImportResult(int importedCount, List<String> skippedRows) {

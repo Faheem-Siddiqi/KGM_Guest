@@ -10,6 +10,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
+import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -167,10 +168,14 @@ public class AccommodationFormPanel extends JPanel {
         amenitiesScrollPane.setMinimumSize(new Dimension(620, 82));
         amenitiesScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 132));
         amenitiesScrollPane.setBorder(new LineBorder(new Color(220, 226, 232)));
+        amenitiesScrollPane.setWheelScrollingEnabled(false);
         amenitiesScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         amenitiesScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         amenitiesScrollPane.getVerticalScrollBar().setUnitIncrement(12);
         amenitiesScrollPane.getViewport().setBackground(Color.WHITE);
+        amenitiesScrollPane.addMouseWheelListener(this::forwardAmenitiesMouseWheel);
+        amenitiesScrollPane.getViewport().addMouseWheelListener(this::forwardAmenitiesMouseWheel);
+        amenitiesListPanel.addMouseWheelListener(this::forwardAmenitiesMouseWheel);
 
         amenitiesPanel.add(amenitiesLabel);
         amenitiesPanel.add(Box.createVerticalStrut(6));
@@ -178,6 +183,77 @@ public class AccommodationFormPanel extends JPanel {
         amenitiesPanel.add(Box.createVerticalStrut(10));
         amenitiesPanel.add(amenitiesScrollPane);
         return amenitiesPanel;
+    }
+
+    private void forwardAmenitiesMouseWheel(MouseWheelEvent event) {
+        if (scrollAmenitiesList(event)) {
+            return;
+        }
+
+        JScrollPane pageScroll = findPageScrollPane();
+        if (pageScroll == null) {
+            return;
+        }
+
+        MouseWheelEvent pageEvent = new MouseWheelEvent(
+                pageScroll,
+                event.getID(),
+                event.getWhen(),
+                event.getModifiersEx(),
+                0,
+                0,
+                event.getXOnScreen(),
+                event.getYOnScreen(),
+                event.getClickCount(),
+                event.isPopupTrigger(),
+                event.getScrollType(),
+                event.getScrollAmount(),
+                event.getWheelRotation(),
+                event.getPreciseWheelRotation()
+        );
+        pageScroll.dispatchEvent(pageEvent);
+        event.consume();
+    }
+
+    private boolean scrollAmenitiesList(MouseWheelEvent event) {
+        JScrollBar verticalBar = amenitiesScrollPane.getVerticalScrollBar();
+        if (verticalBar == null || !verticalBar.isVisible()) {
+            return false;
+        }
+
+        int direction = event.getWheelRotation() < 0 ? -1 : 1;
+        int max = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
+        if (direction < 0 && verticalBar.getValue() <= verticalBar.getMinimum()) {
+            return false;
+        }
+        if (direction > 0 && verticalBar.getValue() >= max) {
+            return false;
+        }
+
+        scrollBar(verticalBar, event);
+        event.consume();
+        return true;
+    }
+
+    private JScrollPane findPageScrollPane() {
+        Container parent = getParent();
+        while (parent != null) {
+            if (parent instanceof JScrollPane scrollPane && scrollPane != amenitiesScrollPane) {
+                return scrollPane;
+            }
+            parent = parent.getParent();
+        }
+        return null;
+    }
+
+    private void scrollBar(JScrollBar scrollBar, MouseWheelEvent event) {
+        int direction = event.getWheelRotation() < 0 ? -1 : 1;
+        int amount = event.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL
+                ? event.getUnitsToScroll() * scrollBar.getUnitIncrement(direction)
+                : event.getWheelRotation() * scrollBar.getBlockIncrement(direction);
+        int max = scrollBar.getMaximum() - scrollBar.getVisibleAmount();
+        int value = Math.max(scrollBar.getMinimum(), Math.min(max, scrollBar.getValue() + amount));
+        scrollBar.setValue(value);
     }
 
     private void addAmenity() {
@@ -205,9 +281,12 @@ public class AccommodationFormPanel extends JPanel {
             empty.setForeground(AccommodationManagementHelper.TEXT_SECONDARY);
             empty.setBorder(new EmptyBorder(6, 4, 6, 4));
             amenitiesListPanel.add(empty);
+            installAmenitiesWheelForwarding(empty);
         } else {
             for (String amenity : amenities) {
-                amenitiesListPanel.add(AccommodationManagementHelper.amenityChip(amenity, () -> removeAmenity(amenity)));
+                JPanel chip = AccommodationManagementHelper.amenityChip(amenity, () -> removeAmenity(amenity));
+                installAmenitiesWheelForwarding(chip);
+                amenitiesListPanel.add(chip);
             }
         }
         amenitiesListPanel.revalidate();
@@ -215,6 +294,15 @@ public class AccommodationFormPanel extends JPanel {
         if (amenitiesScrollPane != null) {
             amenitiesScrollPane.revalidate();
             amenitiesScrollPane.repaint();
+        }
+    }
+
+    private void installAmenitiesWheelForwarding(Component component) {
+        component.addMouseWheelListener(this::forwardAmenitiesMouseWheel);
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                installAmenitiesWheelForwarding(child);
+            }
         }
     }
 

@@ -12,6 +12,23 @@ public final class DialogHelper {
         UniversalDialog.message(parent, UniversalDialog.Type.SUCCESS, "Success", message);
     }
 
+    public static int successOption(
+            Component parent,
+            String title,
+            String message,
+            String primaryOption,
+            String secondaryOption
+    ) {
+        return UniversalDialog.option(
+                parent,
+                UniversalDialog.Type.SUCCESS,
+                title,
+                message,
+                primaryOption,
+                secondaryOption
+        );
+    }
+
     public static void info(Component parent, String title, String message) {
         UniversalDialog.message(parent, UniversalDialog.Type.INFO, title, message);
     }

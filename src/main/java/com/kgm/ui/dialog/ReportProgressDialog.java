@@ -36,7 +36,7 @@ public class ReportProgressDialog extends JDialog {
         body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBorder(BorderFactory.createEmptyBorder(20, 22, 20, 22));
-        JLabel state = new JLabel("Preparing report and updating the document...");
+        JLabel state = new JLabel("Preparing PDF report and saving the file...");
         state.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         state.setForeground(HomeViewHelper.TEXT_SECONDARY);
         state.setAlignmentX(Component.LEFT_ALIGNMENT);

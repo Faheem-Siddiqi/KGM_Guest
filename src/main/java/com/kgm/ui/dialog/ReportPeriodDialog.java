@@ -1,22 +1,27 @@
 package com.kgm.ui.dialog;
 
 import com.kgm.service.GuestReportService;
-import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
 
 public class ReportPeriodDialog extends JDialog {
+    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private final JToggleButton weeklyButton = periodButton("Weekly");
     private final JToggleButton monthlyButton = periodButton("Monthly");
     private final JToggleButton fortnightButton = periodButton("Fortnight");
     private final JToggleButton customButton = periodButton("Custom Range");
     private final JSpinner startDate = HomeViewHelper.dateSpinner(date(LocalDate.now().minusDays(6)));
     private final JSpinner endDate = HomeViewHelper.dateSpinner(date(LocalDate.now()));
+    private final JButton generateButton = primaryButton("Generate Report");
     private GuestReportService.ReportRange selectedRange;
 
     public ReportPeriodDialog(Window owner) {
@@ -27,6 +32,8 @@ public class ReportPeriodDialog extends JDialog {
         setMinimumSize(new Dimension(520, 440));
         setLocationRelativeTo(owner);
         weeklyButton.setSelected(true);
+        installDateValidation(startDate);
+        installDateValidation(endDate);
         updateCustomFields();
     }
 
@@ -132,11 +139,10 @@ public class ReportPeriodDialog extends JDialog {
         footer.setBorder(BorderFactory.createEmptyBorder(14, 22, 14, 22));
 
         JButton cancel = secondaryButton("Cancel");
-        JButton generate = primaryButton("Generate Report");
         cancel.addActionListener(event -> dispose());
-        generate.addActionListener(event -> selectRange());
+        generateButton.addActionListener(event -> selectRange());
         footer.add(cancel);
-        footer.add(generate);
+        footer.add(generateButton);
         return footer;
     }
 
@@ -144,6 +150,7 @@ public class ReportPeriodDialog extends JDialog {
         boolean custom = customButton.isSelected();
         startDate.setEnabled(custom);
         endDate.setEnabled(custom);
+        updateGenerateButtonState();
     }
 
     private void selectRange() {
@@ -155,15 +162,74 @@ public class ReportPeriodDialog extends JDialog {
         } else if (fortnightButton.isSelected()) {
             selectedRange = new GuestReportService.ReportRange("Fortnight", today.minusDays(13), today);
         } else {
-            LocalDate start = localDate(startDate);
-            LocalDate end = localDate(endDate);
-            if (end.isBefore(start)) {
-                DialogHelper.error(this, "Invalid date range", "End Date must be the same as or after Start Date.");
+            LocalDate start = inputDate(startDate);
+            LocalDate end = inputDate(endDate);
+            if (start == null || end == null || end.isBefore(start)) {
+                updateGenerateButtonState();
                 return;
             }
+            startDate.setValue(date(start));
+            endDate.setValue(date(end));
             selectedRange = new GuestReportService.ReportRange("Custom Range", start, end);
         }
         dispose();
+    }
+
+    private void updateGenerateButtonState() {
+        boolean enabled = !customButton.isSelected() || customDateRangeValid();
+        generateButton.setEnabled(enabled);
+        generateButton.setBackground(enabled ? HomeViewHelper.PRIMARY : new Color(188, 198, 208));
+        generateButton.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    private boolean customDateRangeValid() {
+        LocalDate start = inputDate(startDate);
+        LocalDate end = inputDate(endDate);
+        return start != null && end != null && !end.isBefore(start);
+    }
+
+    private LocalDate inputDate(JSpinner spinner) {
+        JFormattedTextField field = dateTextField(spinner);
+        if (field == null) {
+            return null;
+        }
+        String value = field.getText().trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value, INPUT_DATE);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
+    }
+
+    private void installDateValidation(JSpinner spinner) {
+        spinner.addChangeListener(event -> updateGenerateButtonState());
+        JFormattedTextField field = dateTextField(spinner);
+        if (field == null) {
+            return;
+        }
+        field.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent event) {
+                updateGenerateButtonState();
+            }
+
+            public void removeUpdate(DocumentEvent event) {
+                updateGenerateButtonState();
+            }
+
+            public void changedUpdate(DocumentEvent event) {
+                updateGenerateButtonState();
+            }
+        });
+    }
+
+    private JFormattedTextField dateTextField(JSpinner spinner) {
+        if (spinner.getEditor() instanceof JSpinner.DefaultEditor editor) {
+            return editor.getTextField();
+        }
+        return null;
     }
 
     private static JLabel fieldLabel(String text) {
@@ -218,5 +284,9 @@ public class ReportPeriodDialog extends JDialog {
 
     private static LocalDate localDate(JSpinner spinner) {
         return ((Date) spinner.getValue()).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+    }
+
+    private static LocalDate localDate(Date date) {
+        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
     }
 }

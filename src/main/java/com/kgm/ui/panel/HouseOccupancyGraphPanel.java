@@ -26,7 +26,7 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
     ) {
         super(
                 "House Capacity",
-                "Capacity compared with occupied seats",
+                "Capacity compared with occupied beds",
                 data.labels(),
                 new UniversalGraphPanel.Series(
                         "Capacity",
@@ -37,8 +37,8 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
                 new UniversalGraphPanel.Series(
                         "Occupied",
                         data.occupied(),
-                        HomeViewHelper.PRIMARY,
-                        HomeViewHelper.PRIMARY_DARK
+                        HomeViewHelper.KPI_AMBER_LIGHT,
+                        HomeViewHelper.KPI_AMBER_DARK
                 )
         );
         this.dashboardDao = dashboardDao;
@@ -111,8 +111,8 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
                     new UniversalGraphPanel.Series(
                             "Occupied",
                             data.occupied(),
-                            HomeViewHelper.PRIMARY,
-                            HomeViewHelper.PRIMARY_DARK
+                            HomeViewHelper.KPI_AMBER_LIGHT,
+                            HomeViewHelper.KPI_AMBER_DARK
                     )
             );
         } catch (SQLException exception) {
@@ -127,8 +127,8 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
                     new UniversalGraphPanel.Series(
                             "Occupied",
                             new int[0],
-                            HomeViewHelper.PRIMARY,
-                            HomeViewHelper.PRIMARY_DARK
+                            HomeViewHelper.KPI_AMBER_LIGHT,
+                            HomeViewHelper.KPI_AMBER_DARK
                     )
             );
         }

@@ -23,16 +23,18 @@ public class AccommodationManagementPanel extends JPanel {
 
         JPanel page = AccommodationManagementHelper.pagePanel();
 
-        accommodationTablePanel = new AccommodationTablePanel((row, accommodation) ->
-                accommodationFormPanel.editAccommodation(row, accommodation)
-        );
+        accommodationTablePanel = new AccommodationTablePanel((row, accommodation) -> {
+            accommodationFormPanel.editAccommodation(row, accommodation);
+            scrollToSection(accommodationFormPanel);
+        });
         accommodationFormPanel = new AccommodationFormPanel(
                 this::saveAccommodation,
                 this::updateAccommodation
         );
-        categoryPanel = new AccommodationCategoryPanel(categories ->
-                accommodationFormPanel.setCategories(categories)
-        );
+        categoryPanel = new AccommodationCategoryPanel(categories -> {
+            accommodationFormPanel.setCategories(categories);
+            accommodationTablePanel.setCategories(categories);
+        });
 
         GridBagConstraints headerGbc = AccommodationManagementHelper.pageConstraints(0);
         page.add(AccommodationManagementHelper.screenHeader(onBack), headerGbc);

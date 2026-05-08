@@ -217,7 +217,7 @@ public class ExcelImportService {
 
     public static String importGuideMessage() {
         return """
-                Required Excel header row:
+                Guest import sample columns:
                 %s
 
                 2026 accommodation category values:
@@ -350,8 +350,8 @@ public class ExcelImportService {
             }
         }
         if (!missing.isEmpty()) {
-            throw new HeaderImportException("Missing required Excel headers: " + String.join(", ", missing)
-                    + "\n\n" + importGuideMessage());
+            System.err.println("Excel import missing headers: " + String.join(", ", missing));
+            throw new HeaderImportException("Header issue detected. Download the sample file for the correct header format.");
         }
     }
 

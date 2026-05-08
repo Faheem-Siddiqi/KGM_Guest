@@ -6,6 +6,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public final class UniversalDialog {
     public enum Type {
@@ -24,6 +25,12 @@ public final class UniversalDialog {
     private static final Color FOOTER = new Color(247, 249, 251);
     private static final Color ERROR_SURFACE = new Color(255, 246, 245);
     private static final Color ERROR_BORDER = new Color(254, 205, 202);
+    private static final int BODY_WIDTH = 500;
+    private static final int MESSAGE_BOX_WIDTH = 456;
+    private static final int MESSAGE_TEXT_WIDTH = 400;
+    private static final int WRAP_COLUMNS = 54;
+    private static final int SCROLLABLE_SECTION_ROWS = 10;
+    public static final String SECTION_SEPARATOR = "\n\n::kgm-dialog-section::\n\n";
 
     private UniversalDialog() {
     }
@@ -84,74 +91,137 @@ public final class UniversalDialog {
 
     private static JComponent body(Type type, String message) {
         String text = message == null || message.isBlank() ? "-" : message.trim();
-        List<String> lines = messageLines(text);
+        List<String> sections = messageSections(text);
 
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(Color.WHITE);
         panel.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
 
-        if (lines.size() > 1) {
-            for (String line : lines) {
-                JPanel row = messageRow(type, line);
-                row.setAlignmentX(Component.LEFT_ALIGNMENT);
-                panel.add(row);
-                panel.add(Box.createVerticalStrut(8));
+        for (int index = 0; index < sections.size(); index++) {
+            JPanel messageBox = messageBox(type, sections.get(index));
+            messageBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(messageBox);
+            if (index < sections.size() - 1) {
+                panel.add(Box.createVerticalStrut(10));
             }
-        } else {
-            panel.add(paragraph(text));
         }
 
         JScrollPane scroll = new JScrollPane(panel);
         scroll.setBorder(null);
         scroll.getViewport().setBackground(Color.WHITE);
-        scroll.setPreferredSize(new Dimension(500, preferredMessageHeight(lines, text)));
+        scroll.setPreferredSize(new Dimension(BODY_WIDTH, preferredMessageHeight(sections)));
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         return scroll;
     }
 
-    private static JTextArea paragraph(String message) {
-        JTextArea text = new JTextArea(message);
+    private static JPanel messageBox(Type type, String message) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setBackground(surface(type));
+        row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(border(type)),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+
+        JLabel badge = new JLabel(badgeText(type));
+        badge.setHorizontalAlignment(SwingConstants.CENTER);
+        badge.setVerticalAlignment(SwingConstants.CENTER);
+        badge.setPreferredSize(new Dimension(24, 24));
+        badge.setOpaque(true);
+        badge.setBackground(type.accent);
+        badge.setForeground(Color.WHITE);
+        badge.setFont(new Font("Segoe UI", Font.BOLD, 11));
+
+        String[] parts = headingAndBody(message);
+        JPanel textPanel = new JPanel();
+        textPanel.setOpaque(false);
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+
+        if (!parts[0].isEmpty()) {
+            JLabel heading = new JLabel(parts[0]);
+            heading.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            heading.setForeground(HomeViewHelper.TEXT_PRIMARY);
+            heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+            textPanel.add(heading);
+            textPanel.add(Box.createVerticalStrut(4));
+        }
+
+        int contentRows = Math.max(1, wrappedRows(parts[1], WRAP_COLUMNS));
+        boolean scrollableText = isScrollableSection(parts[0]) && contentRows > SCROLLABLE_SECTION_ROWS;
+        int visibleRows = scrollableText ? SCROLLABLE_SECTION_ROWS : contentRows;
+
+        JTextArea text = new JTextArea(parts[1]);
         text.setEditable(false);
         text.setFocusable(false);
         text.setLineWrap(true);
-        text.setWrapStyleWord(true);
+        text.setWrapStyleWord(false);
+        text.setRows(contentRows);
+        text.setColumns(0);
         text.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         text.setForeground(HomeViewHelper.TEXT_PRIMARY);
-        text.setBackground(Color.WHITE);
+        text.setBackground(row.getBackground());
         text.setBorder(BorderFactory.createEmptyBorder());
         text.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return text;
-    }
 
-    private static JPanel messageRow(Type type, String message) {
-        boolean error = type == Type.ERROR;
-        JPanel row = new JPanel(new BorderLayout(10, 0));
-        row.setBackground(error ? ERROR_SURFACE : Color.WHITE);
-        row.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(error ? ERROR_BORDER : HomeViewHelper.BORDER),
-                BorderFactory.createEmptyBorder(9, 12, 9, 12)
-        ));
+        int lineHeight = text.getFontMetrics(text.getFont()).getHeight();
+        int textHeight = Math.max(42, visibleRows * lineHeight + 4);
+        int contentHeight = Math.max(textHeight, contentRows * lineHeight + 4);
+        int headingHeight = parts[0].isEmpty() ? 0 : 22;
+        Dimension textSize = new Dimension(MESSAGE_TEXT_WIDTH, contentHeight);
+        text.setPreferredSize(textSize);
+        text.setMinimumSize(textSize);
+        text.setMaximumSize(textSize);
 
-        JLabel badge = new JLabel(error ? "!" : "-");
-        badge.setHorizontalAlignment(SwingConstants.CENTER);
-        badge.setVerticalAlignment(SwingConstants.CENTER);
-        badge.setPreferredSize(new Dimension(22, 22));
-        badge.setOpaque(true);
-        badge.setBackground(error ? Type.ERROR.accent : HomeViewHelper.PRIMARY);
-        badge.setForeground(Color.WHITE);
-        badge.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        if (scrollableText) {
+            JScrollPane sectionScroll = new JScrollPane(text);
+            sectionScroll.setBorder(BorderFactory.createLineBorder(HomeViewHelper.BORDER));
+            sectionScroll.getViewport().setBackground(row.getBackground());
+            sectionScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            sectionScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+            Dimension scrollSize = new Dimension(MESSAGE_TEXT_WIDTH, textHeight);
+            sectionScroll.setPreferredSize(scrollSize);
+            sectionScroll.setMinimumSize(scrollSize);
+            sectionScroll.setMaximumSize(scrollSize);
+            sectionScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+            textPanel.add(sectionScroll);
+        } else {
+            Dimension visibleTextSize = new Dimension(MESSAGE_TEXT_WIDTH, textHeight);
+            text.setPreferredSize(visibleTextSize);
+            text.setMinimumSize(visibleTextSize);
+            text.setMaximumSize(visibleTextSize);
+            textPanel.add(text);
+        }
+        Dimension panelSize = new Dimension(MESSAGE_TEXT_WIDTH, textHeight + headingHeight);
+        textPanel.setPreferredSize(panelSize);
+        textPanel.setMinimumSize(panelSize);
+        textPanel.setMaximumSize(panelSize);
 
-        JLabel label = new JLabel("<html><body style='width:360px'>"
-                + htmlEscape(message)
-                + "</body></html>");
-        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        label.setForeground(HomeViewHelper.TEXT_PRIMARY);
+        int boxHeight = textHeight + headingHeight + 22;
+        Dimension boxSize = new Dimension(MESSAGE_BOX_WIDTH, boxHeight);
+        row.setPreferredSize(boxSize);
+        row.setMinimumSize(boxSize);
+        row.setMaximumSize(boxSize);
 
         row.add(badge, BorderLayout.WEST);
-        row.add(label, BorderLayout.CENTER);
+        row.add(textPanel, BorderLayout.CENTER);
         return row;
+    }
+
+    private static Color surface(Type type) {
+        return type == Type.ERROR ? ERROR_SURFACE : Color.WHITE;
+    }
+
+    private static Color border(Type type) {
+        return type == Type.ERROR ? ERROR_BORDER : HomeViewHelper.BORDER;
+    }
+
+    private static String badgeText(Type type) {
+        return switch (type) {
+            case SUCCESS -> "OK";
+            case WARNING, ERROR -> "!";
+            case INFO -> "i";
+        };
     }
 
     private static JPanel footer(
@@ -218,33 +288,58 @@ public final class UniversalDialog {
         return text == null || text.isBlank() ? "OK" : text;
     }
 
-    private static List<String> messageLines(String message) {
-        List<String> lines = new ArrayList<>();
-        for (String line : message.split("\\R")) {
-            String trimmed = line.trim();
+    private static int preferredMessageHeight(List<String> sections) {
+        int height = 36;
+        for (String section : sections) {
+            String[] parts = headingAndBody(section);
+            int headingHeight = parts[0].isEmpty() ? 0 : 22;
+            int rows = visibleRows(parts[0], parts[1]);
+            height += 22 + headingHeight + Math.max(42, rows * 19);
+        }
+        height += Math.max(0, sections.size() - 1) * 10;
+        return Math.min(420, height);
+    }
+
+    private static int visibleRows(String heading, String body) {
+        int rows = Math.max(1, wrappedRows(body, WRAP_COLUMNS));
+        if (isScrollableSection(heading)) {
+            return Math.min(SCROLLABLE_SECTION_ROWS, rows);
+        }
+        return rows;
+    }
+
+    private static boolean isScrollableSection(String heading) {
+        return "Skipped rows".equalsIgnoreCase(heading);
+    }
+
+    private static int wrappedRows(String message, int columns) {
+        int rows = 0;
+        for (String line : message.split("\\R", -1)) {
+            rows += Math.max(1, line.length() / columns + 1);
+        }
+        return rows;
+    }
+
+    private static List<String> messageSections(String message) {
+        List<String> sections = new ArrayList<>();
+        for (String section : message.split(Pattern.quote(SECTION_SEPARATOR), -1)) {
+            String trimmed = section.trim();
             if (!trimmed.isEmpty()) {
-                lines.add(trimmed);
+                sections.add(trimmed);
             }
         }
-        if (lines.isEmpty()) {
-            lines.add("-");
+        if (sections.isEmpty()) {
+            sections.add("-");
         }
-        return lines;
+        return sections;
     }
 
-    private static String htmlEscape(String value) {
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
-    }
-
-    private static int preferredMessageHeight(List<String> lines, String message) {
-        if (lines.size() > 1) {
-            return Math.min(340, 36 + lines.size() * 48);
+    private static String[] headingAndBody(String message) {
+        String[] lines = message.split("\\R", 2);
+        if (lines.length < 2 || lines[1].trim().isEmpty()) {
+            return new String[]{"", message};
         }
-        int displayLines = Math.max(3, message.length() / 72 + message.split("\\R", -1).length);
-        return Math.min(260, 42 + displayLines * 18);
+        return new String[]{lines[0].trim(), lines[1].trim()};
     }
 
     private static Window owner(Component parent) {

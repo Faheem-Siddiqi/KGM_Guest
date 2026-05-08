@@ -20,8 +20,26 @@ public final class DialogHelper {
         UniversalDialog.message(parent, UniversalDialog.Type.WARNING, title, message);
     }
 
+    public static void warningSections(Component parent, String title, String... sections) {
+        UniversalDialog.message(
+                parent,
+                UniversalDialog.Type.WARNING,
+                title,
+                String.join(UniversalDialog.SECTION_SEPARATOR, sections)
+        );
+    }
+
     public static void error(Component parent, String title, String message) {
         UniversalDialog.message(parent, UniversalDialog.Type.ERROR, title, message);
+    }
+
+    public static void errorSections(Component parent, String title, String... sections) {
+        UniversalDialog.message(
+                parent,
+                UniversalDialog.Type.ERROR,
+                title,
+                String.join(UniversalDialog.SECTION_SEPARATOR, sections)
+        );
     }
 
     public static int option(

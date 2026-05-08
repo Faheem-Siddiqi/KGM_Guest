@@ -375,7 +375,7 @@ public class HomeView extends JFrame {
                     System.err.println("Excel import failed: " + message);
                     logCause.printStackTrace(System.err);
                     if (cause instanceof ExcelImportService.HeaderImportException) {
-                        showHeaderImportError(message);
+                        showHeaderImportError();
                         return;
                     }
                     DialogHelper.error(HomeView.this, "Excel import failed", message);
@@ -385,13 +385,19 @@ public class HomeView extends JFrame {
         worker.execute();
     }
 
-    private void showHeaderImportError(String message) {
+    private void showHeaderImportError() {
+        String friendlyMessage = """
+                Header issue detected.
+
+                The selected Excel file does not match the guest import format.
+                Download the sample file, keep its header row unchanged, and import again.
+                """;
         int selected = DialogHelper.option(
                 this,
-                "Excel header issue",
-                message,
+                "Excel Header Issue",
+                friendlyMessage,
                 "Download Sample",
-                "OK"
+                "Close"
         );
         if (selected == 0) {
             downloadSampleExcel();
@@ -425,32 +431,37 @@ public class HomeView extends JFrame {
     }
 
     private void showImportResult(ExcelImportService.ImportResult result) {
-        String message = importResultMessage(result);
         if (result.skippedRows().isEmpty()) {
-            DialogHelper.success(this, message);
+            DialogHelper.success(this, importSummaryMessage(result, "Import completed"));
         } else {
-            DialogHelper.warning(this, "Excel import completed with skipped rows", message);
+            DialogHelper.warningSections(
+                    this,
+                    "Excel import completed with skipped rows",
+                    importSummaryMessage(result, "Import summary"),
+                    skippedRowsMessage(result)
+            );
         }
     }
 
-    private String importResultMessage(ExcelImportService.ImportResult result) {
-        StringBuilder message = new StringBuilder();
-        message.append("Imported guests: ").append(result.importedCount()).append("\n");
-        message.append("Skipped rows: ").append(result.skippedRows().size());
+    private String importSummaryMessage(ExcelImportService.ImportResult result, String heading) {
+        return heading
+                + "\nImported guests: " + result.importedCount()
+                + "\nSkipped rows: " + result.skippedRows().size();
+    }
 
-        if (!result.skippedRows().isEmpty()) {
-            message.append("\n\nSkipped row details:");
-            int limit = Math.min(20, result.skippedRows().size());
-            for (int i = 0; i < limit; i++) {
-                message.append("\n").append(result.skippedRows().get(i));
-            }
-            if (result.skippedRows().size() > limit) {
-                message.append("\n...and ")
-                        .append(result.skippedRows().size() - limit)
-                        .append(" more skipped rows.");
-            }
+    private String skippedRowsMessage(ExcelImportService.ImportResult result) {
+        StringBuilder message = new StringBuilder();
+        message.append("Skipped rows\n");
+        int limit = Math.min(20, result.skippedRows().size());
+        for (int i = 0; i < limit; i++) {
+            message.append(result.skippedRows().get(i)).append("\n");
         }
-        return message.toString();
+        if (result.skippedRows().size() > limit) {
+            message.append("...and ")
+                    .append(result.skippedRows().size() - limit)
+                    .append(" more skipped rows.");
+        }
+        return message.toString().trim();
     }
 
     private void setImportButtonEnabled(boolean enabled) {
@@ -472,6 +483,9 @@ public class HomeView extends JFrame {
 
         File target = chooseReportTarget(range);
         if (target == null) {
+            return;
+        }
+        if (!confirmReportGeneration(range, target)) {
             return;
         }
         generateGuestReport(range, target);
@@ -504,8 +518,16 @@ public class HomeView extends JFrame {
         return path.toLowerCase().endsWith(".docx") ? file : new File(path + ".docx");
     }
 
+    private boolean confirmReportGeneration(GuestReportService.ReportRange range, File target) {
+        String message = "Report period: " + range.label()
+                + " (" + range.startDate() + " to " + range.endDate() + ")\n"
+                + "Save path: " + target.getAbsolutePath() + "\n\n"
+                + "Generate this report now?";
+        return DialogHelper.option(this, "Generate Report", message, "Generate", "Cancel") == 0;
+    }
+
     private void generateGuestReport(GuestReportService.ReportRange range, File target) {
-        ReportProgressDialog progress = new ReportProgressDialog(this);
+        ReportProgressDialog progress = new ReportProgressDialog(this, range, target);
         SwingWorker<Void, Void> worker = new SwingWorker<>() {
             protected Void doInBackground() throws Exception {
                 guestReportService.generateReport(target, range);

@@ -9,16 +9,21 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 public class GuestDao {
+    private static final String OVERLAPPING_STAY_MESSAGE = "This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.";
+
     private final AccommodationDao accommodationDao = new AccommodationDao();
 
     public Guest save(Guest guest) throws SQLException {
+        validateStayDates(guest.getArrivalAt(), guest.getDepartureAt());
         if (hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
-            throw new SQLException("This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.");
+            throw new SQLException(OVERLAPPING_STAY_MESSAGE);
         }
 
         long guestCategoryId = findOrCreateGuestCategory(guest.getGuestCategory());
@@ -163,17 +168,24 @@ public class GuestDao {
     }
 
     public boolean existsByNameOnArrivalDate(String guestName, Date arrivalAt) throws SQLException {
+        if (arrivalAt == null) {
+            return false;
+        }
         String sql = """
                 SELECT 1
                 FROM guests
-                WHERE LOWER(TRIM(guest_name)) = LOWER(TRIM(?))
-                  AND DATE(arrival_at) = DATE(?)
+                WHERE guest_name = ?
+                  AND arrival_at >= ?
+                  AND arrival_at < ?
                 LIMIT 1
                 """;
+        Date startOfDay = startOfDay(arrivalAt);
+        Date nextDay = nextDay(arrivalAt);
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, guestName);
-            statement.setTimestamp(2, timestamp(arrivalAt));
+            statement.setString(1, guestName == null ? "" : guestName.trim());
+            statement.setTimestamp(2, timestamp(startOfDay));
+            statement.setTimestamp(3, timestamp(nextDay));
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next();
             }
@@ -199,24 +211,85 @@ public class GuestDao {
     }
 
     public boolean hasOverlappingStayByCnic(String cnic, Date arrivalAt, Date departureAt) throws SQLException {
-        String normalizedCnic = cnic == null ? "" : cnic.trim();
+        String normalizedCnic = digitsOnly(cnic);
         if (normalizedCnic.isEmpty() || arrivalAt == null || departureAt == null) {
             return false;
         }
 
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return hasOverlappingStayByCnic(connection, normalizedCnic, arrivalAt, departureAt, null);
+        }
+    }
+
+    private boolean hasOverlappingStayByCnic(
+            Connection connection,
+            String normalizedCnic,
+            Date arrivalAt,
+            Date departureAt,
+            Long excludedGuestId
+    ) throws SQLException {
+        if (normalizedCnic == null || normalizedCnic.isBlank() || arrivalAt == null || departureAt == null) {
+            return false;
+        }
+
+        if (hasOverlappingStayByExactCnic(connection, normalizedCnic, arrivalAt, departureAt, excludedGuestId)) {
+            return true;
+        }
+        return hasOverlappingStayByNormalizedCnic(connection, normalizedCnic, arrivalAt, departureAt, excludedGuestId);
+    }
+
+    private boolean hasOverlappingStayByExactCnic(
+            Connection connection,
+            String normalizedCnic,
+            Date arrivalAt,
+            Date departureAt,
+            Long excludedGuestId
+    ) throws SQLException {
         String sql = """
                 SELECT 1
                 FROM guests
-                WHERE TRIM(cnic) = ?
+                WHERE cnic = ?
                   AND arrival_at < ?
                   AND departure_at > ?
+                  %s
                 LIMIT 1
-                """;
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                """.formatted(excludedGuestId == null ? "" : "AND id <> ?");
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedCnic);
             statement.setTimestamp(2, timestamp(departureAt));
             statement.setTimestamp(3, timestamp(arrivalAt));
+            if (excludedGuestId != null) {
+                statement.setLong(4, excludedGuestId);
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    private boolean hasOverlappingStayByNormalizedCnic(
+            Connection connection,
+            String normalizedCnic,
+            Date arrivalAt,
+            Date departureAt,
+            Long excludedGuestId
+    ) throws SQLException {
+        String sql = """
+                SELECT 1
+                FROM guests
+                WHERE arrival_at < ?
+                  AND departure_at > ?
+                  AND REPLACE(REPLACE(TRIM(cnic), '-', ''), ' ', '') = ?
+                  %s
+                LIMIT 1
+                """.formatted(excludedGuestId == null ? "" : "AND id <> ?");
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setTimestamp(1, timestamp(departureAt));
+            statement.setTimestamp(2, timestamp(arrivalAt));
+            statement.setString(3, normalizedCnic);
+            if (excludedGuestId != null) {
+                statement.setLong(4, excludedGuestId);
+            }
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next();
             }
@@ -224,17 +297,50 @@ public class GuestDao {
     }
 
     public void updateDepartureAndRemarks(long guestId, Date departureAt, String remarks) throws SQLException {
-        String sql = """
+        String selectSql = """
+                SELECT cnic, arrival_at
+                FROM guests
+                WHERE id = ?
+                """;
+        String updateSql = """
                 UPDATE guests
                 SET departure_at = ?, remarks = ?
                 WHERE id = ?
                 """;
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setTimestamp(1, timestamp(departureAt));
-            statement.setString(2, remarks);
-            statement.setLong(3, guestId);
-            statement.executeUpdate();
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                String cnic;
+                Date arrivalAt;
+                try (PreparedStatement statement = connection.prepareStatement(selectSql)) {
+                    statement.setLong(1, guestId);
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        if (!resultSet.next()) {
+                            throw new SQLException("Guest record was not found.");
+                        }
+                        cnic = resultSet.getString("cnic");
+                        arrivalAt = resultSet.getTimestamp("arrival_at");
+                    }
+                }
+
+                validateStayDates(arrivalAt, departureAt);
+                if (hasOverlappingStayByCnic(connection, digitsOnly(cnic), arrivalAt, departureAt, guestId)) {
+                    throw new SQLException(OVERLAPPING_STAY_MESSAGE);
+                }
+
+                try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
+                    statement.setTimestamp(1, timestamp(departureAt));
+                    statement.setString(2, remarks);
+                    statement.setLong(3, guestId);
+                    statement.executeUpdate();
+                }
+                connection.commit();
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         }
     }
 
@@ -305,6 +411,29 @@ public class GuestDao {
                 throw new SQLException("Selected room is no longer ready for assignment.");
             }
         }
+    }
+
+    private void validateStayDates(Date arrivalAt, Date departureAt) throws SQLException {
+        if (arrivalAt == null || departureAt == null) {
+            throw new SQLException("Arrival and departure dates are required.");
+        }
+        if (!departureAt.after(arrivalAt)) {
+            throw new SQLException("Departure date must be after arrival date.");
+        }
+    }
+
+    private String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
+    }
+
+    private Date startOfDay(Date date) {
+        LocalDate localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+    }
+
+    private Date nextDay(Date date) {
+        LocalDate localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate().plusDays(1);
+        return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
     private Timestamp timestamp(java.util.Date date) {

@@ -16,6 +16,7 @@ public class GuestFilterPanel extends JPanel {
     private final JSpinner dateFilter = HomeViewHelper.dateSpinner(new Date());
     private final JCheckBox useDateFilter = HomeViewHelper.checkBox("Use Date");
     private final JButton clearButton = HomeViewHelper.textButton("CLEAR");
+    private boolean suppressFilterEvents;
 
     public GuestFilterPanel(Runnable onSearch, Runnable onClear) {
         setLayout(new BorderLayout());
@@ -37,12 +38,26 @@ public class GuestFilterPanel extends JPanel {
         JButton searchButton = HomeViewHelper.textButton("SEARCH");
 
         dateFilter.setEnabled(false);
-        useDateFilter.addActionListener(e -> dateFilter.setEnabled(useDateFilter.isSelected()));
+        useDateFilter.addActionListener(e -> {
+            dateFilter.setEnabled(useDateFilter.isSelected());
+            updateClearButtonState();
+            runFilter(onSearch);
+        });
 
         searchField.addActionListener(e -> onSearch.run());
         searchField.setToolTipText("Search by guest name or CNIC");
         searchField.getAccessibleContext().setAccessibleName("Search by guest name or CNIC");
         searchButton.addActionListener(e -> onSearch.run());
+        statusFilter.addActionListener(e -> {
+            updateClearButtonState();
+            runFilter(onSearch);
+        });
+        dateFilter.addChangeListener(e -> {
+            updateClearButtonState();
+            if (useDateFilter.isSelected()) {
+                runFilter(onSearch);
+            }
+        });
         clearButton.addActionListener(e -> {
             onClear.run();
             updateClearButtonState();
@@ -139,15 +154,28 @@ public class GuestFilterPanel extends JPanel {
     }
 
     public void clearSearch() {
-        searchField.setText("");
-        statusFilter.setSelectedIndex(0);
-        useDateFilter.setSelected(false);
-        dateFilter.setValue(new Date());
-        dateFilter.setEnabled(false);
-        updateClearButtonState();
+        suppressFilterEvents = true;
+        try {
+            searchField.setText("");
+            statusFilter.setSelectedIndex(0);
+            useDateFilter.setSelected(false);
+            dateFilter.setValue(new Date());
+            dateFilter.setEnabled(false);
+            updateClearButtonState();
+        } finally {
+            suppressFilterEvents = false;
+        }
+    }
+
+    private void runFilter(Runnable onSearch) {
+        if (!suppressFilterEvents) {
+            onSearch.run();
+        }
     }
 
     private void updateClearButtonState() {
-        HomeViewHelper.setTextButtonEnabled(clearButton, !searchField.getText().trim().isEmpty());
+        boolean hasSearchText = !searchField.getText().trim().isEmpty();
+        boolean hasStatusFilter = statusFilter.getSelectedIndex() > 0;
+        HomeViewHelper.setTextButtonEnabled(clearButton, hasSearchText || hasStatusFilter || useDateFilter.isSelected());
     }
 }

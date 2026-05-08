@@ -26,7 +26,8 @@ public class AccommodationDao {
                     GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) AS available_seats,
                     a.status,
                     a.assigned_staff,
-                    c.name AS category_name
+                    c.name AS category_name,
+                    GROUP_CONCAT(aa.amenity ORDER BY aa.amenity SEPARATOR '\\n') AS amenities
                 FROM accommodations a
                 JOIN accommodation_categories c ON c.id = a.category_id
                 LEFT JOIN (
@@ -36,7 +37,9 @@ public class AccommodationDao {
                       AND departure_at >= NOW()
                     GROUP BY accommodation_id
                 ) occupied ON occupied.accommodation_id = a.id
+                LEFT JOIN accommodation_amenities aa ON aa.accommodation_id = a.id
                 WHERE a.active = TRUE
+                GROUP BY a.id, a.name, a.capacity, a.status, a.assigned_staff, c.name, occupied.current_guests
                 ORDER BY c.name, a.name
                 """;
         List<AccommodationRecord> accommodations = new ArrayList<>();
@@ -53,7 +56,7 @@ public class AccommodationDao {
                         resultSet.getInt("available_seats"),
                         resultSet.getString("status"),
                         resultSet.getString("assigned_staff"),
-                        findAmenities(connection, id)
+                        amenitiesFrom(resultSet.getString("amenities"))
                 ));
             }
         }
@@ -263,6 +266,20 @@ public class AccommodationDao {
                 while (resultSet.next()) {
                     amenities.add(resultSet.getString("amenity"));
                 }
+            }
+        }
+        return amenities;
+    }
+
+    private List<String> amenitiesFrom(String value) {
+        List<String> amenities = new ArrayList<>();
+        if (value == null || value.isBlank()) {
+            return amenities;
+        }
+        for (String amenity : value.split("\\R")) {
+            String text = amenity.trim();
+            if (!text.isEmpty()) {
+                amenities.add(text);
             }
         }
         return amenities;

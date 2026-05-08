@@ -15,21 +15,48 @@ public class DashboardDao {
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("h:00 a");
 
     public DashboardStats loadStats() throws SQLException {
-        int totalSeats = totalSeats();
-        int occupiedSeats = occupiedSeats();
-        int vacantSeats = Math.max(0, totalSeats - occupiedSeats);
-        int occupancyPercent = totalSeats == 0 ? 0 : (int) Math.round((occupiedSeats * 100.0) / totalSeats);
-        double averageStayHours = averageStayHours();
-        String peakArrival = peakArrivalHour();
-
-        return new DashboardStats(
-                totalSeats,
-                vacantSeats,
-                occupiedSeats,
-                occupancyPercent,
-                averageStayHours,
-                peakArrival
-        );
+        String sql = """
+                SELECT
+                    (SELECT COALESCE(SUM(capacity), 0)
+                     FROM accommodations
+                     WHERE active = TRUE) AS total_seats,
+                    (SELECT COUNT(*)
+                     FROM guests
+                     WHERE arrival_at <= NOW()
+                       AND departure_at >= NOW()) AS occupied_seats,
+                    (SELECT COALESCE(AVG(TIMESTAMPDIFF(MINUTE, arrival_at, departure_at)), 0)
+                     FROM guests
+                     WHERE departure_at >= arrival_at) AS average_minutes,
+                    (SELECT HOUR(arrival_at)
+                     FROM guests
+                     GROUP BY HOUR(arrival_at)
+                     ORDER BY COUNT(*) DESC, HOUR(arrival_at)
+                     LIMIT 1) AS peak_arrival_hour
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            if (resultSet.next()) {
+                int totalSeats = resultSet.getInt("total_seats");
+                int occupiedSeats = resultSet.getInt("occupied_seats");
+                int vacantSeats = Math.max(0, totalSeats - occupiedSeats);
+                int occupancyPercent = totalSeats == 0 ? 0 : (int) Math.round((occupiedSeats * 100.0) / totalSeats);
+                double averageStayHours = resultSet.getDouble("average_minutes") / 60.0;
+                Object peakHour = resultSet.getObject("peak_arrival_hour");
+                String peakArrival = peakHour instanceof Number number
+                        ? LocalTime.of(number.intValue(), 0).format(HOUR_FORMAT)
+                        : "-";
+                return new DashboardStats(
+                        totalSeats,
+                        vacantSeats,
+                        occupiedSeats,
+                        occupancyPercent,
+                        averageStayHours,
+                        peakArrival
+                );
+            }
+        }
+        return new DashboardStats(0, 0, 0, 0, 0, "-");
     }
 
     public OccupancyChartData loadOccupancyChart() throws SQLException {
@@ -38,7 +65,7 @@ public class DashboardDao {
 
     public OccupancyChartData loadOccupancyChart(String category) throws SQLException {
         String normalizedCategory = category == null ? "" : category.trim();
-        String sql = """
+        String sql = normalizedCategory.isEmpty() ? """
                 SELECT
                     c.name AS category_name,
                     a.name,
@@ -51,7 +78,22 @@ public class DashboardDao {
                    AND g.arrival_at <= NOW()
                    AND g.departure_at >= NOW()
                 WHERE a.active = TRUE
-                  AND (? = '' OR c.name = ?)
+                GROUP BY a.id, c.name, a.name, a.capacity
+                ORDER BY c.name, a.name
+                """ : """
+                SELECT
+                    c.name AS category_name,
+                    a.name,
+                    a.capacity,
+                    COUNT(g.id) AS occupied
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                LEFT JOIN guests g
+                    ON g.accommodation_id = a.id
+                   AND g.arrival_at <= NOW()
+                   AND g.departure_at >= NOW()
+                WHERE a.active = TRUE
+                  AND c.name = ?
                 GROUP BY a.id, c.name, a.name, a.capacity
                 ORDER BY c.name, a.name
                 """;
@@ -61,8 +103,9 @@ public class DashboardDao {
         List<Integer> occupied = new ArrayList<>();
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, normalizedCategory);
-            statement.setString(2, normalizedCategory);
+            if (!normalizedCategory.isEmpty()) {
+                statement.setString(1, normalizedCategory);
+            }
             try (ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 String room = resultSet.getString("name");

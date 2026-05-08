@@ -30,6 +30,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -123,11 +125,17 @@ public class ExcelImportService {
     private final AccommodationDao accommodationDao = new AccommodationDao();
     private final AccommodationCategoryDao accommodationCategoryDao = new AccommodationCategoryDao();
     private Map<String, String> accommodationCategoryLookup;
+    private Map<String, ImportAccommodation> accommodationRoomLookup;
+    private Set<String> accommodationRoomCategoryKeys;
+    private List<AccommodationRecord> importAccommodationRecords;
 
     public ImportResult importGuests(File file) throws IOException {
         List<String> skippedRows = new ArrayList<>();
         int imported = 0;
         accommodationCategoryLookup = null;
+        accommodationRoomLookup = null;
+        accommodationRoomCategoryKeys = null;
+        importAccommodationRecords = null;
 
         try (Workbook workbook = openWorkbook(file)) {
             Sheet sheet = workbook.getNumberOfSheets() == 0 ? null : workbook.getSheetAt(0);
@@ -160,10 +168,8 @@ public class ExcelImportService {
                         throw new RowImportException("Guest name already exists for this arrival date: "
                                 + guest.getGuestName());
                     }
-                    if (guestDao.hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
-                        throw new RowImportException("This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.");
-                    }
                     guestDao.save(guest);
+                    markAccommodationUsed(guest.getAccommodation(), guest.getRoomName());
                     imported++;
                 } catch (RowImportException exception) {
                     addSkippedRow(skippedRows, rowIndex + 1, exception.getMessage());
@@ -201,45 +207,65 @@ public class ExcelImportService {
     }
 
     public static void writeSampleWorkbook(File file) throws IOException {
-        try (Workbook workbook = new XSSFWorkbook();
-             FileOutputStream output = new FileOutputStream(file)) {
-            List<SampleAccommodation> accommodations = sampleAccommodations();
-            List<String> accommodationCategories = sampleAccommodationCategories();
-            List<String> guestCategories = sampleGuestCategories();
+        Path target = file.toPath();
+        Path parent = target.toAbsolutePath().getParent();
+        Path temporaryFile = parent == null
+                ? Files.createTempFile("guest_import_sample_", ".xlsx")
+                : Files.createTempFile(parent, "guest_import_sample_", ".xlsx");
+        try {
+            try (Workbook workbook = new XSSFWorkbook();
+                 FileOutputStream output = new FileOutputStream(temporaryFile.toFile())) {
+                List<SampleAccommodation> accommodations = sampleAccommodations();
+                List<String> accommodationCategories = sampleAccommodationCategories();
+                List<String> guestCategories = sampleGuestCategories();
 
-            Sheet sheet = workbook.createSheet("Guest Import");
-            CellStyle headerStyle = workbook.createCellStyle();
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            headerFont.setColor(IndexedColors.WHITE.getIndex());
-            headerStyle.setFont(headerFont);
-            headerStyle.setFillForegroundColor(IndexedColors.GREEN.getIndex());
-            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                Sheet sheet = workbook.createSheet("Guest Import");
+                CellStyle headerStyle = workbook.createCellStyle();
+                Font headerFont = workbook.createFont();
+                headerFont.setBold(true);
+                headerFont.setColor(IndexedColors.WHITE.getIndex());
+                headerStyle.setFont(headerFont);
+                headerStyle.setFillForegroundColor(IndexedColors.GREEN.getIndex());
+                headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                headerStyle.setLocked(false);
 
-            Row headerRow = sheet.createRow(0);
-            for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
-                Cell cell = headerRow.createCell(index);
-                cell.setCellValue(TEMPLATE_HEADERS.get(index));
-                cell.setCellStyle(headerStyle);
-            }
+                CellStyle editableStyle = workbook.createCellStyle();
+                editableStyle.setLocked(false);
+                editableStyle.setWrapText(true);
+                unlockColumns(sheet, editableStyle, TEMPLATE_HEADERS.size());
 
-            List<String[]> rows = sampleRows(accommodations, guestCategories);
-            for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-                Row row = sheet.createRow(rowIndex + 1);
-                String[] values = rows.get(rowIndex);
-                for (int cellIndex = 0; cellIndex < values.length; cellIndex++) {
-                    row.createCell(cellIndex).setCellValue(values[cellIndex]);
+                Row headerRow = sheet.createRow(0);
+                for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
+                    Cell cell = headerRow.createCell(index);
+                    cell.setCellValue(TEMPLATE_HEADERS.get(index));
+                    cell.setCellStyle(headerStyle);
                 }
-            }
 
-            for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
-                sheet.autoSizeColumn(index);
-            }
+                List<String[]> rows = sampleRows(accommodations, guestCategories);
+                for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+                    Row row = sheet.createRow(rowIndex + 1);
+                    String[] values = rows.get(rowIndex);
+                    for (int cellIndex = 0; cellIndex < values.length; cellIndex++) {
+                        textCell(row, cellIndex, values[cellIndex], editableStyle);
+                    }
+                }
 
-            writeValidValuesSheet(workbook, headerStyle, accommodationCategories, accommodations, guestCategories);
-            workbook.write(output);
+                for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
+                    sheet.autoSizeColumn(index);
+                }
+
+                writeValidValuesSheet(workbook, headerStyle, editableStyle, accommodationCategories, accommodations, guestCategories);
+                workbook.write(output);
+                output.flush();
+            }
+            makeEditableFile(target);
+            Files.move(temporaryFile, target, StandardCopyOption.REPLACE_EXISTING);
+            makeEditableFile(target);
+            validateGeneratedWorkbook(target);
         } catch (SQLException exception) {
             throw new IOException("Could not create the sample Excel file from current accommodation and guest category data.", exception);
+        } finally {
+            Files.deleteIfExists(temporaryFile);
         }
     }
 
@@ -318,6 +344,7 @@ public class ExcelImportService {
     private static void writeValidValuesSheet(
             Workbook workbook,
             CellStyle headerStyle,
+            CellStyle editableStyle,
             List<String> accommodationCategories,
             List<SampleAccommodation> accommodations,
             List<String> guestCategories
@@ -332,6 +359,7 @@ public class ExcelImportService {
                 "Available Beds",
                 "Importable"
         };
+        unlockColumns(values, editableStyle, headers.length);
         Row header = values.createRow(0);
         for (int index = 0; index < headers.length; index++) {
             Cell cell = header.createCell(index);
@@ -346,9 +374,9 @@ public class ExcelImportService {
             coveredCategories.add(accommodation.category());
             Row row = values.createRow(rowIndex++);
             if (guestCategoryIndex < guestCategories.size()) {
-                row.createCell(0).setCellValue(guestCategories.get(guestCategoryIndex++));
+                textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
             }
-            writeAccommodationValueRow(row, accommodation);
+            writeAccommodationValueRow(row, accommodation, editableStyle);
         }
 
         for (String category : accommodationCategories) {
@@ -357,17 +385,17 @@ public class ExcelImportService {
             }
             Row row = values.createRow(rowIndex++);
             if (guestCategoryIndex < guestCategories.size()) {
-                row.createCell(0).setCellValue(guestCategories.get(guestCategoryIndex++));
+                textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
             }
-            row.createCell(1).setCellValue(category);
-            row.createCell(2).setCellValue("No active rooms configured");
-            row.createCell(3).setCellValue("Not importable");
-            row.createCell(6).setCellValue("No");
+            textCell(row, 1, category, editableStyle);
+            textCell(row, 2, "No active rooms configured", editableStyle);
+            textCell(row, 3, "Not importable", editableStyle);
+            textCell(row, 6, "No", editableStyle);
         }
 
         while (guestCategoryIndex < guestCategories.size()) {
             Row row = values.createRow(rowIndex++);
-            row.createCell(0).setCellValue(guestCategories.get(guestCategoryIndex++));
+            textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
         }
 
         for (int index = 0; index < headers.length; index++) {
@@ -375,13 +403,51 @@ public class ExcelImportService {
         }
     }
 
-    private static void writeAccommodationValueRow(Row row, SampleAccommodation accommodation) {
-        row.createCell(1).setCellValue(accommodation.category());
-        row.createCell(2).setCellValue(accommodation.room());
-        row.createCell(3).setCellValue(accommodation.status());
-        row.createCell(4).setCellValue(accommodation.capacity());
-        row.createCell(5).setCellValue(accommodation.availableBeds());
-        row.createCell(6).setCellValue("Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No");
+    private static void writeAccommodationValueRow(
+            Row row,
+            SampleAccommodation accommodation,
+            CellStyle editableStyle
+    ) {
+        textCell(row, 1, accommodation.category(), editableStyle);
+        textCell(row, 2, accommodation.room(), editableStyle);
+        textCell(row, 3, accommodation.status(), editableStyle);
+        numberCell(row, 4, accommodation.capacity(), editableStyle);
+        numberCell(row, 5, accommodation.availableBeds(), editableStyle);
+        textCell(row, 6, "Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No", editableStyle);
+    }
+
+    private static void textCell(Row row, int index, String value, CellStyle style) {
+        Cell cell = row.createCell(index);
+        cell.setCellValue(value == null ? "" : value);
+        cell.setCellStyle(style);
+    }
+
+    private static void numberCell(Row row, int index, int value, CellStyle style) {
+        Cell cell = row.createCell(index);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    private static void unlockColumns(Sheet sheet, CellStyle editableStyle, int columns) {
+        for (int index = 0; index < columns; index++) {
+            sheet.setDefaultColumnStyle(index, editableStyle);
+        }
+    }
+
+    private static void makeEditableFile(Path file) {
+        try {
+            if (Files.exists(file)) {
+                file.toFile().setWritable(true, false);
+                Files.setAttribute(file, "dos:readonly", false);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void validateGeneratedWorkbook(Path file) throws IOException {
+        try (Workbook ignored = WorkbookFactory.create(file.toFile())) {
+            // Opening the generated workbook here catches incomplete or corrupted files before users open Excel.
+        }
     }
 
     private static String sampleRemark(SampleAccommodation accommodation) {
@@ -514,15 +580,18 @@ public class ExcelImportService {
     }
 
     private void validateAccommodation(String accommodationCategory, String room) throws RowImportException, SQLException {
-        if (accommodationDao.findActiveNamesByCategory(accommodationCategory).isEmpty()) {
+        Map<String, ImportAccommodation> rooms = accommodationRoomLookup();
+        if (accommodationRoomCategoryKeys == null
+                || !accommodationRoomCategoryKeys.contains(normalizeLookupValue(accommodationCategory))) {
             throw new RowImportException("Accommodation Category not found in DB: "
                     + accommodationRoomText(accommodationCategory, room));
         }
-        if (accommodationDao.findIdByCategoryAndName(accommodationCategory, room) == null) {
+        ImportAccommodation accommodation = rooms.get(accommodationRoomKey(accommodationCategory, room));
+        if (accommodation == null) {
             throw new RowImportException("Room not found in DB: "
                     + accommodationRoomText(accommodationCategory, room));
         }
-        if (accommodationDao.findReadyIdByCategoryAndName(accommodationCategory, room) == null) {
+        if (!accommodation.readyForAssignment()) {
             throw new RowImportException("Room is not ready for assignment: "
                     + accommodationRoomText(accommodationCategory, room));
         }
@@ -556,11 +625,58 @@ public class ExcelImportService {
         for (String category : accommodationCategoryDao.findActiveNames()) {
             lookup.putIfAbsent(normalizeLookupValue(category), category);
         }
-        for (AccommodationRecord record : accommodationDao.findAll()) {
+        for (AccommodationRecord record : importAccommodationRecords()) {
             lookup.putIfAbsent(normalizeLookupValue(record.getCategory()), record.getCategory());
         }
         accommodationCategoryLookup = lookup;
         return accommodationCategoryLookup;
+    }
+
+    private Map<String, ImportAccommodation> accommodationRoomLookup() throws SQLException {
+        if (accommodationRoomLookup != null) {
+            return accommodationRoomLookup;
+        }
+
+        Map<String, ImportAccommodation> lookup = new LinkedHashMap<>();
+        Set<String> categories = new LinkedHashSet<>();
+        for (AccommodationRecord record : importAccommodationRecords()) {
+            ImportAccommodation accommodation = new ImportAccommodation(
+                    record.getCategory(),
+                    record.getName(),
+                    "Ready for Assignment".equalsIgnoreCase(record.getStatus())
+            );
+            lookup.put(accommodationRoomKey(record.getCategory(), record.getName()), accommodation);
+            categories.add(normalizeLookupValue(record.getCategory()));
+        }
+        accommodationRoomLookup = lookup;
+        accommodationRoomCategoryKeys = categories;
+        return accommodationRoomLookup;
+    }
+
+    private void markAccommodationUsed(String category, String room) {
+        if (accommodationRoomLookup == null) {
+            return;
+        }
+        String key = accommodationRoomKey(category, room);
+        ImportAccommodation accommodation = accommodationRoomLookup.get(key);
+        if (accommodation != null) {
+            accommodationRoomLookup.put(key, new ImportAccommodation(
+                    accommodation.category(),
+                    accommodation.room(),
+                    false
+            ));
+        }
+    }
+
+    private String accommodationRoomKey(String category, String room) {
+        return normalizeLookupValue(category) + "|" + normalizeLookupValue(room);
+    }
+
+    private List<AccommodationRecord> importAccommodationRecords() throws SQLException {
+        if (importAccommodationRecords == null) {
+            importAccommodationRecords = accommodationDao.findAll();
+        }
+        return importAccommodationRecords;
     }
 
     private Map<String, Integer> readHeaders(Sheet sheet, DataFormatter formatter, FormulaEvaluator evaluator) {
@@ -823,6 +939,9 @@ public class ExcelImportService {
     }
 
     private record SampleAccommodation(String category, String room, String status, int capacity, int availableBeds) {
+    }
+
+    private record ImportAccommodation(String category, String room, boolean readyForAssignment) {
     }
 
     public record ImportResult(int importedCount, List<String> skippedRows) {

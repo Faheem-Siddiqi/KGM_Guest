@@ -2,12 +2,15 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.AccommodationDao;
 import com.kgm.database.DatabaseInitializer;
+import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
 import java.awt.*;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class AccommodationManagementPanel extends JPanel {
     private final AccommodationDao accommodationDao = new AccommodationDao();
@@ -15,6 +18,7 @@ public class AccommodationManagementPanel extends JPanel {
     private AccommodationTablePanel accommodationTablePanel;
     private AccommodationCategoryPanel categoryPanel;
     private JScrollPane scroll;
+    private SwingWorker<List<AccommodationRecord>, Void> loadWorker;
 
     public AccommodationManagementPanel(Runnable onBack) {
         DatabaseInitializer.init();
@@ -76,11 +80,39 @@ public class AccommodationManagementPanel extends JPanel {
     }
 
     private void loadAccommodations() {
-        try {
-            accommodationTablePanel.setAccommodations(accommodationDao.findAll());
-        } catch (SQLException exception) {
-            DialogHelper.error(this, "Accommodations not loaded", exception.getMessage());
+        if (loadWorker != null && !loadWorker.isDone()) {
+            return;
         }
+
+        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
+                this,
+                "Loading Accommodations",
+                "Database is taking longer than usual. Loading accommodation records..."
+        );
+        loadWorker = new SwingWorker<>() {
+            protected List<AccommodationRecord> doInBackground() throws Exception {
+                return accommodationDao.findAll();
+            }
+
+            protected void done() {
+                try {
+                    accommodationTablePanel.setAccommodations(get());
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    DialogHelper.error(
+                            AccommodationManagementPanel.this,
+                            "Accommodations not loaded",
+                            cause == null ? exception.getMessage() : cause.getMessage()
+                    );
+                } finally {
+                    progress.done();
+                    loadWorker = null;
+                }
+            }
+        };
+        loadWorker.execute();
     }
 
     private boolean saveAccommodation(AccommodationRecord accommodation) {

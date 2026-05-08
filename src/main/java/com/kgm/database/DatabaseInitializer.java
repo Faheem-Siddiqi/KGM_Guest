@@ -32,6 +32,7 @@ public final class DatabaseInitializer {
             boolean created = ensureDatabase();
             applySchema();
             ensureSchemaMigrations();
+            ensurePerformanceIndexes();
             removeUnusedSeedData();
             ensureAccommodationRoomPrefixCheck();
             initialized = true;
@@ -100,6 +101,47 @@ public final class DatabaseInitializer {
                 "ALTER TABLE guests ADD COLUMN accommodation_category VARCHAR(120) NOT NULL DEFAULT '' AFTER departure_at"
         );
         ensureAccommodationCategoryNameUniqueKey();
+    }
+
+    private static void ensurePerformanceIndexes() throws SQLException {
+        ensureIndex("guest_categories", "idx_guest_categories_active_name", "active, name");
+        ensureIndex("accommodation_categories", "idx_accommodation_categories_active_name", "active, name");
+        ensureIndex("accommodations", "idx_accommodations_active_category_name", "active, category_id, name");
+        ensureIndex("accommodations", "idx_accommodations_active_status_category_name", "active, status, category_id, name");
+        ensureIndex("guests", "idx_guests_arrival_id", "arrival_at, id");
+        ensureIndex("guests", "idx_guests_name_arrival", "guest_name, arrival_at");
+        ensureIndex("guests", "idx_guests_cnic_arrival_departure", "cnic, arrival_at, departure_at");
+        ensureIndex("guests", "idx_guests_accommodation_stay", "accommodation_id, arrival_at, departure_at");
+        ensureIndex("guests", "idx_guests_department", "requested_department");
+    }
+
+    private static void ensureIndex(String tableName, String indexName, String columnsSql) throws SQLException {
+        String sql = """
+                SELECT COUNT(*) AS index_count
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = ?
+                  AND TABLE_NAME = ?
+                  AND INDEX_NAME = ?
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, DatabaseConfig.databaseName());
+            statement.setString(2, tableName);
+            statement.setString(3, indexName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next() && resultSet.getInt("index_count") > 0) {
+                    return;
+                }
+            }
+
+            try (Statement createStatement = connection.createStatement()) {
+                createStatement.executeUpdate(
+                        "CREATE INDEX " + quoteIdentifier(indexName)
+                                + " ON " + quoteIdentifier(tableName)
+                                + " (" + columnsSql + ")"
+                );
+            }
+        }
     }
 
     private static void ensureColumn(String tableName, String columnName, String alterSql) throws SQLException {

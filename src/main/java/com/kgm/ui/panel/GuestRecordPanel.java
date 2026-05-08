@@ -2,6 +2,7 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
+import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 
@@ -70,9 +71,9 @@ public class GuestRecordPanel extends JPanel {
         );
         guestTable.setActionColumn(5, "View", row -> showGuestDetails(row));
         guestTable.setStatusColumn(3);
-        refreshFromDatabase();
         card.add(guestTable, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
+        refreshFromDatabaseAsync(false);
     }
 
     public void refreshFromDatabase() {
@@ -98,7 +99,7 @@ public class GuestRecordPanel extends JPanel {
         button.setFocusPainted(false);
         button.setDisabledIcon(refreshIcon);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.addActionListener(event -> refreshFromDatabaseAsync());
+        button.addActionListener(event -> refreshFromDatabaseAsync(true));
         return button;
     }
 
@@ -132,12 +133,17 @@ public class GuestRecordPanel extends JPanel {
         return label;
     }
 
-    private void refreshFromDatabaseAsync() {
+    public void refreshFromDatabaseAsync(boolean showSuccess) {
         if (refreshWorker != null && !refreshWorker.isDone()) {
             return;
         }
 
         startRefreshAnimation();
+        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
+                this,
+                "Loading Guest Records",
+                "Database is taking longer than usual. Loading guest records..."
+        );
         refreshWorker = new SwingWorker<>() {
             protected List<Object[]> doInBackground() throws Exception {
                 return loadGuestRecords();
@@ -146,7 +152,9 @@ public class GuestRecordPanel extends JPanel {
             protected void done() {
                 try {
                     setGuestRecords(get());
-                    DialogHelper.success(GuestRecordPanel.this, "Data refreshed successfully.");
+                    if (showSuccess) {
+                        DialogHelper.success(GuestRecordPanel.this, "Data refreshed successfully.");
+                    }
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
@@ -157,6 +165,7 @@ public class GuestRecordPanel extends JPanel {
                     System.err.println("Guest records refresh failed: " + message);
                     DialogHelper.error(GuestRecordPanel.this, "Refresh failed", message);
                 } finally {
+                    progress.done();
                     stopRefreshAnimation();
                     refreshWorker = null;
                 }

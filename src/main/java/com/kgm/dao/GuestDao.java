@@ -296,6 +296,66 @@ public class GuestDao {
         }
     }
 
+    public void delete(long guestId) throws SQLException {
+        String selectSql = """
+                SELECT accommodation_id, arrival_at
+                FROM guests
+                WHERE id = ?
+                """;
+        String deleteSql = "DELETE FROM guests WHERE id = ?";
+        String releaseRoomSql = """
+                UPDATE accommodations
+                SET status = 'Ready for Assignment'
+                WHERE id = ?
+                  AND status = 'Reserved'
+                """;
+        
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                // First, get the accommodation_id and arrival_at
+                long accommodationId = -1;
+                Date arrivalAt = null;
+                try (PreparedStatement statement = connection.prepareStatement(selectSql)) {
+                    statement.setLong(1, guestId);
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        if (!resultSet.next()) {
+                            throw new SQLException("Guest record was not found.");
+                        }
+                        accommodationId = resultSet.getLong("accommodation_id");
+                        arrivalAt = resultSet.getTimestamp("arrival_at");
+                    }
+                }
+                
+                // Check if the guest is upcoming (arrival is in the future)
+                if (arrivalAt != null && arrivalAt.after(new Date())) {
+                    // Delete the guest record
+                    try (PreparedStatement statement = connection.prepareStatement(deleteSql)) {
+                        statement.setLong(1, guestId);
+                        statement.executeUpdate();
+                    }
+                    
+                    // Release the room if it's still reserved
+                    if (accommodationId > 0) {
+                        try (PreparedStatement statement = connection.prepareStatement(releaseRoomSql)) {
+                            statement.setLong(1, accommodationId);
+                            statement.executeUpdate();
+                        }
+                    }
+                    
+                    connection.commit();
+                } else {
+                    throw new SQLException("Only upcoming guest bookings can be cancelled.");
+                }
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        }
+    }
+
     public void updateDepartureAndRemarks(long guestId, Date departureAt, String remarks) throws SQLException {
         String selectSql = """
                 SELECT cnic, arrival_at

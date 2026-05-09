@@ -33,6 +33,9 @@ public class UniversalTablePanel extends JPanel {
     private final String emptyText;
     private int actionColumn = -1;
     private Consumer<Integer> onAction;
+    private Consumer<Integer> statusDeleteAction;
+    private java.util.function.Predicate<Integer> statusDeletePredicate;
+    private int statusColumn = -1;
     private boolean hugRows = true;
     private boolean paginationEnabled = true;
     private int currentPage = 0;
@@ -133,6 +136,24 @@ public class UniversalTablePanel extends JPanel {
     }
 
     public void setStatusColumn(int column) {
+        setStatusColumn(column, null, null);
+    }
+
+    public void setStatusColumn(int column, Consumer<Integer> onDeleteAction) {
+        setStatusColumn(column, onDeleteAction, null);
+    }
+
+    public void setStatusColumn(int column, Consumer<Integer> onDeleteAction, java.util.function.Predicate<Integer> showDeleteFor) {
+        // Store the status column index and callbacks
+        this.statusColumn = column;
+        this.statusDeleteAction = onDeleteAction;
+        this.statusDeletePredicate = showDeleteFor;
+        
+        // Set row height to ensure proper vertical spacing
+        if (table.getRowHeight() < 40) {
+            table.setRowHeight(40);
+        }
+        
         DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
             public Component getTableCellRendererComponent(
                     JTable table,
@@ -142,21 +163,93 @@ public class UniversalTablePanel extends JPanel {
                     int row,
                     int column
             ) {
-                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0)); // 12px gap between status and delete
+                panel.setOpaque(true);
+                panel.setPreferredSize(new Dimension(panel.getPreferredSize().width, table.getRowHeight()));
+                
                 String status = value == null ? "" : String.valueOf(value);
-                label.setHorizontalAlignment(SwingConstants.LEFT);
-                label.setForeground(statusColor(status));
-                label.setBackground(isSelected ? AccommodationManagementHelper.ROW_SELECTION : Color.WHITE);
-                label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
-                label.setBorder(BorderFactory.createCompoundBorder(
+                JLabel statusLabel = new JLabel(status);
+                statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                statusLabel.setVerticalAlignment(SwingConstants.CENTER);
+                statusLabel.setForeground(statusColor(status));
+                statusLabel.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
+                statusLabel.setOpaque(false);
+                panel.add(statusLabel);
+                
+                // Add delete action for upcoming guests if callback is provided
+                if (onDeleteAction != null && showDeleteFor != null) {
+                    int modelRow = toAbsoluteRow(row);
+                    if (showDeleteFor.test(modelRow)) {
+                        JLabel deleteLabel = new JLabel("Delete");
+                        deleteLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                        deleteLabel.setVerticalAlignment(SwingConstants.CENTER);
+                        deleteLabel.setForeground(new Color(220, 53, 69)); // Red color
+                        deleteLabel.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
+                        deleteLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                        deleteLabel.setOpaque(false);
+                        panel.add(deleteLabel);
+                    }
+                }
+                
+                panel.setBackground(isSelected ? AccommodationManagementHelper.ROW_SELECTION : Color.WHITE);
+                // Top margin set to 12px for vertical centering with visual balance
+                panel.setBorder(BorderFactory.createCompoundBorder(
                         BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
-                        BorderFactory.createEmptyBorder(0, 16, 0, 14)
+                        BorderFactory.createEmptyBorder(12, 16, 0, 14) // Top: 12px, Left: 16px, Bottom: 0, Right: 14px
                 ));
-                return label;
+                return panel;
             }
         };
         table.getColumnModel().getColumn(column).setCellRenderer(renderer);
         configureColumnWidths();
+        
+        // Add mouse listener to the table for status column delete action
+        table.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                if (statusDeleteAction == null || statusDeletePredicate == null) {
+                    return;
+                }
+                
+                int viewRow = table.rowAtPoint(e.getPoint());
+                int viewColumn = table.columnAtPoint(e.getPoint());
+                
+                if (viewRow < 0 || viewColumn < 0) {
+                    return;
+                }
+                
+                // Check if this is the status column
+                int modelColumn = table.convertColumnIndexToModel(viewColumn);
+                if (modelColumn == statusColumn) {
+                    int modelRow = toAbsoluteRow(viewRow);
+                    if (statusDeletePredicate.test(modelRow)) {
+                        statusDeleteAction.accept(modelRow);
+                    }
+                }
+            }
+        });
+        
+        // Add mouse motion listener for cursor change on hover
+        table.addMouseMotionListener(new MouseAdapter() {
+            public void mouseMoved(MouseEvent e) {
+                int viewRow = table.rowAtPoint(e.getPoint());
+                int viewColumn = table.columnAtPoint(e.getPoint());
+                
+                if (viewRow >= 0 && viewColumn >= 0 && statusDeletePredicate != null) {
+                    int modelColumn = table.convertColumnIndexToModel(viewColumn);
+                    if (modelColumn == statusColumn) {
+                        int modelRow = toAbsoluteRow(viewRow);
+                        if (statusDeletePredicate.test(modelRow)) {
+                            table.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                            return;
+                        }
+                    }
+                }
+                
+                // Reset cursor for other areas
+                boolean hoveringAction = actionColumn >= 0 && viewRow >= 0 && viewColumn == actionColumn;
+                table.setCursor(Cursor.getPredefinedCursor(hoveringAction ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+            }
+        });
     }
 
     public void setHugRows(boolean hugRows) {

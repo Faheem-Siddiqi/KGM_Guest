@@ -70,7 +70,7 @@ public class GuestRecordPanel extends JPanel {
                 headerActions()
         );
         guestTable.setActionColumn(5, "View", row -> showGuestDetails(row));
-        guestTable.setStatusColumn(3);
+        guestTable.setStatusColumn(3, this::confirmDeleteBooking, this::isUpcomingGuest);
         card.add(guestTable, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
         refreshFromDatabaseAsync(false);
@@ -397,6 +397,64 @@ public class GuestRecordPanel extends JPanel {
             return;
         }
         onViewGuest.accept(visibleRecords.get(row));
+n    }
+
+    private boolean isUpcomingGuest(int row) {
+        if (row < 0 || row >= visibleRecords.size()) {
+            return false;
+        }
+        Object[] record = visibleRecords.get(row);
+        String status = statusText(record);
+        return "Upcoming".equalsIgnoreCase(status);
+    }
+
+    private void confirmDeleteBooking(int row) {
+        if (row < 0 || row >= visibleRecords.size()) {
+            return;
+        }
+        Object[] record = visibleRecords.get(row);
+        String guestName = String.valueOf(record[NAME]);
+        String arrivalDate = String.valueOf(record[ARRIVAL]);
+
+        int result = DialogHelper.option(
+                this,
+                "Cancel Upcoming Booking",
+                "Are you sure you want to cancel the upcoming booking for \"" + guestName + "\" (Arrival: " + arrivalDate + ")? This action cannot be undone and the reserved room will be released back to available inventory.",
+                "Yes, Cancel Booking",
+                "Keep Booking"
+        );
+
+        if (result == 0) { // Primary option (Yes) was selected
+            deleteBooking(row, record);
+        }
+    }
+
+    private void deleteBooking(int row, Object[] record) {
+        long guestId = (Long) record[ID];
+        
+        new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() throws Exception {
+                guestDao.delete(guestId);
+                return true;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    if (get()) {
+                        // Remove from visible records and refresh
+                        visibleRecords.remove(row);
+                        allData.remove(record);
+                        guestTable.setRows(toTableRows(visibleRecords));
+                        DialogHelper.success(GuestRecordPanel.this, "Booking cancelled successfully. The room has been released.");
+                    }
+                } catch (Exception e) {
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    DialogHelper.error(GuestRecordPanel.this, "Cancellation Failed", cause.getMessage());
+                }
+            }
+        }.execute();
     }
 
     private Object[] toRecord(Guest guest) {

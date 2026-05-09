@@ -42,8 +42,11 @@ public class UniversalDatePicker extends JPanel {
     private final JTextField displayField;
     private final JCalendar calendar;
     private final JDialog calendarDialog;
+    private JSpinner hourSpinner;
+    private JSpinner minuteSpinner;
     private Date selectedDate;
     private boolean isFocused = false;
+    private Runnable dateChangeListener;
 
     public UniversalDatePicker() {
         this(new Date());
@@ -106,11 +109,22 @@ public class UniversalDatePicker extends JPanel {
             }
         });
 
-        // Listen for date changes
+        // Listen for date changes from calendar
         calendar.addPropertyChangeListener("date", evt -> {
             Date newDate = (Date) evt.getNewValue();
             if (newDate != null) {
-                setSelectedDate(newDate);
+                // Preserve the time from the current selectedDate
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(selectedDate);
+                Calendar newCal = Calendar.getInstance();
+                newCal.setTime(newDate);
+                // Keep the hour and minute from the original date
+                cal.set(Calendar.YEAR, newCal.get(Calendar.YEAR));
+                cal.set(Calendar.MONTH, newCal.get(Calendar.MONTH));
+                cal.set(Calendar.DAY_OF_MONTH, newCal.get(Calendar.DAY_OF_MONTH));
+                setSelectedDate(cal.getTime());
+                // Update the time spinners to reflect current time
+                updateSpinners();
             }
         });
     }
@@ -133,7 +147,7 @@ public class UniversalDatePicker extends JPanel {
         cal.setTime(selectedDate);
         
         SpinnerNumberModel hourModel = new SpinnerNumberModel(cal.get(Calendar.HOUR_OF_DAY), 0, 23, 1);
-        JSpinner hourSpinner = new JSpinner(hourModel);
+        hourSpinner = new JSpinner(hourModel);
         hourSpinner.setPreferredSize(new Dimension(50, 25));
         hourSpinner.addChangeListener(e -> {
             Calendar c = Calendar.getInstance();
@@ -150,7 +164,7 @@ public class UniversalDatePicker extends JPanel {
         timePanel.add(minuteLabel);
 
         SpinnerNumberModel minuteModel = new SpinnerNumberModel(cal.get(Calendar.MINUTE), 0, 59, 1);
-        JSpinner minuteSpinner = new JSpinner(minuteModel);
+        minuteSpinner = new JSpinner(minuteModel);
         minuteSpinner.setPreferredSize(new Dimension(50, 25));
         minuteSpinner.addChangeListener(e -> {
             Calendar c = Calendar.getInstance();
@@ -167,10 +181,37 @@ public class UniversalDatePicker extends JPanel {
         doneButton.setForeground(Color.WHITE);
         doneButton.setFocusPainted(false);
         doneButton.setBorder(new EmptyBorder(4, 12, 4, 12));
-        doneButton.addActionListener(e -> calendarDialog.dispose());
+        doneButton.addActionListener(e -> {
+            // Update the selected date from the calendar and spinners
+            Date calendarDate = calendar.getDate();
+            if (calendarDate != null) {
+                Calendar cal2 = Calendar.getInstance();
+                cal2.setTime(selectedDate);
+                Calendar newCal = Calendar.getInstance();
+                newCal.setTime(calendarDate);
+                // Take date from calendar
+                cal2.set(Calendar.YEAR, newCal.get(Calendar.YEAR));
+                cal2.set(Calendar.MONTH, newCal.get(Calendar.MONTH));
+                cal2.set(Calendar.DAY_OF_MONTH, newCal.get(Calendar.DAY_OF_MONTH));
+                // Take time from spinners
+                cal2.set(Calendar.HOUR_OF_DAY, (Integer) hourSpinner.getValue());
+                cal2.set(Calendar.MINUTE, (Integer) minuteSpinner.getValue());
+                setSelectedDate(cal2.getTime());
+            }
+            calendarDialog.dispose();
+        });
         timePanel.add(doneButton);
 
         return timePanel;
+    }
+
+    private void updateSpinners() {
+        if (hourSpinner != null && minuteSpinner != null) {
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(selectedDate);
+            hourSpinner.setValue(cal.get(Calendar.HOUR_OF_DAY));
+            minuteSpinner.setValue(cal.get(Calendar.MINUTE));
+        }
     }
 
     private CompoundBorder createBorder() {
@@ -187,6 +228,9 @@ public class UniversalDatePicker extends JPanel {
     }
 
     private void showCalendar() {
+        // Update spinners to reflect current time
+        updateSpinners();
+        
         // Position dialog near the component
         Point location = getLocationOnScreen();
         int x = location.x;
@@ -221,7 +265,11 @@ public class UniversalDatePicker extends JPanel {
         }
         this.selectedDate = date;
         displayField.setText(formatDate(date));
-        setFocus(isFocused);
+        
+        // Fire the date change listener
+        if (dateChangeListener != null) {
+            dateChangeListener.run();
+        }
     }
 
     public void setFocus(boolean focus) {
@@ -237,11 +285,7 @@ public class UniversalDatePicker extends JPanel {
     }
 
     public void addDateChangeListener(Runnable onChange) {
-        calendar.addPropertyChangeListener("date", evt -> {
-            if (onChange != null) {
-                onChange.run();
-            }
-        });
+        this.dateChangeListener = onChange;
     }
 
     // Style the date picker to match AddGuestHelper.styleField

@@ -135,6 +135,28 @@ public class UniversalTablePanel extends JPanel {
         configureColumnWidths();
     }
 
+    public void setColumnAlignment(int column, int alignment) {
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                label.setHorizontalAlignment(alignment);
+                label.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
+                        BorderFactory.createEmptyBorder(0, 14, 0, 14)
+                ));
+                return label;
+            }
+        };
+        table.getColumnModel().getColumn(column).setCellRenderer(renderer);
+    }
+
     public void setStatusColumn(int column) {
         setStatusColumn(column, null, null);
     }

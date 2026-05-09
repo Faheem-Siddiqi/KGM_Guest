@@ -69,7 +69,8 @@ public class AddGuest extends JFrame {
 
         JTextField requestedByField = new JTextField("");
         JComboBox<String> requestedDepartmentCombo = AddGuestHelper.editableCombo(
-                "HR", "Admin", "Finance", "Spinning", "Others (Specify)"
+               
+            "HR", "Admin", "Finance", "Spinning", "Power House", "IT"
         );
         requestedDepartmentCombo.setSelectedItem("");
         JTextField approvedByField = new JTextField("");

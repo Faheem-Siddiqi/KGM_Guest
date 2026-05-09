@@ -472,7 +472,10 @@ public class ExcelImportService {
     }
 
     private static String sampleDepartment(int index) {
-        String[] departments = {"HR", "Admin", "Finance", "Spinning", "Operations", "IT"};
+        String[] departments = {
+            "HR", "Admin", "Finance", "Spinning", "Power House", "IT"
+
+        };
         return departments[index % departments.length];
     }
 

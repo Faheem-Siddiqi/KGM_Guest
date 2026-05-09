@@ -42,6 +42,12 @@
             <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
+        <!-- JCalendar - Date/Time Picker -->
+        <dependency>
+            <groupId>com.toedter</groupId>
+            <artifactId>jcalendar</artifactId>
+            <version>1.4</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

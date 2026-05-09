@@ -7,6 +7,7 @@ import com.kgm.database.DatabaseInitializer;
 import com.kgm.model.Guest;
 import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
+import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
 
@@ -78,8 +79,8 @@ public class AddGuest extends JFrame {
 
         Date initialArrivalDate = dateTimeValue(0, 0);
         Date initialDepartureDate = dateTimeValue(1, 0);
-        JSpinner arrivalDate = dateTimeSpinner(initialArrivalDate);
-        JSpinner departureDate = dateTimeSpinner(initialDepartureDate);
+        UniversalDatePicker arrivalDate = new UniversalDatePicker(initialArrivalDate);
+        UniversalDatePicker departureDate = new UniversalDatePicker(initialDepartureDate);
         JTextField tenureField = new JTextField();
         tenureField.setEditable(false);
         tenureField.setFocusable(false);
@@ -92,10 +93,8 @@ public class AddGuest extends JFrame {
         JTextArea remarks = AddGuestHelper.remarksArea("N/A");
 
         updateTenure(arrivalDate, departureDate, tenureField);
-        arrivalDate.addChangeListener(e -> updateTenure(arrivalDate, departureDate, tenureField));
-        departureDate.addChangeListener(e -> updateTenure(arrivalDate, departureDate, tenureField));
-        addDateTimeEditListener(arrivalDate, () -> updateTenure(arrivalDate, departureDate, tenureField));
-        addDateTimeEditListener(departureDate, () -> updateTenure(arrivalDate, departureDate, tenureField));
+        arrivalDate.addDateChangeListener(() -> updateTenure(arrivalDate, departureDate, tenureField));
+        departureDate.addDateChangeListener(() -> updateTenure(arrivalDate, departureDate, tenureField));
 
         JPanel basicCard = AddGuestHelper.cardPanel();
         GridBagConstraints basicGbc = AddGuestHelper.formConstraints();
@@ -258,8 +257,8 @@ public class AddGuest extends JFrame {
             JTextField tenureField,
             JComboBox<String> accommodationCombo,
             JComboBox<String> roomCombo,
-            JSpinner arrivalDate,
-            JSpinner departureDate,
+            UniversalDatePicker arrivalDate,
+            UniversalDatePicker departureDate,
             JTextArea remarks
     ) {
         List<String> missingFields = new ArrayList<>();
@@ -338,8 +337,8 @@ public class AddGuest extends JFrame {
         guest.setRequestedDepartment(requestedDepartment);
         guest.setApprovedBy(approvedBy);
         guest.setAccommodatedBy(accommodatedBy);
-        guest.setArrivalAt((Date) arrivalDate.getValue());
-        guest.setDepartureAt((Date) departureDate.getValue());
+        guest.setArrivalAt(arrivalDate.getDate());
+        guest.setDepartureAt(departureDate.getDate());
         guest.setAccommodation(accommodation);
         guest.setRoomName(room);
         guest.setRemarks(remarksText.isEmpty() ? "N/A" : remarksText);
@@ -463,8 +462,8 @@ public class AddGuest extends JFrame {
             JTextField accommodatedByField,
             JComboBox<String> accommodationCombo,
             JComboBox<String> roomCombo,
-            JSpinner arrivalDate,
-            JSpinner departureDate,
+            UniversalDatePicker arrivalDate,
+            UniversalDatePicker departureDate,
             JTextField tenureField,
             JTextArea remarks
     ) {
@@ -479,8 +478,8 @@ public class AddGuest extends JFrame {
         requestedDepartmentCombo.setSelectedItem("");
         approvedByField.setText("");
         accommodatedByField.setText("");
-        arrivalDate.setValue(dateTimeValue(0, 0));
-        departureDate.setValue(dateTimeValue(1, 0));
+        arrivalDate.setDate(dateTimeValue(0, 0));
+        departureDate.setDate(dateTimeValue(1, 0));
         selectFirstItem(accommodationCombo);
         updateRoomCombo(accommodationCombo, roomCombo);
         remarks.setText("N/A");
@@ -601,9 +600,9 @@ public class AddGuest extends JFrame {
         return spinner;
     }
 
-    private static void updateTenure(JSpinner arrivalDate, JSpinner departureDate, JTextField tenureField) {
-        Date arrival = (Date) arrivalDate.getValue();
-        Date departure = (Date) departureDate.getValue();
+    private static void updateTenure(UniversalDatePicker arrivalDate, UniversalDatePicker departureDate, JTextField tenureField) {
+        Date arrival = arrivalDate.getDate();
+        Date departure = departureDate.getDate();
         if (departure.before(arrival)) {
             tenureField.setForeground(new Color(180, 60, 45));
             tenureField.setText("Departure must be after arrival");

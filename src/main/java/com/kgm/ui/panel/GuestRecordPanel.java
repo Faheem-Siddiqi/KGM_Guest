@@ -397,7 +397,7 @@ public class GuestRecordPanel extends JPanel {
             return;
         }
         onViewGuest.accept(visibleRecords.get(row));
-n    }
+    }
 
     private boolean isUpcomingGuest(int row) {
         if (row < 0 || row >= visibleRecords.size()) {

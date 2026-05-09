@@ -33,12 +33,9 @@ public class HeaderPanel extends JPanel {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         panel.setOpaque(false);
         JLabel logo = new JLabel(scaleIcon("images/Header.jpg", 60, 50));
-        JLabel company = new JLabel("Kohinoor Textile Mill Ltd.");
+        JLabel company = new JLabel("Kohinoor Textile Mill Ltd. Gujar Khan");
         company.setFont(new Font("Segoe UI", Font.BOLD, 18));
         company.setForeground(PRIMARY_TEXT);
-        JLabel location = new JLabel("Gujar Khan");
-        location.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        location.setForeground(SECONDARY_TEXT);
         JLabel screen = new JLabel(title);
         screen.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         screen.setForeground(SECONDARY_TEXT);
@@ -46,8 +43,6 @@ public class HeaderPanel extends JPanel {
         text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
         text.setOpaque(false);
         text.add(company);
-        text.add(Box.createVerticalStrut(2));
-        text.add(location);
         text.add(Box.createVerticalStrut(2));
         text.add(screen);
         panel.add(logo);

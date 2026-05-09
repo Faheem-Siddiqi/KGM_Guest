@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.dao.GuestDao;
+import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
 
@@ -41,19 +42,19 @@ public class GuestDetailsPanel extends JPanel {
         Date arrivalValue = parseDate(value(record, GuestRecordPanel.ARRIVAL));
         Date departureValue = parseDate(value(record, GuestRecordPanel.DEPARTURE));
         boolean canEditStay = !isNaturallyDeparted(arrivalValue, departureValue);
-        JSpinner arrivalDate = dateTimeSpinner(arrivalValue);
-        JSpinner departureDate = dateTimeSpinner(departureValue);
+        UniversalDatePicker arrivalDate = new UniversalDatePicker(arrivalValue);
+        UniversalDatePicker departureDate = new UniversalDatePicker(departureValue);
         JTextField tenureField = lockedField("");
         JTextField statusField = lockedField("");
         String remarksText = value(record, GuestRecordPanel.REMARKS);
         JTextArea remarks = AddGuestHelper.remarksArea(remarksText);
         setRemarksEditable(remarks, canEditStay);
 
+        // Arrival date is read-only
         arrivalDate.setEnabled(false);
         departureDate.setEnabled(canEditStay);
         updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
-        departureDate.addChangeListener(e -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
-        addDateTimeEditListener(departureDate, () -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
+        departureDate.addDateChangeListener(() -> updateStaySummary(arrivalDate, departureDate, tenureField, statusField));
 
         JPanel basicCard = AddGuestHelper.cardPanel();
         GridBagConstraints basicGbc = AddGuestHelper.formConstraints();
@@ -123,11 +124,11 @@ public class GuestDetailsPanel extends JPanel {
                 if (nextRemarks.isEmpty()) {
                     nextRemarks = "N/A";
                 }
-                guestDao.updateDepartureAndRemarks(recordId(record), (Date) departureDate.getValue(), nextRemarks);
-                record[GuestRecordPanel.DEPARTURE] = DATE_TIME.format((Date) departureDate.getValue());
+                guestDao.updateDepartureAndRemarks(recordId(record), departureDate.getDate(), nextRemarks);
+                record[GuestRecordPanel.DEPARTURE] = DATE_TIME.format(departureDate.getDate());
                 record[GuestRecordPanel.REMARKS] = nextRemarks;
                 updateStatus(arrivalDate, departureDate, statusField);
-                if (isNaturallyDeparted((Date) arrivalDate.getValue(), (Date) departureDate.getValue())) {
+                if (isNaturallyDeparted(arrivalDate.getDate(), departureDate.getDate())) {
                     departureDate.setEnabled(false);
                     setRemarksEditable(remarks, false);
                     update.setEnabled(false);
@@ -170,7 +171,7 @@ public class GuestDetailsPanel extends JPanel {
         });
         Timer statusTimer = new Timer(1000, event -> {
             updateStatus(arrivalDate, departureDate, statusField);
-            if (isNaturallyDeparted((Date) arrivalDate.getValue(), (Date) departureDate.getValue())) {
+            if (isNaturallyDeparted(arrivalDate.getDate(), departureDate.getDate())) {
                 departureDate.setEnabled(false);
                 setRemarksEditable(remarks, false);
                 update.setEnabled(false);
@@ -253,9 +254,9 @@ public class GuestDetailsPanel extends JPanel {
         return spinner;
     }
 
-    private static void updateTenure(JSpinner arrivalDate, JSpinner departureDate, JTextField tenureField) {
-        Date arrival = (Date) arrivalDate.getValue();
-        Date departure = (Date) departureDate.getValue();
+    private static void updateTenure(UniversalDatePicker arrivalDate, UniversalDatePicker departureDate, JTextField tenureField) {
+        Date arrival = arrivalDate.getDate();
+        Date departure = departureDate.getDate();
         if (departure.before(arrival)) {
             tenureField.setForeground(new Color(180, 60, 45));
             tenureField.setText("Departure must be after arrival");
@@ -278,8 +279,8 @@ public class GuestDetailsPanel extends JPanel {
     }
 
     private static void updateStaySummary(
-            JSpinner arrivalDate,
-            JSpinner departureDate,
+            UniversalDatePicker arrivalDate,
+            UniversalDatePicker departureDate,
             JTextField tenureField,
             JTextField statusField
     ) {
@@ -287,9 +288,9 @@ public class GuestDetailsPanel extends JPanel {
         updateStatus(arrivalDate, departureDate, statusField);
     }
 
-    private static void updateStatus(JSpinner arrivalDate, JSpinner departureDate, JTextField statusField) {
-        Date arrival = (Date) arrivalDate.getValue();
-        Date departure = (Date) departureDate.getValue();
+    private static void updateStatus(UniversalDatePicker arrivalDate, UniversalDatePicker departureDate, JTextField statusField) {
+        Date arrival = arrivalDate.getDate();
+        Date departure = departureDate.getDate();
         Date now = new Date();
 
         if (departure.before(arrival)) {

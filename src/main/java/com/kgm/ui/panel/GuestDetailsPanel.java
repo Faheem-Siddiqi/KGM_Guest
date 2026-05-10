@@ -125,10 +125,10 @@ public class GuestDetailsPanel extends JPanel {
         update.setEnabled(!dbDeparted || remarksCanEdit);
 
         update.addActionListener(e -> {
-           if (dbDeparted && !remarks.isEditable()) {
-    DialogHelper.warning(this, "No editable fields", "This departed guest record cannot be changed.");
-    return;
-}
+            if (dbDeparted && !remarks.isEditable()) {
+                DialogHelper.warning(this, "No editable fields", "This departed guest record cannot be changed.");
+                return;
+            }
 
             updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
 
@@ -155,27 +155,22 @@ public class GuestDetailsPanel extends JPanel {
                 }
 
                 Date nextDeparture = dbDeparted
-        ? departureValue
-        : departureDate.getDate();
+                        ? departureValue
+                        : departureDate.getDate();
 
-guestDao.updateDepartureAndRemarks(
-        recordId(record),
-        nextDeparture,
-        nextRemarks
-);
+                guestDao.updateDepartureAndRemarks(
+                        recordId(record),
+                        nextDeparture,
+                        nextRemarks
+                );
 
-record[GuestRecordPanel.DEPARTURE] = DATE_TIME.format(nextDeparture);
-record[GuestRecordPanel.REMARKS] = nextRemarks;
+                // Show success dialog first
+                DialogHelper.success(this, "Guest Updated Successfully");
 
-                updateStatus(arrivalDate, departureDate, statusField);
-
-                /*
-                 * Do not disable fields here based on live calculated status.
-                 * The record should only become locked after DB/reload shows it as departed.
-                 */
+                // Reload data from database and refresh UI
+                reloadFromDatabase(record, arrivalDate, departureDate, remarks, tenureField, statusField);
 
                 onUpdated.run();
-                DialogHelper.success(this, "Guest details updated.");
             } catch (SQLException exception) {
                 DialogHelper.error(this, "Guest not updated", exception.getMessage());
             }
@@ -431,6 +426,87 @@ record[GuestRecordPanel.REMARKS] = nextRemarks;
                 ((JComponent) section.getParent()).scrollRectToVisible(bounds);
             }
         });
+    }
+
+    private void reloadFromDatabase(
+            Object[] record,
+            UniversalDatePicker arrivalDate,
+            UniversalDatePicker departureDate,
+            JTextArea remarks,
+            JTextField tenureField,
+            JTextField statusField
+    ) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                com.kgm.model.Guest guest = guestDao.findById(recordId(record));
+                String arrivalStr = formatDateTime(guest.getArrivalAt());
+                String departureStr = formatDateTime(guest.getDepartureAt());
+
+                // Update the record array
+                record[GuestRecordPanel.DEPARTURE] = departureStr;
+                record[GuestRecordPanel.REMARKS] = guest.getRemarks() != null ? guest.getRemarks() : "";
+
+                // Update departure date picker
+                Date newDeparture = parseDate(departureStr);
+                departureDate.setDate(newDeparture);
+
+                // Update remarks
+                String newRemarks = guest.getRemarks() != null ? guest.getRemarks() : "";
+                remarks.setText(newRemarks);
+
+                // Recalculate dbDeparted based on new values
+                boolean newDbDeparted = isNaturallyDeparted(arrivalDate.getDate(), newDeparture);
+
+                // Update departure field enabled state
+                departureDate.setEnabled(!newDbDeparted);
+
+                // Update remarks editability
+                boolean newRemarksCanEdit = isEmptyRemark(newRemarks);
+                setRemarksEditable(remarks, newRemarksCanEdit);
+
+                // Update the update button state
+                Container parent = getParent();
+                if (parent != null) {
+                    Component[] components = parent.getComponents();
+                    for (Component comp : components) {
+                        if (comp instanceof JScrollPane) {
+                            JViewport viewport = ((JScrollPane) comp).getViewport();
+                            if (viewport.getView() instanceof JPanel) {
+                                JPanel page = (JPanel) viewport.getView();
+                                for (Component child : page.getComponents()) {
+                                    if (child instanceof JPanel) {
+                                        JPanel card = (JPanel) child;
+                                        for (Component cardChild : card.getComponents()) {
+                                            if (cardChild instanceof JPanel && ((JPanel) cardChild).getComponentCount() > 0) {
+                                                JPanel actionsPanel = (JPanel) cardChild;
+                                                for (Component actionComp : actionsPanel.getComponents()) {
+                                                    if (actionComp instanceof JButton && "Update Guest".equals(((JButton) actionComp).getText())) {
+                                                        ((JButton) actionComp).setEnabled(!newDbDeparted || newRemarksCanEdit);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Update stay summary (tenure and status)
+                updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
+
+            } catch (SQLException exception) {
+                DialogHelper.error(this, "Reload failed", "Could not reload guest data: " + exception.getMessage());
+            }
+        });
+    }
+
+    private String formatDateTime(Date date) {
+        if (date == null) {
+            return "";
+        }
+        return DATE_TIME.format(date);
     }
 
     private static void scrollToTop(JScrollPane scroll) {

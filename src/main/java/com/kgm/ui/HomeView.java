@@ -2,6 +2,7 @@ package com.kgm.ui;
 import com.kgm.dao.DashboardDao;
 import com.kgm.database.DatabaseInitializer;
 import com.kgm.service.ExcelImportService;
+import com.kgm.service.ExcelSampleGenerator;
 import com.kgm.service.GuestReportService;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.dialog.ReportPeriodDialog;
@@ -406,7 +407,7 @@ public class HomeView extends JFrame {
         }
         File target = xlsxFile(chooser.getSelectedFile());
         try {
-            ExcelImportService.writeSampleWorkbook(target);
+            ExcelSampleGenerator.writeSampleWorkbook(target);
             DialogHelper.success(this, "Sample Excel file saved:\n" + target.getAbsolutePath());
         } catch (IOException exception) {
             DialogHelper.error(this, "Sample not saved", friendlySampleSaveFailure(target, exception));

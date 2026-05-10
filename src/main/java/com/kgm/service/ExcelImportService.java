@@ -7,31 +7,23 @@ import com.kgm.model.Guest;
 import com.kgm.ui.panel.AccommodationRecord;
 
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.DateUtil;
-import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
-import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,12 +34,16 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Service for importing guest data from Excel files.
+ * For sample template generation, use {@link ExcelSampleGenerator}.
+ */
 public class ExcelImportService {
     private static final String GUEST_NAME = "Guest Name";
     private static final String CNIC = "CNIC";
@@ -81,22 +77,6 @@ public class ExcelImportService {
             ACCOMMODATION_CATEGORY,
             ROOM
     );
-    private static final List<String> TEMPLATE_HEADERS = List.of(
-            GUEST_NAME,
-            CNIC,
-            NATIONALITY,
-            GUEST_CATEGORY,
-            ADDRESS,
-            REQUESTED_BY,
-            REQUESTED_DEPARTMENT,
-            APPROVED_BY,
-            ACCOMMODATED_BY,
-            ARRIVAL_DATE_TIME,
-            DEPARTURE_DATE_TIME,
-            ACCOMMODATION_CATEGORY,
-            ROOM,
-            REMARKS
-    );
     private static final Map<String, String> HEADER_ALIASES = aliases();
     private static final List<DateTimeFormatter> DATE_TIME_FORMATS = List.of(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
@@ -129,6 +109,13 @@ public class ExcelImportService {
     private Set<String> accommodationRoomCategoryKeys;
     private List<AccommodationRecord> importAccommodationRecords;
 
+    /**
+     * Imports guests from an Excel file.
+     *
+     * @param file the Excel file to import
+     * @return the result containing the number of imported guests and any skipped rows
+     * @throws IOException if the file cannot be read
+     */
     public ImportResult importGuests(File file) throws IOException {
         List<String> skippedRows = new ArrayList<>();
         int imported = 0;
@@ -196,287 +183,6 @@ public class ExcelImportService {
                     exception
             );
         }
-    }
-
-    public static String templateHeaderLine() {
-        return String.join(", ", TEMPLATE_HEADERS);
-    }
-
-    public static List<String> templateHeaders() {
-        return TEMPLATE_HEADERS;
-    }
-
-    public static void writeSampleWorkbook(File file) throws IOException {
-        Path target = file.toPath();
-        Path parent = target.toAbsolutePath().getParent();
-        Path temporaryFile = parent == null
-                ? Files.createTempFile("guest_import_sample_", ".xlsx")
-                : Files.createTempFile(parent, "guest_import_sample_", ".xlsx");
-        try {
-            try (Workbook workbook = new XSSFWorkbook();
-                 FileOutputStream output = new FileOutputStream(temporaryFile.toFile())) {
-                List<SampleAccommodation> accommodations = sampleAccommodations();
-                List<String> accommodationCategories = sampleAccommodationCategories();
-                List<String> guestCategories = sampleGuestCategories();
-
-                Sheet sheet = workbook.createSheet("Guest Import");
-                CellStyle headerStyle = workbook.createCellStyle();
-                Font headerFont = workbook.createFont();
-                headerFont.setBold(true);
-                headerFont.setColor(IndexedColors.WHITE.getIndex());
-                headerStyle.setFont(headerFont);
-                headerStyle.setFillForegroundColor(IndexedColors.GREEN.getIndex());
-                headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                headerStyle.setLocked(false);
-
-                CellStyle editableStyle = workbook.createCellStyle();
-                editableStyle.setLocked(false);
-                editableStyle.setWrapText(true);
-                unlockColumns(sheet, editableStyle, TEMPLATE_HEADERS.size());
-
-                Row headerRow = sheet.createRow(0);
-                for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
-                    Cell cell = headerRow.createCell(index);
-                    cell.setCellValue(TEMPLATE_HEADERS.get(index));
-                    cell.setCellStyle(headerStyle);
-                }
-
-                List<String[]> rows = sampleRows(accommodations, guestCategories);
-                for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-                    Row row = sheet.createRow(rowIndex + 1);
-                    String[] values = rows.get(rowIndex);
-                    for (int cellIndex = 0; cellIndex < values.length; cellIndex++) {
-                        textCell(row, cellIndex, values[cellIndex], editableStyle);
-                    }
-                }
-
-                for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
-                    sheet.autoSizeColumn(index);
-                }
-
-                writeValidValuesSheet(workbook, headerStyle, editableStyle, accommodationCategories, accommodations, guestCategories);
-                workbook.write(output);
-                output.flush();
-            }
-            makeEditableFile(target);
-            Files.move(temporaryFile, target, StandardCopyOption.REPLACE_EXISTING);
-            makeEditableFile(target);
-            validateGeneratedWorkbook(target);
-        } catch (SQLException exception) {
-            throw new IOException("Could not create the sample Excel file from current accommodation and guest category data.", exception);
-        } finally {
-            Files.deleteIfExists(temporaryFile);
-        }
-    }
-
-    public static String importGuideMessage() {
-        return """
-                Guest import sample columns:
-                %s
-
-                Current accommodation and guest category values:
-                Download the sample file and review the Valid Values sheet. It is generated from the current database and includes active accommodation categories, all active rooms, room status, available beds, and all active guest categories.
-
-                This import is only for guest data. It checks existing accommodation categories and rooms from DB; it does not create, edit, or rename accommodation records.
-                """.formatted(templateHeaderLine());
-    }
-
-    private static List<String[]> sampleRows(List<SampleAccommodation> accommodations, List<String> guestCategories) {
-        List<String> sampleGuestCategories = guestCategories.isEmpty() ? fallbackGuestCategories() : guestCategories;
-        List<String[]> rows = new ArrayList<>();
-        int rowIndex = 0;
-        // Include every configured room/category scenario so the sample stays current with the database.
-        for (SampleAccommodation accommodation : accommodations) {
-            for (String guestCategory : sampleGuestCategories) {
-                LocalDateTime arrival = LocalDate.now().plusDays(rowIndex + 1L).atTime(9 + rowIndex % 8, 0);
-                LocalDateTime departure = arrival.plusDays(1);
-                rows.add(new String[]{
-                        sampleGuestName(rowIndex),
-                        sampleCnic(rowIndex),
-                        "Pakistani",
-                        guestCategory,
-                        "Sample address " + (rowIndex + 1),
-                        "Sample Requester",
-                        sampleDepartment(rowIndex),
-                        "Sample Approver",
-                        "Admin Office",
-                        arrival.format(DATE_TIME_FORMATS.get(0)),
-                        departure.format(DATE_TIME_FORMATS.get(0)),
-                        accommodation.category(),
-                        accommodation.room(),
-                        sampleRemark(accommodation)
-                });
-                rowIndex++;
-            }
-        }
-        return rows;
-    }
-
-    private static List<SampleAccommodation> sampleAccommodations() throws SQLException {
-        List<SampleAccommodation> values = new ArrayList<>();
-        for (AccommodationRecord record : new AccommodationDao().findAll()) {
-            values.add(new SampleAccommodation(
-                    record.getCategory(),
-                    record.getName(),
-                    record.getStatus(),
-                    record.getCapacity(),
-                    record.getAvailableSeats()
-                ));
-        }
-        return values;
-    }
-
-    private static List<String> sampleAccommodationCategories() throws SQLException {
-        return new AccommodationCategoryDao().findActiveNames();
-    }
-
-    private static List<String> sampleGuestCategories() throws SQLException {
-        Set<String> categories = new LinkedHashSet<>();
-        categories.addAll(fallbackGuestCategories());
-        categories.addAll(new GuestDao().findActiveGuestCategoryNames());
-        return new ArrayList<>(categories);
-    }
-
-    private static List<String> fallbackGuestCategories() {
-        return List.of("Family", "Non-Family");
-    }
-
-    private static void writeValidValuesSheet(
-            Workbook workbook,
-            CellStyle headerStyle,
-            CellStyle editableStyle,
-            List<String> accommodationCategories,
-            List<SampleAccommodation> accommodations,
-            List<String> guestCategories
-    ) {
-        Sheet values = workbook.createSheet("Valid Values");
-        String[] headers = {
-                "Guest Category",
-                "Accommodation Category",
-                "Room",
-                "Room Status",
-                "Capacity",
-                "Available Beds",
-                "Importable"
-        };
-        unlockColumns(values, editableStyle, headers.length);
-        Row header = values.createRow(0);
-        for (int index = 0; index < headers.length; index++) {
-            Cell cell = header.createCell(index);
-            cell.setCellValue(headers[index]);
-            cell.setCellStyle(headerStyle);
-        }
-
-        Set<String> coveredCategories = new LinkedHashSet<>();
-        int rowIndex = 1;
-        int guestCategoryIndex = 0;
-        for (SampleAccommodation accommodation : accommodations) {
-            coveredCategories.add(accommodation.category());
-            Row row = values.createRow(rowIndex++);
-            if (guestCategoryIndex < guestCategories.size()) {
-                textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
-            }
-            writeAccommodationValueRow(row, accommodation, editableStyle);
-        }
-
-        for (String category : accommodationCategories) {
-            if (coveredCategories.contains(category)) {
-                continue;
-            }
-            Row row = values.createRow(rowIndex++);
-            if (guestCategoryIndex < guestCategories.size()) {
-                textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
-            }
-            textCell(row, 1, category, editableStyle);
-            textCell(row, 2, "No active rooms configured", editableStyle);
-            textCell(row, 3, "Not importable", editableStyle);
-            textCell(row, 6, "No", editableStyle);
-        }
-
-        while (guestCategoryIndex < guestCategories.size()) {
-            Row row = values.createRow(rowIndex++);
-            textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
-        }
-
-        for (int index = 0; index < headers.length; index++) {
-            values.autoSizeColumn(index);
-        }
-    }
-
-    private static void writeAccommodationValueRow(
-            Row row,
-            SampleAccommodation accommodation,
-            CellStyle editableStyle
-    ) {
-        textCell(row, 1, accommodation.category(), editableStyle);
-        textCell(row, 2, accommodation.room(), editableStyle);
-        textCell(row, 3, accommodation.status(), editableStyle);
-        numberCell(row, 4, accommodation.capacity(), editableStyle);
-        numberCell(row, 5, accommodation.availableBeds(), editableStyle);
-        textCell(row, 6, "Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No", editableStyle);
-    }
-
-    private static void textCell(Row row, int index, String value, CellStyle style) {
-        Cell cell = row.createCell(index);
-        cell.setCellValue(value == null ? "" : value);
-        cell.setCellStyle(style);
-    }
-
-    private static void numberCell(Row row, int index, int value, CellStyle style) {
-        Cell cell = row.createCell(index);
-        cell.setCellValue(value);
-        cell.setCellStyle(style);
-    }
-
-    private static void unlockColumns(Sheet sheet, CellStyle editableStyle, int columns) {
-        for (int index = 0; index < columns; index++) {
-            sheet.setDefaultColumnStyle(index, editableStyle);
-        }
-    }
-
-    private static void makeEditableFile(Path file) {
-        try {
-            if (Files.exists(file)) {
-                file.toFile().setWritable(true, false);
-                Files.setAttribute(file, "dos:readonly", false);
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private static void validateGeneratedWorkbook(Path file) throws IOException {
-        try (Workbook ignored = WorkbookFactory.create(file.toFile())) {
-            // Opening the generated workbook here catches incomplete or corrupted files before users open Excel.
-        }
-    }
-
-    private static String sampleRemark(SampleAccommodation accommodation) {
-        String importHint = "Ready for Assignment".equalsIgnoreCase(accommodation.status())
-                ? "Import-ready room."
-                : "Reference row: this room may not import until it is ready.";
-        return "Sample scenario. Status: " + accommodation.status()
-                + ", available beds: " + accommodation.availableBeds()
-                + ". " + importHint;
-    }
-
-    private static String sampleGuestName(int index) {
-        String[] names = {
-                "Ali Khan", "Sara Ahmed", "Bilal Hussain", "Mariam Iqbal", "Omer Farooq",
-                "Ayesha Noor", "Hassan Raza", "Zain Malik", "Nida Aslam", "Usman Ali"
-        };
-        return names[index % names.length] + " " + (index + 1);
-    }
-
-    private static String sampleCnic(int index) {
-        return String.format("35202%08d", index + 1);
-    }
-
-    private static String sampleDepartment(int index) {
-        String[] departments = {
-            "HR", "Admin", "Finance", "Spinning", "Power House", "IT"
-
-        };
-        return departments[index % departments.length];
     }
 
     private Guest guestFromRow(
@@ -725,20 +431,6 @@ public class ExcelImportService {
         return true;
     }
 
-    private String requiredText(
-            Row row,
-            Map<String, Integer> headers,
-            String header,
-            DataFormatter formatter,
-            FormulaEvaluator evaluator
-    ) throws RowImportException {
-        String value = optionalText(row, headers, header, formatter, evaluator);
-        if (value.isEmpty()) {
-            throw new RowImportException(header + " is required.");
-        }
-        return value;
-    }
-
     private String optionalText(
             Row row,
             Map<String, Integer> headers,
@@ -756,25 +448,6 @@ public class ExcelImportService {
     private Cell rowCell(Row row, Map<String, Integer> headers, String header) {
         Integer index = headers.get(header);
         return row == null || index == null ? null : row.getCell(index);
-    }
-
-    private Date requiredDate(
-            Row row,
-            Map<String, Integer> headers,
-            String header,
-            DataFormatter formatter,
-            FormulaEvaluator evaluator
-    ) throws RowImportException {
-        Integer index = headers.get(header);
-        if (index == null) {
-            throw new RowImportException(header + " is required.");
-        }
-        Cell cell = row.getCell(index);
-        Date date = dateValue(cell, formatter, evaluator);
-        if (date == null) {
-            throw new RowImportException(header + " is required and must be a date/time.");
-        }
-        return date;
     }
 
     private Date dateValue(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
@@ -941,21 +614,33 @@ public class ExcelImportService {
         return message == null || message.isBlank() ? "Database error while importing row." : message;
     }
 
-    private record SampleAccommodation(String category, String room, String status, int capacity, int availableBeds) {
-    }
-
+    /**
+     * Record representing an accommodation for import validation.
+     */
     private record ImportAccommodation(String category, String room, boolean readyForAssignment) {
     }
 
+    /**
+     * Result of an import operation.
+     *
+     * @param importedCount the number of successfully imported guests
+     * @param skippedRows   the list of skipped row messages with reasons
+     */
     public record ImportResult(int importedCount, List<String> skippedRows) {
     }
 
+    /**
+     * Exception thrown when there is a header validation issue.
+     */
     public static class HeaderImportException extends IllegalArgumentException {
         private HeaderImportException(String message) {
             super(message);
         }
     }
 
+    /**
+     * Exception thrown when a row fails validation during import.
+     */
     private static class RowImportException extends Exception {
         private RowImportException(String message) {
             super(message);

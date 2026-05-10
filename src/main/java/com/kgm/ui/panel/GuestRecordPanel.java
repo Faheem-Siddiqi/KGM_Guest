@@ -49,7 +49,7 @@ public class GuestRecordPanel extends JPanel {
     private final Runnable onReportRequest;
 
     private final UniversalTablePanel guestTable = new UniversalTablePanel(
-            new String[]{"Guest Name", "Arrival", "Departure", "Tenure", "Requested Department", "Status", "Actions"},
+            new String[]{"Guest Name", "Arrival", "Departure", "Accommodation", "Requested Department", "Status", "Actions"},
             "No guest records found."
     );
 
@@ -73,7 +73,7 @@ public class GuestRecordPanel extends JPanel {
         guestTable.setStatusColumn(5, this::confirmDeleteBooking, this::isUpcomingGuest);
         guestTable.setColumnAlignment(1, SwingConstants.CENTER); // Arrival
         guestTable.setColumnAlignment(2, SwingConstants.CENTER); // Departure
-        guestTable.setColumnAlignment(3, SwingConstants.CENTER); // Tenure
+        guestTable.setColumnAlignment(3, SwingConstants.CENTER); // Accommodation
         guestTable.setColumnAlignment(4, SwingConstants.CENTER); // Requested Department
         card.add(guestTable, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
@@ -390,11 +390,27 @@ public class GuestRecordPanel extends JPanel {
                 record[NAME],
                 dateTimeText(record[ARRIVAL]),
                 dateTimeText(record[DEPARTURE]),
-                tenureText(record),
+                accommodationText(record),
                 record[DEPARTMENT],
                 statusText(record),
                 "View"
         };
+    }
+
+    private String accommodationText(Object[] record) {
+        String category = String.valueOf(record[ACCOMMODATION]);
+        String room = String.valueOf(record[ROOM]);
+        if ((category == null || category.isEmpty() || category.equals("null")) &&
+            (room == null || room.isEmpty() || room.equals("null"))) {
+            return "-";
+        }
+        if (category == null || category.isEmpty() || category.equals("null")) {
+            return room;
+        }
+        if (room == null || room.isEmpty() || room.equals("null")) {
+            return category;
+        }
+        return category + " : " + room;
     }
 
     private void showGuestDetails(int row) {

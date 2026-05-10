@@ -186,17 +186,16 @@ public class GuestReportService {
             textX = MARGIN + logoWidth + 14;
         }
         page.text("Kohinoor Textile Mill Ltd.", textX, top - 15, 18, true, TEXT_PRIMARY);
-        page.text("Gujar Khan", textX, top - 31, 9.5, false, TEXT_SECONDARY);
-        page.text("Guest Accommodation Report", textX, top - 47, 12, false, TEXT_SECONDARY);
+        page.text("Guest Accommodation Report", textX, top - 31, 12, false, TEXT_SECONDARY);
         page.text(range.label() + " | " + DATE.format(range.startDate()) + " to " + DATE.format(range.endDate()),
-                textX, top - 62, 9, false, TEXT_SECONDARY);
+                textX, top - 47, 9, false, TEXT_SECONDARY);
 
         double right = PAGE_WIDTH - MARGIN - 190;
         page.text("Phone: 0092-051-54955328", right, top - 14, 8.5, false, TEXT_PRIMARY);
         page.text("Export: 0092-051-5473085", right, top - 30, 8.5, false, TEXT_PRIMARY);
         page.text("Generated: " + LocalDateTime.now().format(DATE_TIME), right, top - 46, 8.5, false, TEXT_SECONDARY);
-        page.line(MARGIN, top - 74, PAGE_WIDTH - MARGIN, top - 74, BORDER);
-        return top - 91;
+        page.line(MARGIN, top - 58, PAGE_WIDTH - MARGIN, top - 58, BORDER);
+        return top - 75;
     }
 
     private double drawContinuationHeader(PdfCanvas page, PdfImage logo, ReportRange range) {

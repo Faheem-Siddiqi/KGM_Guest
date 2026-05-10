@@ -12,3 +12,6 @@ Java Swing desktop application for guest records, guest details, and accommodati
 ## Database Status
 
 The old employee MySQL/SQLite database layer has been removed. Add new guest and accommodation DAO, model, schema, and connection files in the preserved folders when the new data layer is ready.
+
+
+In bakcend for Beds , Seats are used 

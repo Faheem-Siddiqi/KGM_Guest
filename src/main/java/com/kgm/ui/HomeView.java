@@ -748,7 +748,7 @@ public class HomeView extends JFrame {
         try {
             return dashboardDao.loadStats();
         } catch (SQLException exception) {
-            return new DashboardDao.DashboardStats(0, 0, 0, 0, 0, "-");
+            return new DashboardDao.DashboardStats(0, 0, 0, 0, 0, 0, "-");
         }
     }
     private DashboardDao.OccupancyChartData loadOccupancyChart(String category) {

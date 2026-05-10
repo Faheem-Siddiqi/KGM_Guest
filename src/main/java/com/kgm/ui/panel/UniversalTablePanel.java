@@ -518,7 +518,15 @@ public class UniversalTablePanel extends JPanel {
 
         for (Object[] row : rows) {
             Object value = row[column];
-            width = Math.max(width, cellMetrics.stringWidth(value == null ? "" : String.valueOf(value)) + padding);
+            int cellWidth = cellMetrics.stringWidth(value == null ? "" : String.valueOf(value)) + padding;
+            
+            // For status column with delete action, account for the "Delete" label width
+            if (column == statusColumn && statusDeleteAction != null && statusDeletePredicate != null) {
+                int deleteWidth = cellMetrics.stringWidth("Delete") + 12; // 12px gap between status and delete
+                cellWidth += deleteWidth;
+            }
+            
+            width = Math.max(width, cellWidth);
         }
 
         return Math.max(72, width);

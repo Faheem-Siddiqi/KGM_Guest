@@ -37,7 +37,7 @@ public class HomeKpiPanel extends JPanel {
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Occupied Beds",
                 String.valueOf(stats.occupiedSeats()),
-                "Currently in use",
+                buildOccupiedDetail(stats.occupiedSeats(), stats.reservedSeats()),
                 HomeViewHelper.OCCUPIED_DARK,
                 HomeViewHelper.OCCUPIED_LIGHT,
                 false
@@ -70,5 +70,12 @@ public class HomeKpiPanel extends JPanel {
         add(kpiGrid, BorderLayout.CENTER);
         revalidate();
         repaint();
+    }
+
+    private String buildOccupiedDetail(int occupied, int reserved) {
+        if (reserved > 0) {
+            return "Currently in use· " + reserved + " Reserved";
+        }
+        return "Currently in use";
     }
 }

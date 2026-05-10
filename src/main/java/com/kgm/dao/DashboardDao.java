@@ -24,6 +24,9 @@ public class DashboardDao {
                      FROM guests
                      WHERE arrival_at <= NOW()
                        AND departure_at >= NOW()) AS occupied_seats,
+                    (SELECT COUNT(*)
+                     FROM guests
+                     WHERE arrival_at > NOW()) AS reserved_seats,
                     (SELECT COALESCE(AVG(TIMESTAMPDIFF(MINUTE, arrival_at, departure_at)), 0)
                      FROM guests
                      WHERE departure_at >= arrival_at) AS average_minutes,
@@ -39,6 +42,7 @@ public class DashboardDao {
             if (resultSet.next()) {
                 int totalSeats = resultSet.getInt("total_seats");
                 int occupiedSeats = resultSet.getInt("occupied_seats");
+                int reservedSeats = resultSet.getInt("reserved_seats");
                 int vacantSeats = Math.max(0, totalSeats - occupiedSeats);
                 int occupancyPercent = totalSeats == 0 ? 0 : (int) Math.round((occupiedSeats * 100.0) / totalSeats);
                 double averageStayHours = resultSet.getDouble("average_minutes") / 60.0;
@@ -50,13 +54,14 @@ public class DashboardDao {
                         totalSeats,
                         vacantSeats,
                         occupiedSeats,
+                        reservedSeats,
                         occupancyPercent,
                         averageStayHours,
                         peakArrival
                 );
             }
         }
-        return new DashboardStats(0, 0, 0, 0, 0, "-");
+        return new DashboardStats(0, 0, 0, 0, 0, 0, "-");
     }
 
     public OccupancyChartData loadOccupancyChart() throws SQLException {
@@ -244,6 +249,7 @@ public class DashboardDao {
             int totalSeats,
             int vacantSeats,
             int occupiedSeats,
+            int reservedSeats,
             int occupancyPercent,
             double averageStayHours,
             String peakArrival

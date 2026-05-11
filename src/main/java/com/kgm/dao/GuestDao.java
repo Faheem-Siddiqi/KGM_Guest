@@ -17,7 +17,6 @@ import java.util.List;
 
 public class GuestDao {
     private static final String OVERLAPPING_STAY_MESSAGE = "This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.";
-    private static final String ROOM_OVERLAP_MESSAGE = "This room is already booked for overlapping dates. Please select a different room or choose different dates.";
     private static final String NO_SEATS_AVAILABLE_MESSAGE = "No seats available in this room for the selected dates. The room has reached its capacity for this period.";
 
     private final AccommodationDao accommodationDao = new AccommodationDao();
@@ -61,12 +60,8 @@ public class GuestDao {
         try (Connection connection = DatabaseConnection.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                // Check for overlapping bookings in the same room
-                if (hasOverlappingRoomBooking(connection, accommodationId, guest.getArrivalAt(), guest.getDepartureAt())) {
-                    throw new SQLException(ROOM_OVERLAP_MESSAGE);
-                }
-
                 // Check seat availability for the requested dates
+                // This allows multiple guests to book the same room up to its capacity
                 if (!hasAvailableSeat(connection, accommodationId, guest.getArrivalAt(), guest.getDepartureAt())) {
                     throw new SQLException(NO_SEATS_AVAILABLE_MESSAGE);
                 }
@@ -556,34 +551,6 @@ public class GuestDao {
     }
 
     /**
-     * Checks if the same room already has a booking that overlaps with the given dates.
-     * This prevents double-booking the same room for overlapping time periods.
-     */
-    private boolean hasOverlappingRoomBooking(
-            Connection connection,
-            long accommodationId,
-            Date arrivalAt,
-            Date departureAt
-    ) throws SQLException {
-        String sql = """
-                SELECT 1
-                FROM guests
-                WHERE accommodation_id = ?
-                  AND arrival_at < ?
-                  AND departure_at > ?
-                LIMIT 1
-                """;
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setLong(1, accommodationId);
-            statement.setTimestamp(2, timestamp(departureAt));
-            statement.setTimestamp(3, timestamp(arrivalAt));
-            try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next();
-            }
-        }
-    }
-
-    /**
      * Checks if there is at least one available seat in the room for the given date range.
      * A seat is available if the room capacity has not been reached by overlapping bookings.
      */
@@ -636,19 +603,48 @@ public class GuestDao {
     }
 
     /**
-     * Handles the room status based on whether the booking is for the future or current/past.
+     * Handles the room status based on seat availability.
      * - For future bookings: keeps the room as "Ready for Assignment" so other seats remain bookable
-     * - For current/past bookings (arrival date is today or earlier): marks room as "Reserved"
+     * - For current/past bookings: refreshes room status based on current occupancy
      */
     private void handleRoomStatus(Connection connection, long accommodationId, Date arrivalAt) throws SQLException {
         Date now = new Date();
         if (arrivalAt != null && arrivalAt.after(now)) {
-            // Future booking - do NOT mark room as Reserved, keep it available for other seat bookings
+            // Future booking - do NOT change room status, keep it available for other seat bookings
             return;
         }
 
-        // Current or past booking - mark room as Reserved
-        reserveAccommodation(connection, accommodationId);
+        // Current or past booking - refresh room status based on current occupancy
+        refreshRoomStatus(connection, accommodationId);
+    }
+
+    /**
+     * Refreshes the room status based on current occupancy.
+     * - If all seats are occupied (0 available): status = "Reserved"
+     * - If any seats are available: status = "Ready for Assignment"
+     */
+    private void refreshRoomStatus(Connection connection, long accommodationId) throws SQLException {
+        // Check if room is fully occupied (no available seats for current time)
+        Date now = new Date();
+        boolean isFullyOccupied = !hasAvailableSeat(connection, accommodationId, now, now);
+
+        if (isFullyOccupied) {
+            // All seats occupied - mark as Reserved
+            reserveAccommodation(connection, accommodationId);
+        } else {
+            // Seats available - mark as Ready for Assignment
+            String sql = """
+                    UPDATE accommodations
+                    SET status = 'Ready for Assignment'
+                    WHERE id = ?
+                      AND status = 'Reserved'
+                      AND active = TRUE
+                    """;
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setLong(1, accommodationId);
+                statement.executeUpdate();
+            }
+        }
     }
 
     private void reserveAccommodation(Connection connection, long accommodationId) throws SQLException {

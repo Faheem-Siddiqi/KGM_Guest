@@ -74,7 +74,7 @@ public class HomeKpiPanel extends JPanel {
 
     private String buildOccupiedDetail(int occupied, int reserved) {
         if (reserved > 0) {
-            return "Currently in use· " + reserved + " Reserved";
+            return "While " + reserved + " bed are reserved ";
         }
         return "Currently in use";
     }

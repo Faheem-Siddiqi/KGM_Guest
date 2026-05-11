@@ -101,6 +101,18 @@ public class HomeView extends JFrame {
         stopDashboardStatsTimer();
         if (selectedIndex == ADD_GUEST_TAB) {
             refreshAddGuestTab(tabs);
+        } else if (selectedIndex == 2) { // Accommodations tab
+            refreshAccommodationsTab(tabs);
+        }
+    }
+    
+    private void refreshAccommodationsTab(JTabbedPane tabs) {
+        // Replace the accommodations tab with a fresh instance to trigger reload
+        Component accommodationsTab = tabs.getComponentAt(2);
+        if (accommodationsTab instanceof AccommodationManagementPanel) {
+            // Create new panel which will trigger async data loading
+            AccommodationManagementPanel newPanel = new AccommodationManagementPanel(this::showDashboardTab);
+            tabs.setComponentAt(2, newPanel);
         }
     }
     private void refreshAddGuestTab(JTabbedPane tabs) {
@@ -135,29 +147,132 @@ public class HomeView extends JFrame {
             return;
         }
         dashboardPage.removeAll();
-        guestRecordPanel = new GuestRecordPanel(this::showGuestDetails, this::showReportDialog);
+        
+        // Create filter panel and import actions first (no data loading needed)
         guestFilterPanel = new GuestFilterPanel(
                 this::performSearch,
                 this::clearSearch
         );
+        
+        // Create placeholder KPI panel with loading state
         GridBagConstraints gbc = HomeViewHelper.pageConstraints(0);
         gbc.insets = new Insets(0, 0, KPI_BOTTOM_MARGIN, 0);
-        homeKpiPanel = new HomeKpiPanel(loadDashboardStats());
+        homeKpiPanel = new HomeKpiPanel(new DashboardDao.DashboardStats(0, 0, 0, 0, 0, 0, "Loading..."));
         dashboardPage.add(homeKpiPanel, gbc);
+        
         gbc = HomeViewHelper.pageConstraints(1);
         dashboardPage.add(createImportActionsRow(), gbc);
+        
         gbc = HomeViewHelper.pageConstraints(2);
         dashboardPage.add(guestFilterPanel, gbc);
+        
+        // Create placeholder guest record panel (will be populated asynchronously)
+        guestRecordPanel = new GuestRecordPanel(this::showGuestDetails, this::showReportDialog);
         gbc = HomeViewHelper.pageConstraints(3);
         dashboardPage.add(guestRecordPanel, gbc);
+        
+        // Create placeholder graph panel (will be populated asynchronously)
         gbc = HomeViewHelper.pageConstraints(4);
-        dashboardPage.add(createGraphPanel(), gbc);
+        dashboardPage.add(createPlaceholderGraphPanel(), gbc);
+        
         gbc = HomeViewHelper.pageConstraints(5);
         gbc.weighty = 1.0;
         dashboardPage.add(Box.createVerticalGlue(), gbc);
         dashboardPage.revalidate();
         dashboardPage.repaint();
+        
+        // Now load all data asynchronously with progress indication
+        refreshAllDashboardDataAsync();
     }
+    
+    private void refreshAllDashboardDataAsync() {
+        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
+                this,
+                "Loading Dashboard",
+                "Database is taking longer than usual. Loading dashboard data..."
+        );
+        
+        new SwingWorker<DashboardData, Void>() {
+            @Override
+            protected DashboardData doInBackground() throws Exception {
+                DashboardDao.DashboardStats stats = dashboardDao.loadStats();
+                DashboardDao.OccupancyChartData occupancyData = dashboardDao.loadOccupancyChart(
+                        defaultOccupancyCategory(dashboardDao.loadAccommodationCategories())
+                );
+                String[] categories = dashboardDao.loadAccommodationCategories();
+                DashboardDao.DepartmentChartData departmentData = dashboardDao.loadDepartmentChart();
+                return new DashboardData(stats, occupancyData, categories, departmentData);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    DashboardData data = get();
+                    if (isDashboardTabOpen()) {
+                        // Update KPI panel
+                        if (homeKpiPanel != null) {
+                            homeKpiPanel.updateStats(data.stats());
+                        }
+                        
+                        // Update graph panel
+                        JPanel graphs = createGraphPanelWithData(data.occupancyData(), data.categories(), data.departmentData());
+                        // Replace placeholder graph panel
+                        Component[] components = dashboardPage.getComponents();
+                        for (int i = 0; i < components.length; i++) {
+                            if (components[i] instanceof JPanel && ((JPanel) components[i]).getClientProperty("placeholder_graph") != null) {
+                                dashboardPage.remove(i);
+                                GridBagConstraints gbc = HomeViewHelper.pageConstraints(i);
+                                dashboardPage.add(graphs, gbc);
+                                break;
+                            }
+                        }
+                        
+                        dashboardPage.revalidate();
+                        dashboardPage.repaint();
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    System.err.println("Dashboard data refresh failed: " 
+                            + (cause == null ? exception.getMessage() : cause.getMessage()));
+                } finally {
+                    progress.done();
+                }
+            }
+        }.execute();
+    }
+    
+    private JPanel createPlaceholderGraphPanel() {
+        JPanel placeholder = new JPanel(new BorderLayout());
+        placeholder.setOpaque(false);
+        placeholder.setPreferredSize(new Dimension(0, 360));
+        placeholder.putClientProperty("placeholder_graph", true);
+        JLabel loadingLabel = new JLabel("Loading graphs...", SwingConstants.CENTER);
+        loadingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        loadingLabel.setForeground(HomeViewHelper.TEXT_SECONDARY);
+        placeholder.add(loadingLabel, BorderLayout.CENTER);
+        return placeholder;
+    }
+    
+    private JPanel createGraphPanelWithData(DashboardDao.OccupancyChartData occupancyData, 
+                                            String[] categories, 
+                                            DashboardDao.DepartmentChartData departmentData) {
+        JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 16));
+        graphs.setOpaque(false);
+        graphs.setPreferredSize(new Dimension(0, 360));
+        graphs.add(graphScroll(new HouseOccupancyGraphPanel(dashboardDao, occupancyData, categories)));
+        graphs.add(graphScroll(new DepartmentAnalysisGraphPanel(departmentData)));
+        return graphs;
+    }
+    
+    // Data container for async loading
+    private record DashboardData(
+            DashboardDao.DashboardStats stats,
+            DashboardDao.OccupancyChartData occupancyData,
+            String[] categories,
+            DashboardDao.DepartmentChartData departmentData
+    ) {}
     private void showGuestDetails(Object[] guestRecord) {
         if (dashboardScreens == null) {
             return;
@@ -182,6 +297,9 @@ public class HomeView extends JFrame {
     private void refreshDashboard() {
         populateDashboardPage(null);
         refreshDashboardStatsAsync();
+        // All data refresh is handled in populateDashboardPage which creates new instances
+        // Each component (HomeKpiPanel, GuestRecordPanel, graphs) handles its own async loading
+        // with DelayedProgressDialog showing progress if taking longer than expected
     }
     private void startDashboardStatsTimer() {
         if (!isDashboardTabOpen()) {

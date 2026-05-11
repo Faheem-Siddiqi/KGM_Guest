@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.dao.DashboardDao;
+import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
@@ -8,6 +9,7 @@ import java.awt.*;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
@@ -98,40 +100,60 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
     }
 
     private void loadSelectedCategory() {
-        try {
-            DashboardDao.OccupancyChartData data = dashboardDao.loadOccupancyChart(selectedCategory);
-            setGraphData(
-                    data.labels(),
-                    new UniversalGraphPanel.Series(
-                            "Capacity",
-                            data.capacity(),
-                            HomeViewHelper.PRIMARY_LIGHT,
-                            HomeViewHelper.PRIMARY
-                    ),
-                    new UniversalGraphPanel.Series(
-                            "Occupied",
-                            data.occupied(),
-                            HomeViewHelper.KPI_AMBER_LIGHT,
-                            HomeViewHelper.KPI_AMBER_DARK
-                    )
-            );
-        } catch (SQLException exception) {
-            setGraphData(
-                    new String[0],
-                    new UniversalGraphPanel.Series(
-                            "Capacity",
-                            new int[0],
-                            HomeViewHelper.PRIMARY_LIGHT,
-                            HomeViewHelper.PRIMARY
-                    ),
-                    new UniversalGraphPanel.Series(
-                            "Occupied",
-                            new int[0],
-                            HomeViewHelper.KPI_AMBER_LIGHT,
-                            HomeViewHelper.KPI_AMBER_DARK
-                    )
-            );
-        }
+        // Use async loading with progress indication
+        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
+                this,
+                "Loading Graph Data",
+                "Database is taking longer than usual. Loading occupancy data..."
+        );
+        
+        new SwingWorker<DashboardDao.OccupancyChartData, Void>() {
+            @Override
+            protected DashboardDao.OccupancyChartData doInBackground() throws Exception {
+                return dashboardDao.loadOccupancyChart(selectedCategory);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    DashboardDao.OccupancyChartData data = get();
+                    setGraphData(
+                            data.labels(),
+                            new UniversalGraphPanel.Series(
+                                    "Capacity",
+                                    data.capacity(),
+                                    HomeViewHelper.PRIMARY_LIGHT,
+                                    HomeViewHelper.PRIMARY
+                            ),
+                            new UniversalGraphPanel.Series(
+                                    "Occupied",
+                                    data.occupied(),
+                                    HomeViewHelper.KPI_AMBER_LIGHT,
+                                    HomeViewHelper.KPI_AMBER_DARK
+                            )
+                    );
+                } catch (InterruptedException | ExecutionException exception) {
+                    // On error, show empty graph
+                    setGraphData(
+                            new String[0],
+                            new UniversalGraphPanel.Series(
+                                    "Capacity",
+                                    new int[0],
+                                    HomeViewHelper.PRIMARY_LIGHT,
+                                    HomeViewHelper.PRIMARY
+                            ),
+                            new UniversalGraphPanel.Series(
+                                    "Occupied",
+                                    new int[0],
+                                    HomeViewHelper.KPI_AMBER_LIGHT,
+                                    HomeViewHelper.KPI_AMBER_DARK
+                            )
+                    );
+                } finally {
+                    progress.done();
+                }
+            }
+        }.execute();
     }
 
     private static class CategoryTabsPanel extends JPanel {

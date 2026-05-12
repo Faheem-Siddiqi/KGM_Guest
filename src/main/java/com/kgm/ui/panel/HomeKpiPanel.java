@@ -37,15 +37,15 @@ public class HomeKpiPanel extends JPanel {
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Occupied Beds",
                 String.valueOf(stats.occupiedSeats()),
-                buildOccupiedDetail(stats.occupiedSeats(), stats.reservedSeats()),
+                buildOccupiedDetail(stats.occupancyPercent()),
                 HomeViewHelper.OCCUPIED_DARK,
                 HomeViewHelper.OCCUPIED_LIGHT,
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Monthly Occupancy",
-                stats.occupancyPercent() + "%",
-                "Across active accommodation",
+                "Upcoming Guests",
+                String.valueOf(stats.upcomingGuests()),
+                "Scheduled future arrivals",
                 HomeViewHelper.KPI_AMBER_DARK,
                 HomeViewHelper.KPI_AMBER_LIGHT,
                 false
@@ -72,10 +72,7 @@ public class HomeKpiPanel extends JPanel {
         repaint();
     }
 
-    private String buildOccupiedDetail(int occupied, int reserved) {
-        if (reserved > 0) {
-            return "While " + reserved + " bed are reserved ";
-        }
-        return "Currently in use";
+    private String buildOccupiedDetail(int occupancyPercent) {
+        return "Current occupancy: " + occupancyPercent + "%";
     }
 }

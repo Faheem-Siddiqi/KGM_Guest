@@ -54,7 +54,7 @@ public class GuestReportService {
     private final GuestDao guestDao = new GuestDao();
 
     public File generateReport(File target, ReportRange range) throws Exception {
-        List<Guest> guests = guestDao.findByArrivalRange(
+        List<Guest> guests = guestDao.findByStayOverlapRange(
                 dateAtStart(range.startDate()),
                 dateAfter(range.endDate())
         );
@@ -242,7 +242,7 @@ public class GuestReportService {
         page.line(MARGIN, dividerY, PAGE_WIDTH - MARGIN, dividerY, BORDER);
 
         double noteY = dividerY - dividerGap;
-        page.text("Report scope: guests with arrival dates from " + DATE.format(range.startDate())
+        page.text("Report scope: guests with stays overlapping " + DATE.format(range.startDate())
                 + " through " + DATE.format(range.endDate()) + ".", MARGIN, noteY, 8.5, false, TEXT_SECONDARY);
         return noteY - 18;
     }
@@ -305,33 +305,19 @@ public class GuestReportService {
     }
 
     private boolean currentlyStaying(Guest guest) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime arrival = localDateTime(guest.getArrivalAt());
-        LocalDateTime departure = localDateTime(guest.getDepartureAt());
-        return arrival != null && departure != null && !arrival.isAfter(now) && departure.isAfter(now);
+        return "Currently Staying".equals(status(guest));
     }
 
     private boolean upcoming(Guest guest) {
-        LocalDateTime arrival = localDateTime(guest.getArrivalAt());
-        return arrival != null && arrival.isAfter(LocalDateTime.now());
+        return "Upcoming".equals(status(guest));
     }
 
     private boolean departed(Guest guest) {
-        LocalDateTime departure = localDateTime(guest.getDepartureAt());
-        return departure != null && !departure.isAfter(LocalDateTime.now());
+        return "Departed".equals(status(guest));
     }
 
     private String status(Guest guest) {
-        if (currentlyStaying(guest)) {
-            return "Currently Staying";
-        }
-        if (upcoming(guest)) {
-            return "Upcoming";
-        }
-        if (departed(guest)) {
-            return "Departed";
-        }
-        return "Unknown";
+        return GuestValidationService.stayStatus(guest.getArrivalAt(), guest.getDepartureAt());
     }
 
     private String tenure(Guest guest) {

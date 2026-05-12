@@ -254,6 +254,9 @@ public class DashboardDao {
             double averageStayHours,
             String peakArrival
     ) {
+        public int upcomingGuests() {
+            return reservedSeats;
+        }
     }
 
     public record OccupancyChartData(String[] labels, int[] capacity, int[] occupied) {

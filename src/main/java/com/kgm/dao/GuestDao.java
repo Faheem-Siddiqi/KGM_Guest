@@ -175,7 +175,15 @@ public class GuestDao {
                     g.review
                 FROM guests g
                 JOIN guest_categories gc ON gc.id = g.guest_category_id
-                ORDER BY g.arrival_at DESC, g.id DESC
+                ORDER BY
+                    CASE
+                        WHEN g.arrival_at > NOW() THEN 0
+                        WHEN g.arrival_at <= NOW() AND g.departure_at > NOW() THEN 1
+                        ELSE 2
+                    END,
+                    CASE WHEN g.arrival_at > NOW() THEN g.arrival_at END ASC,
+                    CASE WHEN g.arrival_at <= NOW() THEN g.arrival_at END DESC,
+                    g.id DESC
                 """;
         List<Guest> guests = new ArrayList<>();
         try (Connection connection = DatabaseConnection.getConnection();
@@ -183,6 +191,53 @@ public class GuestDao {
              ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 guests.add(mapGuest(resultSet));
+            }
+        }
+        return guests;
+    }
+
+    public List<Guest> findByStayOverlapRange(Date startInclusive, Date endExclusive) throws SQLException {
+        String sql = """
+                SELECT
+                    g.id,
+                    g.guest_name,
+                    g.cnic,
+                    g.nationality,
+                    gc.name AS guest_category,
+                    g.address,
+                    g.requested_by,
+                    g.requested_department,
+                    g.approved_by,
+                    g.accommodated_by,
+                    g.arrival_at,
+                    g.departure_at,
+                    g.accommodation_category,
+                    g.room_name,
+                    g.remarks,
+                    g.review
+                FROM guests g
+                JOIN guest_categories gc ON gc.id = g.guest_category_id
+                WHERE g.arrival_at < ?
+                  AND g.departure_at > ?
+                ORDER BY
+                    CASE
+                        WHEN g.arrival_at > NOW() THEN 0
+                        WHEN g.arrival_at <= NOW() AND g.departure_at > NOW() THEN 1
+                        ELSE 2
+                    END,
+                    CASE WHEN g.arrival_at > NOW() THEN g.arrival_at END ASC,
+                    CASE WHEN g.arrival_at <= NOW() THEN g.arrival_at END DESC,
+                    g.id DESC
+                """;
+        List<Guest> guests = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setTimestamp(1, timestamp(endExclusive));
+            statement.setTimestamp(2, timestamp(startInclusive));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    guests.add(mapGuest(resultSet));
+                }
             }
         }
         return guests;
@@ -272,6 +327,37 @@ public class GuestDao {
             statement.setString(1, normalizedCnic);
             statement.setTimestamp(2, timestamp(startOfDay));
             statement.setTimestamp(3, timestamp(nextDay));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    public boolean existsLegacyGuest(
+            String guestName,
+            Date arrivalAt,
+            Date departureAt,
+            String guestCategory
+    ) throws SQLException {
+        if (arrivalAt == null || departureAt == null) {
+            return false;
+        }
+        String sql = """
+                SELECT 1
+                FROM guests g
+                JOIN guest_categories gc ON gc.id = g.guest_category_id
+                WHERE LOWER(TRIM(g.guest_name)) = LOWER(TRIM(?))
+                  AND g.arrival_at = ?
+                  AND g.departure_at = ?
+                  AND LOWER(TRIM(gc.name)) = LOWER(TRIM(?))
+                LIMIT 1
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, guestName == null ? "" : guestName.trim());
+            statement.setTimestamp(2, timestamp(arrivalAt));
+            statement.setTimestamp(3, timestamp(departureAt));
+            statement.setString(4, guestCategory == null ? "" : guestCategory.trim());
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next();
             }

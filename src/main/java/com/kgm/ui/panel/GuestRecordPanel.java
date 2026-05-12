@@ -2,6 +2,7 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
+import com.kgm.service.GuestValidationService;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
@@ -12,9 +13,11 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -65,8 +68,8 @@ public class GuestRecordPanel extends JPanel {
         setOpaque(false);
 
         JPanel card = HomeViewHelper.sectionCard(
-                "Recent Guest Records",
-                "Current guest movements and approvals.",
+                "Guest Records",
+                "Current, upcoming, and departed guest movements.",
                 headerActions()
         );
         guestTable.setActionColumn(6, "View", row -> showGuestDetails(row));
@@ -289,23 +292,7 @@ public class GuestRecordPanel extends JPanel {
             return true;
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime arrival = parseDateTime(record[ARRIVAL]);
-        LocalDateTime departure = parseDateTime(record[DEPARTURE]);
-        if (arrival == null || departure == null) {
-            return false;
-        }
-
-        if (status.equalsIgnoreCase("Currently Staying")) {
-            return !arrival.isAfter(now) && departure.isAfter(now);
-        }
-        if (status.equalsIgnoreCase("Departed")) {
-            return !departure.isAfter(now);
-        }
-        if (status.equalsIgnoreCase("Upcoming")) {
-            return arrival.isAfter(now);
-        }
-        return true;
+        return statusText(record).equalsIgnoreCase(status);
     }
 
     private boolean dateMatches(Object[] record, String date) {
@@ -319,19 +306,16 @@ public class GuestRecordPanel extends JPanel {
     }
 
     private String statusText(Object[] record) {
-        LocalDateTime now = LocalDateTime.now();
         LocalDateTime arrival = parseDateTime(record[ARRIVAL]);
         LocalDateTime departure = parseDateTime(record[DEPARTURE]);
         if (arrival == null || departure == null) {
             return "Unknown";
         }
-        if (!departure.isAfter(now)) {
-            return "Departed";
-        }
-        if (arrival.isAfter(now)) {
-            return "Upcoming";
-        }
-        return "Currently Staying";
+        return GuestValidationService.stayStatus(toDate(arrival), toDate(departure));
+    }
+
+    private Date toDate(LocalDateTime value) {
+        return Date.from(value.atZone(ZoneId.systemDefault()).toInstant());
     }
 
     private LocalDateTime parseDateTime(Object value) {

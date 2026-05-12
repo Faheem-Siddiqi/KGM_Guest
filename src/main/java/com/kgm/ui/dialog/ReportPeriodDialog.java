@@ -7,10 +7,12 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Date;
 
 public class ReportPeriodDialog extends JDialog {
@@ -155,12 +157,21 @@ public class ReportPeriodDialog extends JDialog {
 
     private void selectRange() {
         LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         if (weeklyButton.isSelected()) {
-            selectedRange = new GuestReportService.ReportRange("Weekly", today.minusDays(6), today);
+            selectedRange = new GuestReportService.ReportRange(
+                    "Weekly",
+                    weekStart,
+                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+            );
         } else if (monthlyButton.isSelected()) {
-            selectedRange = new GuestReportService.ReportRange("Monthly", today.withDayOfMonth(1), today);
+            selectedRange = new GuestReportService.ReportRange(
+                    "Monthly",
+                    today.withDayOfMonth(1),
+                    today.with(TemporalAdjusters.lastDayOfMonth())
+            );
         } else if (fortnightButton.isSelected()) {
-            selectedRange = new GuestReportService.ReportRange("Fortnight", today.minusDays(13), today);
+            selectedRange = new GuestReportService.ReportRange("Fortnight", weekStart, weekStart.plusDays(13));
         } else {
             LocalDate start = inputDate(startDate);
             LocalDate end = inputDate(endDate);

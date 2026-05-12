@@ -27,14 +27,35 @@ public class DashboardDao {
                     (SELECT COUNT(*)
                      FROM guests
                      WHERE arrival_at > NOW()) AS reserved_seats,
-                    (SELECT COALESCE(AVG(TIMESTAMPDIFF(MINUTE, arrival_at, departure_at)), 0)
-                     FROM guests
-                     WHERE departure_at >= arrival_at) AS average_minutes,
-                    (SELECT HOUR(arrival_at)
-                     FROM guests
-                     GROUP BY HOUR(arrival_at)
-                     ORDER BY COUNT(*) DESC, HOUR(arrival_at)
-                     LIMIT 1) AS peak_arrival_hour
+                    (SELECT COALESCE(AVG(TIMESTAMPDIFF(MINUTE, g.arrival_at, g.departure_at)), 0)
+                     FROM guests g
+                     WHERE g.departure_at >= g.arrival_at
+                       AND g.arrival_at >= month_bounds.month_start
+                       AND g.arrival_at < month_bounds.next_month) AS monthly_average_minutes,
+                    (SELECT COALESCE(SUM(TIMESTAMPDIFF(
+                            MINUTE,
+                            GREATEST(g.arrival_at, month_bounds.month_start),
+                            LEAST(g.departure_at, month_bounds.next_month)
+                     )), 0)
+                     FROM guests g
+                     WHERE g.arrival_at < month_bounds.next_month
+                       AND g.departure_at > month_bounds.month_start
+                       AND g.departure_at > g.arrival_at) AS monthly_occupied_minutes,
+                    TIMESTAMPDIFF(MINUTE, month_bounds.month_start, month_bounds.next_month)
+                        AS monthly_minutes_per_seat,
+                    (SELECT HOUR(g.arrival_at)
+                     FROM guests g
+                     WHERE g.arrival_at >= month_bounds.month_start
+                       AND g.arrival_at < month_bounds.next_month
+                     GROUP BY HOUR(g.arrival_at)
+                     ORDER BY COUNT(*) DESC, HOUR(g.arrival_at)
+                     LIMIT 1) AS monthly_peak_arrival_hour
+                FROM (
+                    SELECT
+                        CAST(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AS DATETIME) AS month_start,
+                        DATE_ADD(CAST(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AS DATETIME), INTERVAL 1 MONTH)
+                            AS next_month
+                ) month_bounds
                 """;
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql);
@@ -44,9 +65,15 @@ public class DashboardDao {
                 int occupiedSeats = resultSet.getInt("occupied_seats");
                 int reservedSeats = resultSet.getInt("reserved_seats");
                 int vacantSeats = Math.max(0, totalSeats - occupiedSeats);
-                int occupancyPercent = totalSeats == 0 ? 0 : (int) Math.round((occupiedSeats * 100.0) / totalSeats);
-                double averageStayHours = resultSet.getDouble("average_minutes") / 60.0;
-                Object peakHour = resultSet.getObject("peak_arrival_hour");
+                double monthlyOccupiedMinutes = resultSet.getDouble("monthly_occupied_minutes");
+                int monthlyMinutesPerSeat = resultSet.getInt("monthly_minutes_per_seat");
+                int occupancyPercent = monthlyOccupancyPercent(
+                        monthlyOccupiedMinutes,
+                        totalSeats,
+                        monthlyMinutesPerSeat
+                );
+                double averageStayHours = resultSet.getDouble("monthly_average_minutes") / 60.0;
+                Object peakHour = resultSet.getObject("monthly_peak_arrival_hour");
                 String peakArrival = peakHour instanceof Number number
                         ? LocalTime.of(number.intValue(), 0).format(HOUR_FORMAT)
                         : "-";
@@ -62,6 +89,18 @@ public class DashboardDao {
             }
         }
         return new DashboardStats(0, 0, 0, 0, 0, 0, "-");
+    }
+
+    private int monthlyOccupancyPercent(
+            double monthlyOccupiedMinutes,
+            int totalSeats,
+            int monthlyMinutesPerSeat
+    ) {
+        if (totalSeats <= 0 || monthlyMinutesPerSeat <= 0) {
+            return 0;
+        }
+        double monthlyAvailableMinutes = totalSeats * (double) monthlyMinutesPerSeat;
+        return (int) Math.round((monthlyOccupiedMinutes * 100.0) / monthlyAvailableMinutes);
     }
 
     public OccupancyChartData loadOccupancyChart() throws SQLException {

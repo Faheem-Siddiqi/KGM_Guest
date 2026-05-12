@@ -37,7 +37,7 @@ public class HomeKpiPanel extends JPanel {
         kpiGrid.add(HomeViewHelper.kpiCard(
                 "Occupied Beds",
                 String.valueOf(stats.occupiedSeats()),
-                buildOccupiedDetail(stats.occupancyPercent()),
+                monthlyOccupancyDetail(stats.occupancyPercent()),
                 HomeViewHelper.OCCUPIED_DARK,
                 HomeViewHelper.OCCUPIED_LIGHT,
                 false
@@ -51,17 +51,17 @@ public class HomeKpiPanel extends JPanel {
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Avg Stay Duration",
-                String.format("%.1f hrs", stats.averageStayHours()),
-                "Guest stay average",
+                "Monthly Avg Stay",
+                stayDurationText(stats.averageStayHours()),
+                "Average stay this month",
                 HomeViewHelper.KPI_SKY_DARK,
                 HomeViewHelper.KPI_SKY_LIGHT,
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Peak Arrival",
+                "Monthly Peak Arrival Time",
                 stats.peakArrival(),
-                "Highest check-in window",
+                "Highest check-in window this month",
                 HomeViewHelper.KPI_ROSE_DARK,
                 HomeViewHelper.KPI_ROSE_LIGHT,
                 false
@@ -72,7 +72,14 @@ public class HomeKpiPanel extends JPanel {
         repaint();
     }
 
-    private String buildOccupiedDetail(int occupancyPercent) {
-        return "Current occupancy: " + occupancyPercent + "%";
+    private String monthlyOccupancyDetail(int occupancyPercent) {
+        return "Monthly occupancy rate: " + occupancyPercent + "%";
+    }
+
+    private String stayDurationText(double averageStayHours) {
+        long totalHours = Math.max(0, Math.round(averageStayHours));
+        long days = totalHours / 24;
+        long hours = totalHours % 24;
+        return days + " days " + hours + " hrs";
     }
 }

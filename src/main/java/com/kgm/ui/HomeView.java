@@ -434,9 +434,44 @@ public class HomeView extends JFrame {
             showUnsupportedImportFileDialog();
             return;
         }
-        importGuestsFromExcel(selectedFile);
+        ExcelImportService.ImportType importType = chooseExcelImportType();
+        if (importType == null) {
+            return;
+        }
+        importGuestsFromExcel(selectedFile, importType);
     }
-    private void importGuestsFromExcel(File file) {
+    private ExcelImportService.ImportType chooseExcelImportType() {
+        JRadioButton standardImport = new JRadioButton("Import New / Standard Data", true);
+        JRadioButton legacyImport = new JRadioButton("Import Legacy / Historical Data");
+        ButtonGroup group = new ButtonGroup();
+        group.add(standardImport);
+        group.add(legacyImport);
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.add(new JLabel("Choose how this Excel workbook should be imported:"));
+        panel.add(Box.createVerticalStrut(10));
+        panel.add(standardImport);
+        panel.add(new JLabel("Apply Add Guest rules: required fields, CNIC, overlap, capacity, and room status."));
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(legacyImport);
+        panel.add(new JLabel("Only require dates, accommodation category, and room. No duplicate, overlap, capacity, or status checks."));
+
+        int selected = JOptionPane.showConfirmDialog(
+                this,
+                panel,
+                "Select Import Type",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+        if (selected != JOptionPane.OK_OPTION) {
+            return null;
+        }
+        return legacyImport.isSelected()
+                ? ExcelImportService.ImportType.LEGACY
+                : ExcelImportService.ImportType.STANDARD;
+    }
+    private void importGuestsFromExcel(File file, ExcelImportService.ImportType importType) {
         if (!isExcelImportFile(file)) {
             showUnsupportedImportFileDialog();
             return;
@@ -445,11 +480,12 @@ public class HomeView extends JFrame {
         DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
                 this,
                 "Importing Excel",
-                "Database is taking longer than usual. Checking and importing guest records..."
+                "Database is taking longer than usual. Checking and importing guest records as "
+                        + importType.label() + "..."
         );
         SwingWorker<ExcelImportService.ImportResult, Void> worker = new SwingWorker<>() {
             protected ExcelImportService.ImportResult doInBackground() throws Exception {
-                return excelImportService.importGuests(file);
+                return excelImportService.importGuests(file, importType);
             }
             protected void done() {
                 setImportButtonEnabled(true);
@@ -604,14 +640,19 @@ public class HomeView extends JFrame {
             String field = reason.substring(0, reason.length() - " is required and must be a date/time.".length());
             return rowPrefix + "Add a valid " + field + " using yyyy-MM-dd HH:mm.";
         }
-        if (reason.equals("CNIC must contain exactly 13 digits.")) {
+        if (reason.equals("CNIC must contain exactly 13 digits.")
+                || reason.equals("Guest CNIC must contain exactly 13 digits.")) {
             return rowPrefix + "CNIC must be exactly 13 digits.";
         }
-        if (reason.equals("Departure Date Time must be after Arrival Date Time.")) {
+        if (reason.equals("Arrival and departure dates are required.")) {
+            return rowPrefix + "Add valid arrival and departure dates using yyyy-MM-dd HH:mm.";
+        }
+        if (reason.equals("Departure Date Time must be after Arrival Date Time.")
+                || reason.equals("Departure date must be after arrival date.")) {
             return rowPrefix + "Departure date must be after arrival date.";
         }
-        if (reason.startsWith("Guest name already exists for this arrival date:")) {
-            return rowPrefix + "Guest name already exists for this arrival date.";
+        if (reason.startsWith("Guest CNIC already exists for this arrival date:")) {
+            return rowPrefix + "Guest CNIC already exists for this arrival date.";
         }
         if (reason.startsWith("This CNIC already has an overlapping guest stay.")) {
             return rowPrefix + "This CNIC already has an overlapping stay. A guest cannot be assigned to more than one room at the same time.";
@@ -634,6 +675,12 @@ public class HomeView extends JFrame {
             String room = quotedValue(reason, "Room '");
             return rowPrefix + "Room '" + valueOrDash(room)
                     + "' under '" + valueOrDash(category) + "' is not ready for assignment.";
+        }
+        if (reason.startsWith("No ready room is available for ")) {
+            return rowPrefix + reason;
+        }
+        if (reason.equals("Assigned room was not found in the selected accommodation category.")) {
+            return rowPrefix + "Room must already exist under the selected accommodation category.";
         }
         return rowPrefix + reason;
     }

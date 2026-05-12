@@ -21,19 +21,30 @@ public class GuestDao {
 
     private final AccommodationDao accommodationDao = new AccommodationDao();
 
+    public enum SaveMode {
+        STANDARD,
+        LEGACY
+    }
+
     public Guest save(Guest guest) throws SQLException {
+        return save(guest, SaveMode.STANDARD);
+    }
+
+    public Guest save(Guest guest, SaveMode saveMode) throws SQLException {
+        boolean legacyHistorical = saveMode == SaveMode.LEGACY;
         validateStayDates(guest.getArrivalAt(), guest.getDepartureAt());
-        if (hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
+        if (!legacyHistorical && hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
             throw new SQLException(OVERLAPPING_STAY_MESSAGE);
         }
 
         long guestCategoryId = findOrCreateGuestCategory(guest.getGuestCategory());
-        Long accommodationId = accommodationDao.findReadyIdByCategoryAndName(
-                guest.getAccommodation(),
-                guest.getRoomName()
-        );
+        Long accommodationId = legacyHistorical
+                ? accommodationDao.findAnyIdByCategoryAndName(guest.getAccommodation(), guest.getRoomName())
+                : accommodationDao.findReadyIdByCategoryAndName(guest.getAccommodation(), guest.getRoomName());
         if (accommodationId == null) {
-            throw new SQLException("Selected room is not ready for assignment.");
+            throw new SQLException(legacyHistorical
+                    ? "Assigned room was not found in the selected accommodation category."
+                    : "Selected room is not ready for assignment.");
         }
 
         String sql = """
@@ -62,7 +73,8 @@ public class GuestDao {
             try {
                 // Check seat availability for the requested dates
                 // This allows multiple guests to book the same room up to its capacity
-                if (!hasAvailableSeat(connection, accommodationId, guest.getArrivalAt(), guest.getDepartureAt())) {
+                if (!legacyHistorical
+                        && !hasAvailableSeat(connection, accommodationId, guest.getArrivalAt(), guest.getDepartureAt())) {
                     throw new SQLException(NO_SEATS_AVAILABLE_MESSAGE);
                 }
 
@@ -93,7 +105,9 @@ public class GuestDao {
 
                 // Only mark room as Reserved for current/past bookings (guest has arrived or should have arrived)
                 // For future bookings, keep the room as "Ready for Assignment" so other seats remain available
-                handleRoomStatus(connection, accommodationId, guest.getArrivalAt());
+                if (!legacyHistorical) {
+                    handleRoomStatus(connection, accommodationId, guest.getArrivalAt());
+                }
                 connection.commit();
             } catch (SQLException exception) {
                 connection.rollback();
@@ -230,6 +244,32 @@ public class GuestDao {
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, guestName == null ? "" : guestName.trim());
+            statement.setTimestamp(2, timestamp(startOfDay));
+            statement.setTimestamp(3, timestamp(nextDay));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    public boolean existsByCnicOnArrivalDate(String cnic, Date arrivalAt) throws SQLException {
+        String normalizedCnic = digitsOnly(cnic);
+        if (normalizedCnic.isEmpty() || arrivalAt == null) {
+            return false;
+        }
+        String sql = """
+                SELECT 1
+                FROM guests
+                WHERE REPLACE(REPLACE(TRIM(cnic), '-', ''), ' ', '') = ?
+                  AND arrival_at >= ?
+                  AND arrival_at < ?
+                LIMIT 1
+                """;
+        Date startOfDay = startOfDay(arrivalAt);
+        Date nextDay = nextDay(arrivalAt);
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedCnic);
             statement.setTimestamp(2, timestamp(startOfDay));
             statement.setTimestamp(3, timestamp(nextDay));
             try (ResultSet resultSet = statement.executeQuery()) {

@@ -62,7 +62,7 @@ public class ExcelImportService {
     private static final String ROOM_PREFIX = "Room-";
     private static final String ROOMS_PREFIX = "Rooms-";
 
-    private static final List<String> REQUIRED_HEADERS = List.of(
+    private static final List<String> STANDARD_REQUIRED_HEADERS = List.of(
             GUEST_NAME,
             CNIC,
             NATIONALITY,
@@ -72,6 +72,12 @@ public class ExcelImportService {
             REQUESTED_DEPARTMENT,
             APPROVED_BY,
             ACCOMMODATED_BY,
+            ARRIVAL_DATE_TIME,
+            DEPARTURE_DATE_TIME,
+            ACCOMMODATION_CATEGORY,
+            ROOM
+    );
+    private static final List<String> LEGACY_REQUIRED_HEADERS = List.of(
             ARRIVAL_DATE_TIME,
             DEPARTURE_DATE_TIME,
             ACCOMMODATION_CATEGORY,
@@ -104,10 +110,30 @@ public class ExcelImportService {
     private final GuestDao guestDao = new GuestDao();
     private final AccommodationDao accommodationDao = new AccommodationDao();
     private final AccommodationCategoryDao accommodationCategoryDao = new AccommodationCategoryDao();
+    private final GuestValidationService guestValidationService = new GuestValidationService();
     private Map<String, String> accommodationCategoryLookup;
-    private Map<String, ImportAccommodation> accommodationRoomLookup;
-    private Set<String> accommodationRoomCategoryKeys;
     private List<AccommodationRecord> importAccommodationRecords;
+
+    public enum ImportType {
+        STANDARD("Import New / Standard Data", GuestDao.SaveMode.STANDARD),
+        LEGACY("Import Legacy / Historical Data", GuestDao.SaveMode.LEGACY);
+
+        private final String label;
+        private final GuestDao.SaveMode saveMode;
+
+        ImportType(String label, GuestDao.SaveMode saveMode) {
+            this.label = label;
+            this.saveMode = saveMode;
+        }
+
+        public String label() {
+            return label;
+        }
+
+        private GuestDao.SaveMode saveMode() {
+            return saveMode;
+        }
+    }
 
     /**
      * Imports guests from an Excel file.
@@ -117,11 +143,22 @@ public class ExcelImportService {
      * @throws IOException if the file cannot be read
      */
     public ImportResult importGuests(File file) throws IOException {
+        return importGuests(file, ImportType.STANDARD);
+    }
+
+    /**
+     * Imports guests from an Excel file.
+     *
+     * @param file       the Excel file to import
+     * @param importType the type of import to apply
+     * @return the result containing the number of imported guests and any skipped rows
+     * @throws IOException if the file cannot be read
+     */
+    public ImportResult importGuests(File file, ImportType importType) throws IOException {
+        ImportType selectedImportType = importType == null ? ImportType.STANDARD : importType;
         List<String> skippedRows = new ArrayList<>();
         int imported = 0;
         accommodationCategoryLookup = null;
-        accommodationRoomLookup = null;
-        accommodationRoomCategoryKeys = null;
         importAccommodationRecords = null;
 
         try (Workbook workbook = openWorkbook(file)) {
@@ -133,9 +170,10 @@ public class ExcelImportService {
             DataFormatter formatter = new DataFormatter();
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
             Map<String, Integer> headers = readHeaders(sheet, formatter, evaluator);
-            validateHeaders(headers);
+            validateHeaders(headers, selectedImportType);
 
             boolean hasGuestRows = false;
+            Map<String, Integer> importedLegacyRowsByFingerprint = new LinkedHashMap<>();
             for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (isBlankRow(row, formatter, evaluator)) {
@@ -145,18 +183,27 @@ public class ExcelImportService {
 
                 try {
                     Guest guest = guestFromRow(row, headers, formatter, evaluator);
-                    String accommodationCategory = resolveAccommodationCategory(
-                            guest.getAccommodation(),
-                            guest.getRoomName()
-                    );
-                    guest.setAccommodation(accommodationCategory);
-                    validateAccommodation(guest.getAccommodation(), guest.getRoomName());
-                    if (guestDao.existsByNameOnArrivalDate(guest.getGuestName(), guest.getArrivalAt())) {
-                        throw new RowImportException("Guest name already exists for this arrival date: "
-                                + guest.getGuestName());
+                    if (!guest.getAccommodation().isBlank()) {
+                        guest.setAccommodation(resolveAccommodationCategory(
+                                guest.getAccommodation(),
+                                guest.getRoomName()
+                        ));
                     }
-                    guestDao.save(guest);
-                    markAccommodationUsed(guest.getAccommodation(), guest.getRoomName());
+                    validateGuestForImport(guest, selectedImportType);
+                    String legacyFingerprint = null;
+                    if (selectedImportType == ImportType.LEGACY) {
+                        legacyFingerprint = legacyFingerprint(guest);
+                        Integer matchingRow = importedLegacyRowsByFingerprint.get(legacyFingerprint);
+                        if (matchingRow != null) {
+                            throw new RowImportException(
+                                    "Row not added since it is exactly same to row: " + matchingRow
+                            );
+                        }
+                    }
+                    guestDao.save(guest, selectedImportType.saveMode());
+                    if (legacyFingerprint != null) {
+                        importedLegacyRowsByFingerprint.put(legacyFingerprint, rowIndex + 1);
+                    }
                     imported++;
                 } catch (RowImportException exception) {
                     addSkippedRow(skippedRows, rowIndex + 1, exception.getMessage());
@@ -170,6 +217,53 @@ public class ExcelImportService {
         }
 
         return new ImportResult(imported, skippedRows);
+    }
+
+    private void validateGuestForImport(Guest guest, ImportType importType)
+            throws SQLException, RowImportException {
+        GuestValidationService.ValidationResult validationResult;
+        if (importType == ImportType.LEGACY) {
+            guestValidationService.prepareLegacyGuest(guest);
+            validationResult = guestValidationService.validateLegacyImportGuest(guest);
+        } else {
+            validationResult = guestValidationService.validateStandardGuest(guest);
+        }
+        if (GuestValidationService.hasIssues(validationResult)) {
+            throw new RowImportException(GuestValidationService.rowMessage(validationResult));
+        }
+        if (importType == ImportType.STANDARD
+                && guestDao.existsByCnicOnArrivalDate(guest.getCnic(), guest.getArrivalAt())) {
+            throw new RowImportException("Guest CNIC already exists for this arrival date: "
+                    + guest.getCnic());
+        }
+    }
+
+    private String legacyFingerprint(Guest guest) {
+        StringBuilder fingerprint = new StringBuilder();
+        appendFingerprintValue(fingerprint, guest.getGuestName());
+        appendFingerprintValue(fingerprint, guest.getCnic());
+        appendFingerprintValue(fingerprint, guest.getNationality());
+        appendFingerprintValue(fingerprint, guest.getGuestCategory());
+        appendFingerprintValue(fingerprint, guest.getAddress());
+        appendFingerprintValue(fingerprint, guest.getRequestedBy());
+        appendFingerprintValue(fingerprint, guest.getRequestedDepartment());
+        appendFingerprintValue(fingerprint, guest.getApprovedBy());
+        appendFingerprintValue(fingerprint, guest.getAccommodatedBy());
+        appendFingerprintValue(fingerprint, guest.getArrivalAt());
+        appendFingerprintValue(fingerprint, guest.getDepartureAt());
+        appendFingerprintValue(fingerprint, guest.getAccommodation());
+        appendFingerprintValue(fingerprint, guest.getRoomName());
+        appendFingerprintValue(fingerprint, guest.getRemarks());
+        return fingerprint.toString();
+    }
+
+    private void appendFingerprintValue(StringBuilder fingerprint, String value) {
+        String text = value == null ? "" : value.trim();
+        fingerprint.append(text.length()).append(':').append(text).append('|');
+    }
+
+    private void appendFingerprintValue(StringBuilder fingerprint, Date value) {
+        fingerprint.append(value == null ? "" : value.getTime()).append('|');
     }
 
     private Workbook openWorkbook(File file) throws IOException {
@@ -208,12 +302,11 @@ public class ExcelImportService {
         Date arrivalAt = dateValue(rowCell(row, headers, ARRIVAL_DATE_TIME), formatter, evaluator);
         Date departureAt = dateValue(rowCell(row, headers, DEPARTURE_DATE_TIME), formatter, evaluator);
 
-        List<String> issues = rowIssues(
+        List<String> issues = dateParseIssues(
                 row,
                 headers,
                 formatter,
                 evaluator,
-                cnic,
                 arrivalAt,
                 departureAt
         );
@@ -243,67 +336,22 @@ public class ExcelImportService {
         return guest;
     }
 
-    private List<String> rowIssues(
+    private List<String> dateParseIssues(
             Row row,
             Map<String, Integer> headers,
             DataFormatter formatter,
             FormulaEvaluator evaluator,
-            String cnic,
             Date arrivalAt,
             Date departureAt
     ) {
         List<String> issues = new ArrayList<>();
-        List<String> missing = missingRequiredFields(row, headers, formatter, evaluator);
-        if (!missing.isEmpty()) {
-            issues.add("Missing required fields: " + String.join(", ", missing) + ".");
-        }
-
-        if (!missing.contains(CNIC) && !cnic.matches("\\d{13}")) {
-            issues.add("CNIC must contain exactly 13 digits.");
-        }
-        if (!missing.contains(ARRIVAL_DATE_TIME) && arrivalAt == null) {
+        if (!optionalText(row, headers, ARRIVAL_DATE_TIME, formatter, evaluator).isEmpty() && arrivalAt == null) {
             issues.add(ARRIVAL_DATE_TIME + " must be a valid date/time.");
         }
-        if (!missing.contains(DEPARTURE_DATE_TIME) && departureAt == null) {
+        if (!optionalText(row, headers, DEPARTURE_DATE_TIME, formatter, evaluator).isEmpty() && departureAt == null) {
             issues.add(DEPARTURE_DATE_TIME + " must be a valid date/time.");
         }
-        if (arrivalAt != null && departureAt != null && !departureAt.after(arrivalAt)) {
-            issues.add("Departure Date Time must be after Arrival Date Time.");
-        }
         return issues;
-    }
-
-    private List<String> missingRequiredFields(
-            Row row,
-            Map<String, Integer> headers,
-            DataFormatter formatter,
-            FormulaEvaluator evaluator
-    ) {
-        List<String> missing = new ArrayList<>();
-        for (String header : REQUIRED_HEADERS) {
-            if (optionalText(row, headers, header, formatter, evaluator).isEmpty()) {
-                missing.add(header);
-            }
-        }
-        return missing;
-    }
-
-    private void validateAccommodation(String accommodationCategory, String room) throws RowImportException, SQLException {
-        Map<String, ImportAccommodation> rooms = accommodationRoomLookup();
-        if (accommodationRoomCategoryKeys == null
-                || !accommodationRoomCategoryKeys.contains(normalizeLookupValue(accommodationCategory))) {
-            throw new RowImportException("Accommodation Category not found in DB: "
-                    + accommodationRoomText(accommodationCategory, room));
-        }
-        ImportAccommodation accommodation = rooms.get(accommodationRoomKey(accommodationCategory, room));
-        if (accommodation == null) {
-            throw new RowImportException("Room not found in DB: "
-                    + accommodationRoomText(accommodationCategory, room));
-        }
-        if (!accommodation.readyForAssignment()) {
-            throw new RowImportException("Room is not ready for assignment: "
-                    + accommodationRoomText(accommodationCategory, room));
-        }
     }
 
     private String resolveAccommodationCategory(String accommodationCategory, String room)
@@ -341,46 +389,6 @@ public class ExcelImportService {
         return accommodationCategoryLookup;
     }
 
-    private Map<String, ImportAccommodation> accommodationRoomLookup() throws SQLException {
-        if (accommodationRoomLookup != null) {
-            return accommodationRoomLookup;
-        }
-
-        Map<String, ImportAccommodation> lookup = new LinkedHashMap<>();
-        Set<String> categories = new LinkedHashSet<>();
-        for (AccommodationRecord record : importAccommodationRecords()) {
-            ImportAccommodation accommodation = new ImportAccommodation(
-                    record.getCategory(),
-                    record.getName(),
-                    "Ready for Assignment".equalsIgnoreCase(record.getStatus())
-            );
-            lookup.put(accommodationRoomKey(record.getCategory(), record.getName()), accommodation);
-            categories.add(normalizeLookupValue(record.getCategory()));
-        }
-        accommodationRoomLookup = lookup;
-        accommodationRoomCategoryKeys = categories;
-        return accommodationRoomLookup;
-    }
-
-    private void markAccommodationUsed(String category, String room) {
-        if (accommodationRoomLookup == null) {
-            return;
-        }
-        String key = accommodationRoomKey(category, room);
-        ImportAccommodation accommodation = accommodationRoomLookup.get(key);
-        if (accommodation != null) {
-            accommodationRoomLookup.put(key, new ImportAccommodation(
-                    accommodation.category(),
-                    accommodation.room(),
-                    false
-            ));
-        }
-    }
-
-    private String accommodationRoomKey(String category, String room) {
-        return normalizeLookupValue(category) + "|" + normalizeLookupValue(room);
-    }
-
     private List<AccommodationRecord> importAccommodationRecords() throws SQLException {
         if (importAccommodationRecords == null) {
             importAccommodationRecords = accommodationDao.findAll();
@@ -406,9 +414,12 @@ public class ExcelImportService {
         return headers;
     }
 
-    private void validateHeaders(Map<String, Integer> headers) {
+    private void validateHeaders(Map<String, Integer> headers, ImportType importType) {
         List<String> missing = new ArrayList<>();
-        for (String header : REQUIRED_HEADERS) {
+        List<String> requiredHeaders = importType == ImportType.LEGACY
+                ? LEGACY_REQUIRED_HEADERS
+                : STANDARD_REQUIRED_HEADERS;
+        for (String header : requiredHeaders) {
             if (!headers.containsKey(header)) {
                 missing.add(header);
             }
@@ -457,21 +468,38 @@ public class ExcelImportService {
         if (cell.getCellType() == CellType.NUMERIC && DateUtil.isValidExcelDate(cell.getNumericCellValue())) {
             return DateUtil.getJavaDate(cell.getNumericCellValue());
         }
+        if (cell.getCellType() == CellType.FORMULA && evaluator != null) {
+            CellValue value = evaluator.evaluate(cell);
+            if (value == null) {
+                return null;
+            }
+            if (value.getCellType() == CellType.NUMERIC && DateUtil.isValidExcelDate(value.getNumberValue())) {
+                return DateUtil.getJavaDate(value.getNumberValue());
+            }
+            if (value.getCellType() == CellType.STRING) {
+                return dateTextValue(value.getStringValue());
+            }
+        }
 
         String value = cellText(cell, formatter, evaluator);
-        if (value.isEmpty()) {
+        return dateTextValue(value);
+    }
+
+    private Date dateTextValue(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isEmpty()) {
             return null;
         }
         for (DateTimeFormatter format : DATE_TIME_FORMATS) {
             try {
-                LocalDateTime dateTime = LocalDateTime.parse(value, format);
+                LocalDateTime dateTime = LocalDateTime.parse(text, format);
                 return Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
             } catch (DateTimeParseException ignored) {
             }
         }
         for (DateTimeFormatter format : DATE_FORMATS) {
             try {
-                LocalDate date = LocalDate.parse(value, format);
+                LocalDate date = LocalDate.parse(text, format);
                 return Date.from(date.atTime(LocalTime.MIDNIGHT).atZone(ZoneId.systemDefault()).toInstant());
             } catch (DateTimeParseException ignored) {
             }
@@ -612,12 +640,6 @@ public class ExcelImportService {
     private String friendlySqlMessage(SQLException exception) {
         String message = exception.getMessage();
         return message == null || message.isBlank() ? "Database error while importing row." : message;
-    }
-
-    /**
-     * Record representing an accommodation for import validation.
-     */
-    private record ImportAccommodation(String category, String room, boolean readyForAssignment) {
     }
 
     /**

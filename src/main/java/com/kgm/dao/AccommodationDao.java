@@ -153,6 +153,24 @@ public class AccommodationDao {
         }
     }
 
+    public Long findAnyIdByCategoryAndName(String category, String name) throws SQLException {
+        String sql = """
+                SELECT a.id
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                WHERE c.name = ?
+                  AND a.name = ?
+                """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, category);
+            statement.setString(2, name);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong("id") : null;
+            }
+        }
+    }
+
     public Long findReadyIdByCategoryAndName(String category, String name) throws SQLException {
         String sql = """
                 SELECT a.id

@@ -5,6 +5,7 @@ import com.kgm.dao.AccommodationDao;
 import com.kgm.dao.GuestDao;
 import com.kgm.database.DatabaseInitializer;
 import com.kgm.model.Guest;
+import com.kgm.service.GuestValidationService;
 import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.component.UniversalDatePicker;
@@ -29,6 +30,7 @@ public class AddGuest extends JFrame {
     private static final GuestDao GUEST_DAO = new GuestDao();
     private static final AccommodationDao ACCOMMODATION_DAO = new AccommodationDao();
     private static final AccommodationCategoryDao ACCOMMODATION_CATEGORY_DAO = new AccommodationCategoryDao();
+    private static final GuestValidationService GUEST_VALIDATION_SERVICE = new GuestValidationService();
 
     public AddGuest() {
         setTitle("Add Guest");
@@ -261,10 +263,6 @@ public class AddGuest extends JFrame {
             UniversalDatePicker departureDate,
             JTextArea remarks
     ) {
-        List<String> missingFields = new ArrayList<>();
-        List<String> fieldIssues = new ArrayList<>();
-        String dateIssue = null;
-        String roomIssue = null;
         String guestName = guestNameField.getText().trim();
         String guestCnic = guestCnicField.getText().trim();
         String guestNationality = String.valueOf(guestNationalityCombo.getEditor().getItem()).trim();
@@ -277,55 +275,6 @@ public class AddGuest extends JFrame {
         String accommodation = selectedText(accommodationCombo);
         String room = selectedText(roomCombo);
         String remarksText = remarks.getText().trim();
-
-        if (guestName.isEmpty()) {
-            missingFields.add("Guest Name");
-        }
-        if (guestCnic.isEmpty()) {
-            missingFields.add("Guest CNIC");
-        } else if (!guestCnic.matches("\\d{13}")) {
-            fieldIssues.add("Guest CNIC must contain exactly 13 digits.");
-        }
-        if (guestNationality.isEmpty()) {
-            missingFields.add("Guest Nationality");
-        }
-        if (guestCategory.isEmpty()) {
-            missingFields.add("Guest Category");
-        }
-        if (guestAddress.isEmpty()) {
-            missingFields.add("Guest Address");
-        }
-        if (requestedBy.isEmpty()) {
-            missingFields.add("Requested By");
-        }
-        if (requestedDepartment.isEmpty()) {
-            missingFields.add("Requested Department");
-        }
-        if (approvedBy.isEmpty()) {
-            missingFields.add("Approved By");
-        }
-        if (accommodatedBy.isEmpty()) {
-            missingFields.add("Accommodated By");
-        }
-        if (tenureField.getText().startsWith("Departure must")) {
-            dateIssue = tenureField.getText() + ".";
-        }
-        if (accommodation.isEmpty()) {
-            missingFields.add("Accommodation Category");
-        }
-        if (!accommodation.isEmpty() && (room.isEmpty() || isRoomPlaceholder(room) || !roomCombo.isEnabled())) {
-            roomIssue = "No ready room is available for " + accommodation
-                    + ". Select another accommodation category or mark a room ready in Accommodation Management.";
-        }
-        List<String> validationSections = validationSections(missingFields, fieldIssues, dateIssue, roomIssue);
-        if (!validationSections.isEmpty()) {
-            DialogHelper.errorSections(
-                    parent,
-                    "Guest Details Need Attention",
-                    validationSections.toArray(new String[0])
-            );
-            return;
-        }
 
         Guest guest = new Guest();
         guest.setGuestName(guestName);
@@ -344,6 +293,18 @@ public class AddGuest extends JFrame {
         guest.setRemarks(remarksText.isEmpty() ? "N/A" : remarksText);
 
         try {
+            GuestValidationService.ValidationResult validationResult =
+                    GUEST_VALIDATION_SERVICE.validateStandardGuest(guest);
+            List<String> validationSections = GuestValidationService.dialogSections(validationResult);
+            if (!validationSections.isEmpty()) {
+                DialogHelper.errorSections(
+                        parent,
+                        "Guest Details Need Attention",
+                        validationSections.toArray(new String[0])
+                );
+                return;
+            }
+
             GUEST_DAO.save(guest);
             DialogHelper.success(parent, "Guest added successfully. Record ID: " + guest.getId());
             clearForm(
@@ -366,38 +327,6 @@ public class AddGuest extends JFrame {
         } catch (SQLException exception) {
             DialogHelper.error(parent, "Guest not saved", exception.getMessage());
         }
-    }
-
-    private static List<String> validationSections(
-            List<String> missingFields,
-            List<String> fieldIssues,
-            String dateIssue,
-            String roomIssue
-    ) {
-        List<String> sections = new ArrayList<>();
-        if (!missingFields.isEmpty()) {
-            sections.add(missingFieldsMessage(missingFields));
-        }
-        if (!fieldIssues.isEmpty()) {
-            sections.add("Check field format\n" + String.join("\n", fieldIssues));
-        }
-        if (dateIssue != null) {
-            sections.add("Check stay dates\n" + dateIssue);
-        }
-        if (roomIssue != null) {
-            sections.add("Room availability\n" + roomIssue);
-        }
-        return sections;
-    }
-
-    private static String missingFieldsMessage(List<String> missingFields) {
-        if (missingFields.size() >= 8) {
-            return """
-                    Missing required information
-                    Please complete the required Guest Details, Request Details, Approval Details, and Stay Details before saving.
-                    """;
-        }
-        return "Missing required information\nComplete: " + String.join(", ", missingFields) + ".";
     }
 
     private static String[] accommodationCategoryItems() {
@@ -555,10 +484,6 @@ public class AddGuest extends JFrame {
     private static String selectedText(JComboBox<String> comboBox) {
         Object selected = comboBox.getSelectedItem();
         return selected == null ? "" : String.valueOf(selected).trim();
-    }
-
-    private static boolean isRoomPlaceholder(String value) {
-        return ALL_ROOMS_OCCUPIED.equals(value) || NO_ROOMS_AVAILABLE.equals(value);
     }
 
     private static boolean containsItem(JComboBox<String> comboBox, String value) {

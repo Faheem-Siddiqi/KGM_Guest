@@ -151,8 +151,11 @@ public class ExcelSampleGenerator {
 
                 CellStyle editableStyle = workbook.createCellStyle();
                 editableStyle.setLocked(false);
-                editableStyle.setWrapText(true);
                 unlockColumns(sheet, editableStyle, TEMPLATE_HEADERS.size());
+
+                // Plain style for data rows - no formatting
+                CellStyle plainStyle = workbook.createCellStyle();
+                plainStyle.setLocked(false);
 
                 Row headerRow = sheet.createRow(0);
                 for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
@@ -166,7 +169,7 @@ public class ExcelSampleGenerator {
                     Row row = sheet.createRow(rowIndex + 1);
                     String[] values = rows.get(rowIndex);
                     for (int cellIndex = 0; cellIndex < values.length; cellIndex++) {
-                        textCell(row, cellIndex, values[cellIndex], editableStyle);
+                        textCell(row, cellIndex, values[cellIndex], plainStyle);
                     }
                 }
 
@@ -259,6 +262,10 @@ public class ExcelSampleGenerator {
         return rows;
     }
 
+    private static final String[] VALID_DEPARTMENTS = {
+        "HR", "Admin", "Finance", "Spinning", "Power House", "IT", "Security", "Others (speficy)"
+    };
+
     private static void writeValidValuesSheet(
             Workbook workbook,
             CellStyle headerStyle,
@@ -268,6 +275,11 @@ public class ExcelSampleGenerator {
             List<String> guestCategories
     ) {
         Sheet values = workbook.createSheet("Valid Values");
+        
+        // Create a plain style for data rows (no formatting)
+        CellStyle plainStyle = workbook.createCellStyle();
+        plainStyle.setLocked(false);
+        
         String[] headers = {
                 "Guest Category",
                 "Accommodation Category",
@@ -292,9 +304,9 @@ public class ExcelSampleGenerator {
             coveredCategories.add(accommodation.category());
             Row row = values.createRow(rowIndex++);
             if (guestCategoryIndex < guestCategories.size()) {
-                textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
+                textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
             }
-            writeAccommodationValueRow(row, accommodation, editableStyle);
+            writeAccommodationValueRow(row, accommodation, plainStyle);
         }
 
         for (String category : accommodationCategories) {
@@ -303,17 +315,59 @@ public class ExcelSampleGenerator {
             }
             Row row = values.createRow(rowIndex++);
             if (guestCategoryIndex < guestCategories.size()) {
-                textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
+                textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
             }
-            textCell(row, 1, category, editableStyle);
-            textCell(row, 2, "No active rooms configured", editableStyle);
-            textCell(row, 3, "Not importable", editableStyle);
-            textCell(row, 6, "No", editableStyle);
+            textCell(row, 1, category, plainStyle);
+            textCell(row, 2, "No active rooms configured", plainStyle);
+            textCell(row, 3, "Not importable", plainStyle);
+            textCell(row, 6, "No", plainStyle);
         }
 
         while (guestCategoryIndex < guestCategories.size()) {
             Row row = values.createRow(rowIndex++);
-            textCell(row, 0, guestCategories.get(guestCategoryIndex++), editableStyle);
+            textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
+        }
+
+        // Add blank row for separation
+        values.createRow(rowIndex++);
+        
+        // Add Date Format Instructions
+        Row dateNoteHeader = values.createRow(rowIndex++);
+        Cell dateNoteHeaderCell = dateNoteHeader.createCell(0);
+        dateNoteHeaderCell.setCellValue("Date Format Instructions:");
+        dateNoteHeaderCell.setCellStyle(headerStyle);
+        
+        Row dateNote1 = values.createRow(rowIndex++);
+        textCell(dateNote1, 0, "For Arrival Date Time and Departure Date Time columns:", plainStyle);
+        
+        Row dateNote2 = values.createRow(rowIndex++);
+        textCell(dateNote2, 0, "1. Select the cells containing dates", plainStyle);
+        textCell(dateNote2, 1, "Format: yyyy-MM-dd HH:mm (e.g., 2024-01-15 14:30)", plainStyle);
+        
+        Row dateNote3 = values.createRow(rowIndex++);
+        textCell(dateNote3, 0, "2. Press Ctrl+1 to open Format Cells dialog", plainStyle);
+        
+        Row dateNote4 = values.createRow(rowIndex++);
+        textCell(dateNote4, 0, "3. Go to Number tab > Custom category", plainStyle);
+        
+        Row dateNote5 = values.createRow(rowIndex++);
+        textCell(dateNote5, 0, "4. In Type field, enter: yyyy-MM-dd HH:mm", plainStyle);
+        
+        Row dateNote6 = values.createRow(rowIndex++);
+        textCell(dateNote6, 0, "5. Click OK to apply the format", plainStyle);
+        
+        // Add blank row for separation
+        values.createRow(rowIndex++);
+        
+        // Add Valid Departments Section
+        Row deptHeader = values.createRow(rowIndex++);
+        Cell deptHeaderCell = deptHeader.createCell(0);
+        deptHeaderCell.setCellValue("Valid Departments (for Requested Department column):");
+        deptHeaderCell.setCellStyle(headerStyle);
+        
+        for (String department : VALID_DEPARTMENTS) {
+            Row deptRow = values.createRow(rowIndex++);
+            textCell(deptRow, 0, department, plainStyle);
         }
 
         for (int index = 0; index < headers.length; index++) {

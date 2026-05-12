@@ -236,6 +236,17 @@ public class ExcelImportService {
             throw new RowImportException("Guest CNIC already exists for this arrival date: "
                     + guest.getCnic());
         }
+        if (importType == ImportType.LEGACY
+                && guestDao.existsLegacyGuest(
+                        guest.getGuestName(),
+                        guest.getArrivalAt(),
+                        guest.getDepartureAt(),
+                        guest.getGuestCategory()
+                )) {
+            throw new RowImportException(
+                    "Guest already exists for this guest name, arrival date, departure date, and guest category."
+            );
+        }
     }
 
     private String legacyFingerprint(Guest guest) {

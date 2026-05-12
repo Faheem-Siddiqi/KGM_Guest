@@ -654,6 +654,9 @@ public class HomeView extends JFrame {
         if (reason.startsWith("Guest CNIC already exists for this arrival date:")) {
             return rowPrefix + "Guest CNIC already exists for this arrival date.";
         }
+        if (reason.startsWith("Guest already exists for this guest name, arrival date, departure date, and guest category.")) {
+            return rowPrefix + "Guest already exists.";
+        }
         if (reason.startsWith("This CNIC already has an overlapping guest stay.")) {
             return rowPrefix + "This CNIC already has an overlapping stay. A guest cannot be assigned to more than one room at the same time.";
         }

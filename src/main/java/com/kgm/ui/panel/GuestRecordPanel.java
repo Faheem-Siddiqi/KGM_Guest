@@ -39,6 +39,7 @@ public class GuestRecordPanel extends JPanel {
     public static final int REMARKS = 13;
     public static final int REVIEW = 14;
     public static final int ID = 15;
+    private static final int GUEST_NAME_TABLE_LIMIT = 13;
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final GuestDao guestDao = new GuestDao();
@@ -50,6 +51,8 @@ public class GuestRecordPanel extends JPanel {
     private Timer refreshAnimation;
     private SwingWorker<List<Object[]>, Void> refreshWorker;
     private final Runnable onReportRequest;
+    private final Long accommodationId;
+    private final Runnable onDataChanged;
 
     private final UniversalTablePanel guestTable = new UniversalTablePanel(
             new String[]{"Guest Name", "Arrival", "Departure", "Accommodation", "Requested Department", "Status", "Actions"},
@@ -57,13 +60,27 @@ public class GuestRecordPanel extends JPanel {
     );
 
     public GuestRecordPanel(Consumer<Object[]> onViewGuest) {
-        this(onViewGuest, () -> {
-        });
+        this(onViewGuest, null, null, null);
     }
 
     public GuestRecordPanel(Consumer<Object[]> onViewGuest, Runnable onReportRequest) {
+        this(onViewGuest, onReportRequest, null, null);
+    }
+
+    public GuestRecordPanel(Consumer<Object[]> onViewGuest, Runnable onReportRequest, Long accommodationId) {
+        this(onViewGuest, onReportRequest, accommodationId, null);
+    }
+
+    public GuestRecordPanel(
+            Consumer<Object[]> onViewGuest,
+            Runnable onReportRequest,
+            Long accommodationId,
+            Runnable onDataChanged
+    ) {
         this.onViewGuest = onViewGuest;
         this.onReportRequest = onReportRequest;
+        this.accommodationId = accommodationId;
+        this.onDataChanged = onDataChanged;
         setLayout(new BorderLayout());
         setOpaque(false);
 
@@ -74,6 +91,7 @@ public class GuestRecordPanel extends JPanel {
         );
         guestTable.setActionColumn(6, "View", row -> showGuestDetails(row));
         guestTable.setStatusColumn(5, this::confirmDeleteBooking, this::isUpcomingGuest);
+        guestTable.setHugColumn(0); // Guest Name
         guestTable.setColumnAlignment(1, SwingConstants.CENTER); // Arrival
         guestTable.setColumnAlignment(2, SwingConstants.CENTER); // Departure
         guestTable.setColumnAlignment(3, SwingConstants.CENTER); // Accommodation
@@ -113,7 +131,9 @@ public class GuestRecordPanel extends JPanel {
     private JPanel headerActions() {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         actions.setOpaque(false);
-        actions.add(reportLabel());
+        if (onReportRequest != null) {
+            actions.add(reportLabel());
+        }
         actions.add(refreshButton());
         return actions;
     }
@@ -183,7 +203,10 @@ public class GuestRecordPanel extends JPanel {
 
     private List<Object[]> loadGuestRecords() throws SQLException {
         List<Object[]> records = new ArrayList<>();
-        for (Guest guest : guestDao.findAll()) {
+        List<Guest> guests = accommodationId == null
+                ? guestDao.findAll()
+                : guestDao.findByAccommodationId(accommodationId);
+        for (Guest guest : guests) {
             records.add(toRecord(guest));
         }
         return records;
@@ -371,7 +394,7 @@ public class GuestRecordPanel extends JPanel {
 
     private Object[] toTableRow(Object[] record) {
         return new Object[]{
-                record[NAME],
+                guestNameTableText(record[NAME]),
                 dateTimeText(record[ARRIVAL]),
                 dateTimeText(record[DEPARTURE]),
                 accommodationText(record),
@@ -379,6 +402,14 @@ public class GuestRecordPanel extends JPanel {
                 statusText(record),
                 "View"
         };
+    }
+
+    private String guestNameTableText(Object value) {
+        String text = value == null ? "" : String.valueOf(value).trim();
+        if (text.length() <= GUEST_NAME_TABLE_LIMIT) {
+            return text;
+        }
+        return text.substring(0, GUEST_NAME_TABLE_LIMIT - 2) + "..";
     }
 
     private String accommodationText(Object[] record) {
@@ -452,6 +483,9 @@ public class GuestRecordPanel extends JPanel {
                         visibleRecords.remove(row);
                         allData.remove(record);
                         guestTable.setRows(toTableRows(visibleRecords));
+                        if (onDataChanged != null) {
+                            onDataChanged.run();
+                        }
                         DialogHelper.success(GuestRecordPanel.this, "Booking cancelled successfully. The room has been released.");
                     }
                 } catch (Exception e) {

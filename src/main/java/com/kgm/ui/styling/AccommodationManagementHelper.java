@@ -75,6 +75,14 @@ public final class AccommodationManagementHelper {
     }
 
     public static JPanel screenHeader(Runnable onBack) {
+        return screenHeader(
+                "Accommodation Management",
+                "Manage categories, rooms, staff assignments, and amenity details.",
+                onBack
+        );
+    }
+
+    public static JPanel screenHeader(String titleText, String subtitleText, Runnable onBack) {
         JPanel header = new JPanel(new BorderLayout()) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
@@ -89,11 +97,11 @@ public final class AccommodationManagementHelper {
         titleBlock.setOpaque(false);
         titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
 
-        JLabel title = new JLabel("Accommodation Management");
+        JLabel title = new JLabel(titleText);
         title.setFont(new Font("Segoe UI", Font.BOLD, 24));
         title.setForeground(TEXT_PRIMARY);
 
-        JLabel subtitle = new JLabel("Manage categories, rooms, staff assignments, and amenity details.");
+        JLabel subtitle = new JLabel(subtitleText);
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         subtitle.setForeground(TEXT_SECONDARY);
 

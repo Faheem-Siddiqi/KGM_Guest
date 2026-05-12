@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-    public class AccommodationTablePanel extends JPanel {
+public class AccommodationTablePanel extends JPanel {
     private static final String ALL_CATEGORIES = "All";
     private final List<AccommodationRecord> records = new ArrayList<>();
     private final List<Integer> visibleIndexes = new ArrayList<>();
@@ -21,11 +21,21 @@ import java.util.function.Consumer;
             "No accommodation records yet. Save the form above to create one."
     );
     private final BiConsumer<Integer, AccommodationRecord> onEdit;
+    private final BiConsumer<Integer, AccommodationRecord> onView;
     private List<String> availableCategories = new ArrayList<>();
     private String selectedCategory = "";
 
     public AccommodationTablePanel(BiConsumer<Integer, AccommodationRecord> onEdit) {
+        this(onEdit, (row, accommodation) -> {
+        });
+    }
+
+    public AccommodationTablePanel(
+            BiConsumer<Integer, AccommodationRecord> onEdit,
+            BiConsumer<Integer, AccommodationRecord> onView
+    ) {
         this.onEdit = onEdit;
+        this.onView = onView;
         setLayout(new BorderLayout());
         setOpaque(false);
 
@@ -37,6 +47,10 @@ import java.util.function.Consumer;
         tablePanel.setActionColumn(7, "Edit", row -> {
             int recordIndex = visibleIndexes.get(row);
             this.onEdit.accept(recordIndex, records.get(recordIndex));
+        });
+        tablePanel.setLinkColumn(1, row -> {
+            int recordIndex = visibleIndexes.get(row);
+            this.onView.accept(recordIndex, records.get(recordIndex));
         });
 
         JPanel body = new JPanel(new BorderLayout(0, 12));

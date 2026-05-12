@@ -196,6 +196,51 @@ public class GuestDao {
         return guests;
     }
 
+    public List<Guest> findByAccommodationId(long accommodationId) throws SQLException {
+        String sql = """
+                SELECT
+                    g.id,
+                    g.guest_name,
+                    g.cnic,
+                    g.nationality,
+                    gc.name AS guest_category,
+                    g.address,
+                    g.requested_by,
+                    g.requested_department,
+                    g.approved_by,
+                    g.accommodated_by,
+                    g.arrival_at,
+                    g.departure_at,
+                    g.accommodation_category,
+                    g.room_name,
+                    g.remarks,
+                    g.review
+                FROM guests g
+                JOIN guest_categories gc ON gc.id = g.guest_category_id
+                WHERE g.accommodation_id = ?
+                ORDER BY
+                    CASE
+                        WHEN g.arrival_at > NOW() THEN 0
+                        WHEN g.arrival_at <= NOW() AND g.departure_at > NOW() THEN 1
+                        ELSE 2
+                    END,
+                    CASE WHEN g.arrival_at > NOW() THEN g.arrival_at END ASC,
+                    CASE WHEN g.arrival_at <= NOW() THEN g.arrival_at END DESC,
+                    g.id DESC
+                """;
+        List<Guest> guests = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, accommodationId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    guests.add(mapGuest(resultSet));
+                }
+            }
+        }
+        return guests;
+    }
+
     public List<Guest> findByStayOverlapRange(Date startInclusive, Date endExclusive) throws SQLException {
         String sql = """
                 SELECT

@@ -13,24 +13,34 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class AccommodationManagementPanel extends JPanel {
+    private static final String MANAGEMENT_SCREEN = "management";
+    private static final String ROOM_DETAILS_SCREEN = "roomDetails";
+    private static final String GUEST_DETAILS_SCREEN = "guestDetails";
+
     private final AccommodationDao accommodationDao = new AccommodationDao();
     private AccommodationFormPanel accommodationFormPanel;
     private AccommodationTablePanel accommodationTablePanel;
     private AccommodationCategoryPanel categoryPanel;
     private JScrollPane scroll;
+    private AccommodationRecord selectedAccommodation;
+    private RoomDetailPagePanel roomDetailsPanel;
+    private Component guestDetailsScreen;
     private SwingWorker<List<AccommodationRecord>, Void> loadWorker;
 
     public AccommodationManagementPanel(Runnable onBack) {
         DatabaseInitializer.init();
-        setLayout(new BorderLayout());
+        setLayout(new CardLayout());
         setBackground(AccommodationManagementHelper.PAGE_BACKGROUND);
 
         JPanel page = AccommodationManagementHelper.pagePanel();
 
-        accommodationTablePanel = new AccommodationTablePanel((row, accommodation) -> {
-            accommodationFormPanel.editAccommodation(row, accommodation);
-            scrollToSection(accommodationFormPanel);
-        });
+        accommodationTablePanel = new AccommodationTablePanel(
+                (row, accommodation) -> {
+                    accommodationFormPanel.editAccommodation(row, accommodation);
+                    scrollToSection(accommodationFormPanel);
+                },
+                (row, accommodation) -> showRoomDetails(accommodation)
+        );
         accommodationFormPanel = new AccommodationFormPanel(
                 this::saveAccommodation,
                 this::updateAccommodation
@@ -69,7 +79,7 @@ public class AccommodationManagementPanel extends JPanel {
         scroll.setBorder(null);
         scroll.getViewport().setBackground(Color.WHITE);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
-        add(scroll, BorderLayout.CENTER);
+        add(scroll, MANAGEMENT_SCREEN);
 
         SwingUtilities.invokeLater(() -> {
             scroll.getVerticalScrollBar().setValue(0);
@@ -77,6 +87,56 @@ public class AccommodationManagementPanel extends JPanel {
         });
 
         loadAccommodations();
+    }
+
+    private void showRoomDetails(AccommodationRecord accommodation) {
+        selectedAccommodation = accommodation;
+        if (roomDetailsPanel != null) {
+            remove(roomDetailsPanel);
+        }
+        roomDetailsPanel = new RoomDetailPagePanel(
+                accommodation,
+                this::showManagementScreen,
+                this::showGuestDetails
+        );
+        add(roomDetailsPanel, ROOM_DETAILS_SCREEN);
+        showScreen(ROOM_DETAILS_SCREEN);
+    }
+
+    private void showGuestDetails(Object[] guestRecord) {
+        if (guestDetailsScreen != null) {
+            remove(guestDetailsScreen);
+        }
+        guestDetailsScreen = new GuestDetailsPanel(
+                guestRecord,
+                this::showSelectedRoomDetails,
+                this::refreshSelectedRoomDetails
+        );
+        add(guestDetailsScreen, GUEST_DETAILS_SCREEN);
+        showScreen(GUEST_DETAILS_SCREEN);
+    }
+
+    private void showSelectedRoomDetails() {
+        showScreen(ROOM_DETAILS_SCREEN);
+    }
+
+    private void refreshSelectedRoomDetails() {
+        if (roomDetailsPanel != null) {
+            roomDetailsPanel.refreshData();
+        } else if (selectedAccommodation != null) {
+            showRoomDetails(selectedAccommodation);
+        }
+    }
+
+    private void showManagementScreen() {
+        showScreen(MANAGEMENT_SCREEN);
+    }
+
+    private void showScreen(String name) {
+        CardLayout layout = (CardLayout) getLayout();
+        layout.show(this, name);
+        revalidate();
+        repaint();
     }
 
     private void loadAccommodations() {

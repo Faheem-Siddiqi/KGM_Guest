@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.ui.styling.AccommodationManagementHelper;
+import com.kgm.ui.styling.RoomDetailHelper;
 
 import javax.swing.*;
 import javax.swing.border.AbstractBorder;
@@ -15,7 +16,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class UniversalTablePanel extends JPanel {
@@ -26,6 +29,7 @@ public class UniversalTablePanel extends JPanel {
     private final JTable table;
     private final DefaultTableModel model;
     private final List<Object[]> rows = new ArrayList<>();
+    private final Set<Integer> hugColumns = new HashSet<>();
     private final JPanel content = new JPanel(new BorderLayout());
     private final JLabel rangeLabel = new JLabel();
     private final JButton previousButton = new JButton("Previous");
@@ -36,6 +40,9 @@ public class UniversalTablePanel extends JPanel {
     private Consumer<Integer> statusDeleteAction;
     private java.util.function.Predicate<Integer> statusDeletePredicate;
     private int statusColumn = -1;
+    private int linkColumn = -1;
+    private Consumer<Integer> onLink;
+    private int hoveredLinkRow = -1;
     private boolean hugRows = true;
     private boolean paginationEnabled = true;
     private int currentPage = 0;
@@ -59,12 +66,17 @@ public class UniversalTablePanel extends JPanel {
 
         table.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent event) {
+                int row = table.rowAtPoint(event.getPoint());
+                int column = table.columnAtPoint(event.getPoint());
+                if (isLinkCell(row, column) && onLink != null) {
+                    onLink.accept(toAbsoluteRow(row));
+                    return;
+                }
+
                 if (actionColumn < 0 || onAction == null) {
                     return;
                 }
 
-                int row = table.rowAtPoint(event.getPoint());
-                int column = table.columnAtPoint(event.getPoint());
                 if (row < 0 || column != actionColumn) {
                     return;
                 }
@@ -76,12 +88,17 @@ public class UniversalTablePanel extends JPanel {
             public void mouseMoved(MouseEvent event) {
                 int row = table.rowAtPoint(event.getPoint());
                 int column = table.columnAtPoint(event.getPoint());
+                updateHoveredLink(row, column);
+                boolean hoveringLink = isLinkCell(row, column);
                 boolean hoveringAction = actionColumn >= 0 && row >= 0 && column == actionColumn;
-                table.setCursor(Cursor.getPredefinedCursor(hoveringAction ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+                table.setCursor(Cursor.getPredefinedCursor(
+                        hoveringLink || hoveringAction ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR
+                ));
             }
         });
         table.addMouseListener(new MouseAdapter() {
             public void mouseExited(MouseEvent event) {
+                updateHoveredLink(-1, -1);
                 table.setCursor(Cursor.getDefaultCursor());
             }
         });
@@ -155,6 +172,33 @@ public class UniversalTablePanel extends JPanel {
             }
         };
         table.getColumnModel().getColumn(column).setCellRenderer(renderer);
+    }
+
+    public void setHugColumn(int column) {
+        hugColumns.add(column);
+        configureColumnWidths();
+    }
+
+    public void setLinkColumn(int column, Consumer<Integer> onLink) {
+        this.linkColumn = column;
+        this.onLink = onLink;
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                String text = value == null ? "" : String.valueOf(value);
+                RoomDetailHelper.styleTableLink(label, table, isSelected, row == hoveredLinkRow, text);
+                return label;
+            }
+        };
+        table.getColumnModel().getColumn(column).setCellRenderer(renderer);
+        configureColumnWidths();
     }
 
     public void setStatusColumn(int column) {
@@ -268,8 +312,12 @@ public class UniversalTablePanel extends JPanel {
                 }
                 
                 // Reset cursor for other areas
+                updateHoveredLink(viewRow, viewColumn);
+                boolean hoveringLink = isLinkCell(viewRow, viewColumn);
                 boolean hoveringAction = actionColumn >= 0 && viewRow >= 0 && viewColumn == actionColumn;
-                table.setCursor(Cursor.getPredefinedCursor(hoveringAction ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+                table.setCursor(Cursor.getPredefinedCursor(
+                        hoveringLink || hoveringAction ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR
+                ));
             }
         });
     }
@@ -491,14 +539,26 @@ public class UniversalTablePanel extends JPanel {
             totalWidth += width;
         }
 
-        if (totalWidth < availableWidth && columns > 0) {
+        int stretchColumns = 0;
+        for (int column = 0; column < columns; column++) {
+            if (!hugColumns.contains(column)) {
+                stretchColumns++;
+            }
+        }
+
+        if (totalWidth < availableWidth && stretchColumns > 0) {
             int extra = availableWidth - totalWidth;
-            int baseExtra = extra / columns;
-            int remainder = extra % columns;
+            int baseExtra = extra / stretchColumns;
+            int remainder = extra % stretchColumns;
+            int stretchIndex = 0;
             for (int column = 0; column < columns; column++) {
+                if (hugColumns.contains(column)) {
+                    continue;
+                }
                 int currentWidth = table.getColumnModel().getColumn(column).getPreferredWidth();
-                int addedWidth = baseExtra + (column < remainder ? 1 : 0);
+                int addedWidth = baseExtra + (stretchIndex < remainder ? 1 : 0);
                 table.getColumnModel().getColumn(column).setPreferredWidth(currentWidth + addedWidth);
+                stretchIndex++;
             }
             totalWidth = availableWidth;
         }
@@ -561,6 +621,23 @@ public class UniversalTablePanel extends JPanel {
     private int toAbsoluteRow(int pageRow) {
         int offset = paginationEnabled ? currentPage * PAGE_SIZE : 0;
         return offset + table.convertRowIndexToModel(pageRow);
+    }
+
+    private boolean isLinkCell(int viewRow, int viewColumn) {
+        return linkColumn >= 0
+                && onLink != null
+                && viewRow >= 0
+                && viewColumn >= 0
+                && table.convertColumnIndexToModel(viewColumn) == linkColumn;
+    }
+
+    private void updateHoveredLink(int viewRow, int viewColumn) {
+        int nextHoveredRow = isLinkCell(viewRow, viewColumn) ? viewRow : -1;
+        if (hoveredLinkRow == nextHoveredRow) {
+            return;
+        }
+        hoveredLinkRow = nextHoveredRow;
+        table.repaint();
     }
 
     private void goToPage(int page) {

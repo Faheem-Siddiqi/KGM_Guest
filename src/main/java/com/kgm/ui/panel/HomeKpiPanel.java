@@ -73,7 +73,7 @@ public class HomeKpiPanel extends JPanel {
     }
 
     private String monthlyOccupancyDetail(int occupancyPercent) {
-        return "Monthly occupancy rate: " + occupancyPercent + "%";
+        return "This month occupancy rate: " + occupancyPercent + "%";
     }
 
     private String stayDurationText(double averageStayHours) {

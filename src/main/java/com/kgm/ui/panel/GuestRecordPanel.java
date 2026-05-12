@@ -3,6 +3,7 @@ package com.kgm.ui.panel;
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
 import com.kgm.service.GuestValidationService;
+import com.kgm.ui.component.UniversalDateRangePicker;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
@@ -12,6 +13,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
@@ -40,6 +42,7 @@ public class GuestRecordPanel extends JPanel {
     public static final int REVIEW = 14;
     public static final int ID = 15;
     private static final int GUEST_NAME_TABLE_LIMIT = 13;
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final GuestDao guestDao = new GuestDao();
@@ -254,12 +257,18 @@ public class GuestRecordPanel extends JPanel {
     }
 
     public void search(String query, String status, String date) {
+        search(query, status, singleDateRange(date));
+    }
+
+    public void search(String query, String status, UniversalDateRangePicker.DateRange dateRange) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
         String normalizedStatus = status == null ? "All Status" : status.trim();
-        String normalizedDate = date == null ? "" : date.trim();
+        UniversalDateRangePicker.DateRange normalizedDateRange = dateRange == null
+                ? UniversalDateRangePicker.DateRange.empty()
+                : dateRange.normalized();
 
         boolean hasStatus = !normalizedStatus.equalsIgnoreCase("All Status");
-        boolean hasDate = !normalizedDate.isEmpty();
+        boolean hasDate = !normalizedDateRange.isEmpty();
 
         if (normalizedQuery.isEmpty() && !hasStatus && !hasDate) {
             reset();
@@ -270,11 +279,23 @@ public class GuestRecordPanel extends JPanel {
         for (Object[] record : allData) {
             if (recordMatches(record, normalizedQuery)
                     && statusMatches(record, normalizedStatus)
-                    && dateMatches(record, normalizedDate)) {
+                    && dateMatches(record, normalizedDateRange)) {
                 filteredRecords.add(record);
             }
         }
         setVisibleRecords(filteredRecords);
+    }
+
+    private UniversalDateRangePicker.DateRange singleDateRange(String date) {
+        String text = date == null ? "" : date.trim();
+        if (text.isEmpty()) {
+            return UniversalDateRangePicker.DateRange.empty();
+        }
+        try {
+            return UniversalDateRangePicker.DateRange.single(LocalDate.parse(text, DATE));
+        } catch (DateTimeParseException exception) {
+            return UniversalDateRangePicker.DateRange.empty();
+        }
     }
 
     public void reset() {
@@ -318,10 +339,23 @@ public class GuestRecordPanel extends JPanel {
         return statusText(record).equalsIgnoreCase(status);
     }
 
-    private boolean dateMatches(Object[] record, String date) {
-        return date.isEmpty()
-                || String.valueOf(record[ARRIVAL]).startsWith(date)
-                || String.valueOf(record[DEPARTURE]).startsWith(date);
+    private boolean dateMatches(Object[] record, UniversalDateRangePicker.DateRange dateRange) {
+        if (dateRange == null || dateRange.isEmpty()) {
+            return true;
+        }
+        LocalDate startDate = dateRange.startDate();
+        LocalDate endDate = dateRange.endDate();
+        if (startDate == null || endDate == null) {
+            return true;
+        }
+        LocalDateTime arrival = parseDateTime(record[ARRIVAL]);
+        LocalDateTime departure = parseDateTime(record[DEPARTURE]);
+        if (arrival == null || departure == null) {
+            return false;
+        }
+        LocalDateTime rangeStart = startDate.atStartOfDay();
+        LocalDateTime rangeEndExclusive = endDate.plusDays(1).atStartOfDay();
+        return arrival.isBefore(rangeEndExclusive) && departure.isAfter(rangeStart);
     }
 
     private String dateTimeText(Object value) {

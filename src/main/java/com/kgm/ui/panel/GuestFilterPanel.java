@@ -1,20 +1,19 @@
 package com.kgm.ui.panel;
 
+import com.kgm.ui.component.UniversalDateRangePicker;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.util.Date;
 
 public class GuestFilterPanel extends JPanel {
     private final JTextField searchField = new JTextField();
     private final JComboBox<String> statusFilter = HomeViewHelper.combo(
             "All Status", "Currently Staying", "Departed", "Upcoming"
     );
-    private final JSpinner dateFilter = HomeViewHelper.dateSpinner(new Date());
-    private final JCheckBox useDateFilter = HomeViewHelper.checkBox("Use Date");
+    private final UniversalDateRangePicker dateRangeFilter = new UniversalDateRangePicker();
     private final JButton clearButton = HomeViewHelper.textButton("CLEAR");
     private boolean suppressFilterEvents;
 
@@ -37,13 +36,6 @@ public class GuestFilterPanel extends JPanel {
 
         JButton searchButton = HomeViewHelper.textButton("SEARCH");
 
-        dateFilter.setEnabled(false);
-        useDateFilter.addActionListener(e -> {
-            dateFilter.setEnabled(useDateFilter.isSelected());
-            updateClearButtonState();
-            runFilter(onSearch);
-        });
-
         searchField.addActionListener(e -> onSearch.run());
         searchField.setToolTipText("Search by guest name or CNIC");
         searchField.getAccessibleContext().setAccessibleName("Search by guest name or CNIC");
@@ -52,11 +44,9 @@ public class GuestFilterPanel extends JPanel {
             updateClearButtonState();
             runFilter(onSearch);
         });
-        dateFilter.addChangeListener(e -> {
+        dateRangeFilter.addRangeChangeListener(() -> {
             updateClearButtonState();
-            if (useDateFilter.isSelected()) {
-                runFilter(onSearch);
-            }
+            runFilter(onSearch);
         });
         clearButton.addActionListener(e -> {
             onClear.run();
@@ -126,14 +116,13 @@ public class GuestFilterPanel extends JPanel {
         block.setOpaque(false);
         block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
 
-        JLabel label = HomeViewHelper.label("Date");
+        JLabel label = HomeViewHelper.label("Date Range");
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.add(useDateFilter);
-        row.add(HomeViewHelper.styleField(dateFilter, 150));
+        row.add(dateRangeFilter);
 
         block.add(label);
         block.add(Box.createVerticalStrut(6));
@@ -150,7 +139,11 @@ public class GuestFilterPanel extends JPanel {
     }
 
     public String getDateText() {
-        return useDateFilter.isSelected() ? HomeViewHelper.dateText(dateFilter) : "";
+        return dateRangeFilter.getFilterText();
+    }
+
+    public UniversalDateRangePicker.DateRange getDateRange() {
+        return dateRangeFilter.getDateRange();
     }
 
     public void clearSearch() {
@@ -158,9 +151,7 @@ public class GuestFilterPanel extends JPanel {
         try {
             searchField.setText("");
             statusFilter.setSelectedIndex(0);
-            useDateFilter.setSelected(false);
-            dateFilter.setValue(new Date());
-            dateFilter.setEnabled(false);
+            dateRangeFilter.clearRange();
             updateClearButtonState();
         } finally {
             suppressFilterEvents = false;
@@ -176,6 +167,6 @@ public class GuestFilterPanel extends JPanel {
     private void updateClearButtonState() {
         boolean hasSearchText = !searchField.getText().trim().isEmpty();
         boolean hasStatusFilter = statusFilter.getSelectedIndex() > 0;
-        HomeViewHelper.setTextButtonEnabled(clearButton, hasSearchText || hasStatusFilter || useDateFilter.isSelected());
+        HomeViewHelper.setTextButtonEnabled(clearButton, hasSearchText || hasStatusFilter || dateRangeFilter.hasSelection());
     }
 }

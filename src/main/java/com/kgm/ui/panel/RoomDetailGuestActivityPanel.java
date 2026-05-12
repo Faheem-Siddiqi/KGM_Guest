@@ -46,7 +46,7 @@ public class RoomDetailGuestActivityPanel extends JPanel {
         guestRecordPanel.search(
                 guestFilterPanel.getSearchText(),
                 guestFilterPanel.getStatusText(),
-                guestFilterPanel.getDateText()
+                guestFilterPanel.getDateRange()
         );
     }
 

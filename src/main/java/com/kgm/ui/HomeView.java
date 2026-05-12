@@ -383,7 +383,7 @@ public class HomeView extends JFrame {
         guestRecordPanel.search(
                 guestFilterPanel.getSearchText(),
                 guestFilterPanel.getStatusText(),
-                guestFilterPanel.getDateText()
+                guestFilterPanel.getDateRange()
         );
     }
     private void clearSearch() {

@@ -59,9 +59,9 @@ public class HomeKpiPanel extends JPanel {
                 false
         ));
         kpiGrid.add(HomeViewHelper.kpiCard(
-                "Monthly Peak Arrival Time",
-                stats.peakArrival(),
-                "Highest check-in window this month",
+                "Avg Arrival Time",
+                stats.averageArrivalTime(),
+                "Arrived guests only",
                 HomeViewHelper.KPI_ROSE_DARK,
                 HomeViewHelper.KPI_ROSE_LIGHT,
                 false

@@ -12,24 +12,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DashboardDao {
-    private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("h:00 a");
+    private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a");
 
     public DashboardStats loadStats() throws SQLException {
         String sql = """
                 SELECT
                     (SELECT COALESCE(SUM(capacity), 0)
-                     FROM accommodations
-                     WHERE active = TRUE) AS total_seats,
+                     FROM accommodations a
+                     WHERE a.active = TRUE) AS total_seats,
+                    (SELECT COALESCE(SUM(LEAST(COALESCE(occupied.current_guests, 0), a.capacity)), 0)
+                     FROM accommodations a
+                     LEFT JOIN (
+                         SELECT accommodation_id, COUNT(*) AS current_guests
+                         FROM guests
+                         WHERE arrival_at <= NOW()
+                           AND departure_at >= NOW()
+                         GROUP BY accommodation_id
+                     ) occupied ON occupied.accommodation_id = a.id
+                     WHERE a.active = TRUE) AS occupied_seats,
                     (SELECT COUNT(*)
-                     FROM guests
-                     WHERE arrival_at <= NOW()
-                       AND departure_at >= NOW()) AS occupied_seats,
-                    (SELECT COUNT(*)
-                     FROM guests
-                     WHERE arrival_at > NOW()) AS reserved_seats,
+                     FROM guests g
+                     JOIN accommodations a ON a.id = g.accommodation_id
+                     WHERE a.active = TRUE
+                       AND g.arrival_at > NOW()) AS reserved_seats,
                     (SELECT COALESCE(AVG(TIMESTAMPDIFF(MINUTE, g.arrival_at, g.departure_at)), 0)
                      FROM guests g
-                     WHERE g.departure_at >= g.arrival_at
+                     JOIN accommodations a ON a.id = g.accommodation_id
+                     WHERE a.active = TRUE
+                       AND g.departure_at >= g.arrival_at
                        AND g.arrival_at >= month_bounds.month_start
                        AND g.arrival_at < month_bounds.next_month) AS monthly_average_minutes,
                     (SELECT COALESCE(SUM(TIMESTAMPDIFF(
@@ -38,18 +49,18 @@ public class DashboardDao {
                             LEAST(g.departure_at, month_bounds.next_month)
                      )), 0)
                      FROM guests g
-                     WHERE g.arrival_at < month_bounds.next_month
+                     JOIN accommodations a ON a.id = g.accommodation_id
+                     WHERE a.active = TRUE
+                       AND g.arrival_at < month_bounds.next_month
                        AND g.departure_at > month_bounds.month_start
                        AND g.departure_at > g.arrival_at) AS monthly_occupied_minutes,
                     TIMESTAMPDIFF(MINUTE, month_bounds.month_start, month_bounds.next_month)
                         AS monthly_minutes_per_seat,
-                    (SELECT HOUR(g.arrival_at)
+                    (SELECT AVG(HOUR(g.arrival_at) * 60 + MINUTE(g.arrival_at))
                      FROM guests g
-                     WHERE g.arrival_at >= month_bounds.month_start
-                       AND g.arrival_at < month_bounds.next_month
-                     GROUP BY HOUR(g.arrival_at)
-                     ORDER BY COUNT(*) DESC, HOUR(g.arrival_at)
-                     LIMIT 1) AS monthly_peak_arrival_hour
+                     JOIN accommodations a ON a.id = g.accommodation_id
+                     WHERE a.active = TRUE
+                       AND g.arrival_at <= NOW()) AS average_arrival_minutes
                 FROM (
                     SELECT
                         CAST(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AS DATETIME) AS month_start,
@@ -71,21 +82,32 @@ public class DashboardDao {
         String sql = """
                 SELECT
                     (SELECT COALESCE(SUM(capacity), 0)
-                     FROM accommodations
-                     WHERE id = ?
-                       AND active = TRUE) AS total_seats,
+                     FROM accommodations a
+                     WHERE a.id = ?
+                       AND a.active = TRUE) AS total_seats,
+                    (SELECT COALESCE(SUM(LEAST(COALESCE(occupied.current_guests, 0), a.capacity)), 0)
+                     FROM accommodations a
+                     LEFT JOIN (
+                         SELECT accommodation_id, COUNT(*) AS current_guests
+                         FROM guests
+                         WHERE accommodation_id = ?
+                           AND arrival_at <= NOW()
+                           AND departure_at >= NOW()
+                         GROUP BY accommodation_id
+                     ) occupied ON occupied.accommodation_id = a.id
+                     WHERE a.id = ?
+                       AND a.active = TRUE) AS occupied_seats,
                     (SELECT COUNT(*)
-                     FROM guests
-                     WHERE accommodation_id = ?
-                       AND arrival_at <= NOW()
-                       AND departure_at >= NOW()) AS occupied_seats,
-                    (SELECT COUNT(*)
-                     FROM guests
-                     WHERE accommodation_id = ?
-                       AND arrival_at > NOW()) AS reserved_seats,
+                     FROM guests g
+                     JOIN accommodations a ON a.id = g.accommodation_id
+                     WHERE g.accommodation_id = ?
+                       AND a.active = TRUE
+                       AND g.arrival_at > NOW()) AS reserved_seats,
                     (SELECT COALESCE(AVG(TIMESTAMPDIFF(MINUTE, g.arrival_at, g.departure_at)), 0)
                      FROM guests g
+                     JOIN accommodations a ON a.id = g.accommodation_id
                      WHERE g.accommodation_id = ?
+                       AND a.active = TRUE
                        AND g.departure_at >= g.arrival_at
                        AND g.arrival_at >= month_bounds.month_start
                        AND g.arrival_at < month_bounds.next_month) AS monthly_average_minutes,
@@ -95,30 +117,30 @@ public class DashboardDao {
                             LEAST(g.departure_at, month_bounds.next_month)
                      )), 0)
                      FROM guests g
+                     JOIN accommodations a ON a.id = g.accommodation_id
                      WHERE g.accommodation_id = ?
+                       AND a.active = TRUE
                        AND g.arrival_at < month_bounds.next_month
                        AND g.departure_at > month_bounds.month_start
                        AND g.departure_at > g.arrival_at) AS monthly_occupied_minutes,
                     TIMESTAMPDIFF(MINUTE, month_bounds.month_start, month_bounds.next_month)
                         AS monthly_minutes_per_seat,
-                    (SELECT HOUR(g.arrival_at)
+                    (SELECT AVG(HOUR(g.arrival_at) * 60 + MINUTE(g.arrival_at))
                      FROM guests g
+                     JOIN accommodations a ON a.id = g.accommodation_id
                      WHERE g.accommodation_id = ?
-                       AND g.arrival_at >= month_bounds.month_start
-                       AND g.arrival_at < month_bounds.next_month
-                     GROUP BY HOUR(g.arrival_at)
-                     ORDER BY COUNT(*) DESC, HOUR(g.arrival_at)
-                     LIMIT 1) AS monthly_peak_arrival_hour
+                       AND a.active = TRUE
+                       AND g.arrival_at <= NOW()) AS average_arrival_minutes
                 FROM (
                     SELECT
                         CAST(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AS DATETIME) AS month_start,
                         DATE_ADD(CAST(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AS DATETIME), INTERVAL 1 MONTH)
                             AS next_month
                 ) month_bounds
-                """;
+        """;
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            for (int index = 1; index <= 6; index++) {
+            for (int index = 1; index <= 7; index++) {
                 statement.setLong(index, accommodationId);
             }
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -143,10 +165,8 @@ public class DashboardDao {
                 monthlyMinutesPerSeat
         );
         double averageStayHours = resultSet.getDouble("monthly_average_minutes") / 60.0;
-        Object peakHour = resultSet.getObject("monthly_peak_arrival_hour");
-        String peakArrival = peakHour instanceof Number number
-                ? LocalTime.of(number.intValue(), 0).format(HOUR_FORMAT)
-                : "-";
+        double averageArrivalMinutes = resultSet.getDouble("average_arrival_minutes");
+        String averageArrival = resultSet.wasNull() ? "-" : arrivalTimeText(averageArrivalMinutes);
         return new DashboardStats(
                 totalSeats,
                 vacantSeats,
@@ -154,8 +174,14 @@ public class DashboardDao {
                 reservedSeats,
                 occupancyPercent,
                 averageStayHours,
-                peakArrival
+                averageArrival
         );
+    }
+
+    private String arrivalTimeText(double averageArrivalMinutes) {
+        int roundedMinutes = (int) Math.round(averageArrivalMinutes);
+        int dayMinute = Math.floorMod(roundedMinutes, MINUTES_PER_DAY);
+        return LocalTime.of(dayMinute / 60, dayMinute % 60).format(TIME_FORMAT);
     }
 
     private int monthlyOccupancyPercent(
@@ -167,7 +193,8 @@ public class DashboardDao {
             return 0;
         }
         double monthlyAvailableMinutes = totalSeats * (double) monthlyMinutesPerSeat;
-        return (int) Math.round((monthlyOccupiedMinutes * 100.0) / monthlyAvailableMinutes);
+        int occupancyPercent = (int) Math.round((monthlyOccupiedMinutes * 100.0) / monthlyAvailableMinutes);
+        return Math.max(0, Math.min(100, occupancyPercent));
     }
 
     public OccupancyChartData loadOccupancyChart() throws SQLException {
@@ -298,7 +325,7 @@ public class DashboardDao {
             int reservedSeats,
             int occupancyPercent,
             double averageStayHours,
-            String peakArrival
+            String averageArrivalTime
     ) {
         public int upcomingGuests() {
             return reservedSeats;

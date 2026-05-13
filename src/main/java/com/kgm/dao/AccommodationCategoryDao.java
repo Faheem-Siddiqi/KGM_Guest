@@ -15,10 +15,12 @@ public class AccommodationCategoryDao {
         String sql = "SELECT name FROM accommodation_categories WHERE active = TRUE ORDER BY name";
         List<String> categories = new ArrayList<>();
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
-                categories.add(resultSet.getString("name"));
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            purgeInactiveUnusedCategories(connection);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    categories.add(resultSet.getString("name"));
+                }
             }
         }
         return categories;
@@ -63,22 +65,69 @@ public class AccommodationCategoryDao {
     }
 
     public void deleteByName(String name) throws SQLException {
-        String sql = "UPDATE accommodation_categories SET active = FALSE WHERE name = ?";
+        String normalized = normalize(name);
+        if (normalized.isEmpty()) {
+            throw new SQLException("Accommodation category name is required.");
+        }
+
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, normalize(name));
-            statement.executeUpdate();
+             PreparedStatement statement = connection.prepareStatement(
+                     "DELETE FROM accommodation_categories WHERE id = ?"
+             )) {
+            Long categoryId = findIdByName(connection, normalized);
+            if (categoryId == null) {
+                throw new SQLException("Accommodation category was not found.");
+            }
+            if (hasAccommodationReferences(connection, categoryId)) {
+                throw new SQLException(
+                        "This category cannot be deleted because one or more accommodations still use it. "
+                                + "Move or remove those accommodations first."
+                );
+            }
+
+            statement.setLong(1, categoryId);
+            if (statement.executeUpdate() == 0) {
+                throw new SQLException("Accommodation category was not deleted.");
+            }
         }
     }
 
     private Long findIdByName(String name) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return findIdByName(connection, name);
+        }
+    }
+
+    private Long findIdByName(Connection connection, String name) throws SQLException {
         String sql = "SELECT id FROM accommodation_categories WHERE name = ?";
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, name);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next() ? resultSet.getLong("id") : null;
             }
+        }
+    }
+
+    private boolean hasAccommodationReferences(Connection connection, long categoryId) throws SQLException {
+        String sql = "SELECT COUNT(*) AS accommodation_count FROM accommodations WHERE category_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, categoryId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() && resultSet.getInt("accommodation_count") > 0;
+            }
+        }
+    }
+
+    private void purgeInactiveUnusedCategories(Connection connection) throws SQLException {
+        String sql = """
+                DELETE c
+                FROM accommodation_categories c
+                LEFT JOIN accommodations a ON a.category_id = c.id
+                WHERE c.active = FALSE
+                  AND a.id IS NULL
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.executeUpdate();
         }
     }
 

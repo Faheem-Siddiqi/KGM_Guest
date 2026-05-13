@@ -29,6 +29,8 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 public class HomeView extends JFrame {
     private static final int DASHBOARD_TAB = 0;
@@ -38,11 +40,18 @@ public class HomeView extends JFrame {
     private static final int DASHBOARD_REFRESH_DELAY_MS = 5000;
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
+    private static final String HIDDEN_HOUSE_CAPACITY_CATEGORY = "Security Block";
     private static final DateTimeFormatter REPORT_FILE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private GuestFilterPanel guestFilterPanel;
     private GuestRecordPanel guestRecordPanel;
     private HomeKpiPanel homeKpiPanel;
     private final DashboardDao dashboardDao = new DashboardDao();
+    private final DashboardDao houseCapacityDashboardDao = new DashboardDao() {
+        @Override
+        public OccupancyChartData loadOccupancyChart(String category) throws SQLException {
+            return loadHouseCapacityOccupancyChart(category);
+        }
+    };
     private final ExcelImportService excelImportService = new ExcelImportService();
     private final GuestReportService guestReportService = new GuestReportService();
     private JPanel dashboardScreens;
@@ -196,10 +205,10 @@ public class HomeView extends JFrame {
             @Override
             protected DashboardData doInBackground() throws Exception {
                 DashboardDao.DashboardStats stats = dashboardDao.loadStats();
-                DashboardDao.OccupancyChartData occupancyData = dashboardDao.loadOccupancyChart(
-                        defaultOccupancyCategory(dashboardDao.loadAccommodationCategories())
+                String[] categories = visibleHouseCapacityCategories(dashboardDao.loadAccommodationCategories());
+                DashboardDao.OccupancyChartData occupancyData = loadHouseCapacityOccupancyChart(
+                        defaultOccupancyCategory(categories)
                 );
-                String[] categories = dashboardDao.loadAccommodationCategories();
                 DashboardDao.DepartmentChartData departmentData = dashboardDao.loadDepartmentChart();
                 return new DashboardData(stats, occupancyData, categories, departmentData);
             }
@@ -261,7 +270,7 @@ public class HomeView extends JFrame {
         JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 16));
         graphs.setOpaque(false);
         graphs.setPreferredSize(new Dimension(0, 360));
-        graphs.add(graphScroll(new HouseOccupancyGraphPanel(dashboardDao, occupancyData, categories)));
+        graphs.add(graphScroll(new HouseOccupancyGraphPanel(houseCapacityDashboardDao, occupancyData, categories)));
         graphs.add(graphScroll(new DepartmentAnalysisGraphPanel(departmentData)));
         return graphs;
     }
@@ -399,7 +408,7 @@ public class HomeView extends JFrame {
         graphs.setPreferredSize(new Dimension(0, 360));
         String[] accommodationCategories = loadAccommodationCategories();
         graphs.add(graphScroll(new HouseOccupancyGraphPanel(
-                dashboardDao,
+                houseCapacityDashboardDao,
                 loadOccupancyChart(defaultOccupancyCategory(accommodationCategories)),
                 accommodationCategories
         )));
@@ -921,20 +930,72 @@ public class HomeView extends JFrame {
     }
     private DashboardDao.OccupancyChartData loadOccupancyChart(String category) {
         try {
-            return dashboardDao.loadOccupancyChart(category);
+            return loadHouseCapacityOccupancyChart(category);
         } catch (SQLException exception) {
             return new DashboardDao.OccupancyChartData(new String[0], new int[0], new int[0]);
         }
     }
     private String[] loadAccommodationCategories() {
         try {
-            return dashboardDao.loadAccommodationCategories();
+            return visibleHouseCapacityCategories(dashboardDao.loadAccommodationCategories());
         } catch (SQLException exception) {
             return new String[0];
         }
     }
     private String defaultOccupancyCategory(String[] categories) {
         return categories.length == 0 ? "" : categories[0];
+    }
+    private DashboardDao.OccupancyChartData loadHouseCapacityOccupancyChart(String category) throws SQLException {
+        if (isHiddenHouseCapacityCategory(category)) {
+            return new DashboardDao.OccupancyChartData(new String[0], new int[0], new int[0]);
+        }
+        return visibleHouseCapacityData(dashboardDao.loadOccupancyChart(category));
+    }
+    private String[] visibleHouseCapacityCategories(String[] categories) {
+        List<String> visibleCategories = new ArrayList<>();
+        for (String category : categories) {
+            if (!isHiddenHouseCapacityCategory(category)) {
+                visibleCategories.add(category);
+            }
+        }
+        return visibleCategories.toArray(new String[0]);
+    }
+    private DashboardDao.OccupancyChartData visibleHouseCapacityData(DashboardDao.OccupancyChartData data) {
+        List<String> labels = new ArrayList<>();
+        List<Integer> capacity = new ArrayList<>();
+        List<Integer> occupied = new ArrayList<>();
+        String[] dataLabels = data.labels();
+        int[] dataCapacity = data.capacity();
+        int[] dataOccupied = data.occupied();
+        for (int index = 0; index < dataLabels.length; index++) {
+            if (isHiddenHouseCapacityLabel(dataLabels[index])) {
+                continue;
+            }
+            labels.add(dataLabels[index]);
+            capacity.add(index < dataCapacity.length ? dataCapacity[index] : 0);
+            occupied.add(index < dataOccupied.length ? dataOccupied[index] : 0);
+        }
+        return new DashboardDao.OccupancyChartData(
+                labels.toArray(new String[0]),
+                intArray(capacity),
+                intArray(occupied)
+        );
+    }
+    private boolean isHiddenHouseCapacityLabel(String label) {
+        String text = label == null ? "" : label.trim();
+        int lineBreak = text.indexOf('\n');
+        String category = lineBreak < 0 ? text : text.substring(0, lineBreak).trim();
+        return isHiddenHouseCapacityCategory(category);
+    }
+    private boolean isHiddenHouseCapacityCategory(String category) {
+        return category != null && HIDDEN_HOUSE_CAPACITY_CATEGORY.equalsIgnoreCase(category.trim());
+    }
+    private int[] intArray(List<Integer> values) {
+        int[] result = new int[values.size()];
+        for (int index = 0; index < values.size(); index++) {
+            result[index] = values.get(index);
+        }
+        return result;
     }
     private DashboardDao.DepartmentChartData loadDepartmentChart() {
         try {

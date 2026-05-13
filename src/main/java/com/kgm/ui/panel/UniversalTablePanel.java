@@ -9,6 +9,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -16,8 +17,10 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -30,6 +33,8 @@ public class UniversalTablePanel extends JPanel {
     private final DefaultTableModel model;
     private final List<Object[]> rows = new ArrayList<>();
     private final Set<Integer> hugColumns = new HashSet<>();
+    private final Set<Integer> nonSelectingColumns = new HashSet<>();
+    private final Map<Integer, Integer> preferredWidthLimits = new HashMap<>();
     private final JPanel content = new JPanel(new BorderLayout());
     private final JLabel rangeLabel = new JLabel();
     private final JButton previousButton = new JButton("Previous");
@@ -54,7 +59,15 @@ public class UniversalTablePanel extends JPanel {
                 return false;
             }
         };
-        this.table = new JTable(model);
+        this.table = new JTable(model) {
+            public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
+                if (nonSelectingColumns.contains(columnIndex)) {
+                    clearSelection();
+                    return;
+                }
+                super.changeSelection(rowIndex, columnIndex, toggle, extend);
+            }
+        };
 
         setLayout(new BorderLayout());
         setOpaque(false);
@@ -177,6 +190,16 @@ public class UniversalTablePanel extends JPanel {
     public void setHugColumn(int column) {
         hugColumns.add(column);
         configureColumnWidths();
+    }
+
+    public void setPreferredColumnWidthLimit(int column, int maxWidth) {
+        preferredWidthLimits.put(column, Math.max(72, maxWidth));
+        configureColumnWidths();
+    }
+
+    public void setClippedTextColumn(int column) {
+        nonSelectingColumns.add(column);
+        table.getColumnModel().getColumn(column).setCellRenderer(new ClippedTextCellRenderer());
     }
 
     public void setLinkColumn(int column, Consumer<Integer> onLink) {
@@ -535,6 +558,10 @@ public class UniversalTablePanel extends JPanel {
 
         for (int column = 0; column < columns; column++) {
             int width = column == actionColumn ? 80 : measuredColumnWidth(column);
+            Integer widthLimit = preferredWidthLimits.get(column);
+            if (widthLimit != null) {
+                width = Math.min(width, widthLimit);
+            }
             table.getColumnModel().getColumn(column).setPreferredWidth(width);
             totalWidth += width;
         }
@@ -688,6 +715,64 @@ public class UniversalTablePanel extends JPanel {
 
         public Insets getBorderInsets(Component component) {
             return new Insets(1, 1, 1, 1);
+        }
+    }
+
+    private static class ClippedTextCellRenderer extends JLabel implements TableCellRenderer {
+        private String text = "";
+
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            text = value == null ? "" : String.valueOf(value);
+            applyPlainTableStyle(table);
+            setText(text);
+            setToolTipText(text.isBlank() ? null : text);
+            return this;
+        }
+
+        private void applyPlainTableStyle(JTable table) {
+            setOpaque(true);
+            setBackground(Color.WHITE);
+            setForeground(AccommodationManagementHelper.TEXT_PRIMARY);
+            setFont(table.getFont().deriveFont(Font.PLAIN));
+            setEnabled(table.isEnabled());
+            setComponentOrientation(table.getComponentOrientation());
+            setBorder(new CompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
+                    new EmptyBorder(0, 16, 0, 14)
+            ));
+            setHorizontalAlignment(SwingConstants.LEFT);
+            setVerticalAlignment(SwingConstants.CENTER);
+        }
+
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            if (isOpaque()) {
+                g2.setColor(getBackground());
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }
+            g2.setFont(getFont());
+            g2.setColor(getForeground());
+            Insets insets = getInsets();
+            FontMetrics metrics = g2.getFontMetrics();
+            int x = insets.left;
+            int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+            Shape oldClip = g2.getClip();
+            g2.clipRect(
+                    insets.left,
+                    insets.top,
+                    Math.max(0, getWidth() - insets.left - insets.right),
+                    Math.max(0, getHeight() - insets.top - insets.bottom)
+            );
+            g2.drawString(text, x, y);
+            g2.setClip(oldClip);
+            g2.dispose();
         }
     }
 }

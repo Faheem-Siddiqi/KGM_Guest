@@ -41,7 +41,7 @@ public class GuestRecordPanel extends JPanel {
     public static final int REMARKS = 13;
     public static final int REVIEW = 14;
     public static final int ID = 15;
-    private static final int GUEST_NAME_TABLE_LIMIT = 13;
+    private static final int GUEST_NAME_DEFAULT_WIDTH = 168;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -95,6 +95,8 @@ public class GuestRecordPanel extends JPanel {
         guestTable.setActionColumn(6, "View", row -> showGuestDetails(row));
         guestTable.setStatusColumn(5, this::confirmDeleteBooking, this::isUpcomingGuest);
         guestTable.setHugColumn(0); // Guest Name
+        guestTable.setPreferredColumnWidthLimit(0, GUEST_NAME_DEFAULT_WIDTH);
+        guestTable.setClippedTextColumn(0);
         guestTable.setColumnAlignment(1, SwingConstants.CENTER); // Arrival
         guestTable.setColumnAlignment(2, SwingConstants.CENTER); // Departure
         guestTable.setColumnAlignment(3, SwingConstants.CENTER); // Accommodation
@@ -428,7 +430,7 @@ public class GuestRecordPanel extends JPanel {
 
     private Object[] toTableRow(Object[] record) {
         return new Object[]{
-                guestNameTableText(record[NAME]),
+                guestNameText(record[NAME]),
                 dateTimeText(record[ARRIVAL]),
                 dateTimeText(record[DEPARTURE]),
                 accommodationText(record),
@@ -438,12 +440,8 @@ public class GuestRecordPanel extends JPanel {
         };
     }
 
-    private String guestNameTableText(Object value) {
-        String text = value == null ? "" : String.valueOf(value).trim();
-        if (text.length() <= GUEST_NAME_TABLE_LIMIT) {
-            return text;
-        }
-        return text.substring(0, GUEST_NAME_TABLE_LIMIT - 2) + "..";
+    private String guestNameText(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String accommodationText(Object[] record) {

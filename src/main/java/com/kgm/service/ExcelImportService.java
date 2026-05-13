@@ -116,7 +116,7 @@ public class ExcelImportService {
     private List<AccommodationRecord> importAccommodationRecords;
 
     public enum ImportType {
-        STANDARD("Import New / Standard Data", GuestDao.SaveMode.STANDARD),
+        STANDARD("Import New / Standard Data", GuestDao.SaveMode.STANDARD_IMPORT),
         LEGACY("Import Legacy / Historical Data", GuestDao.SaveMode.LEGACY);
 
         private final String label;

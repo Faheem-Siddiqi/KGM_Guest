@@ -18,11 +18,13 @@ import java.util.List;
 public class GuestDao {
     private static final String OVERLAPPING_STAY_MESSAGE = "This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.";
     private static final String NO_SEATS_AVAILABLE_MESSAGE = "No seats available in this room for the selected dates. The room has reached its capacity for this period.";
+    private static final String SPECIAL_ZERO_CAPACITY_ROOM = "Rear Wing";
 
     private final AccommodationDao accommodationDao = new AccommodationDao();
 
     public enum SaveMode {
         STANDARD,
+        STANDARD_IMPORT,
         LEGACY
     }
 
@@ -32,6 +34,8 @@ public class GuestDao {
 
     public Guest save(Guest guest, SaveMode saveMode) throws SQLException {
         boolean legacyHistorical = saveMode == SaveMode.LEGACY;
+        boolean excelSpecialZeroCapacityRoom = saveMode == SaveMode.STANDARD_IMPORT
+                && isSpecialZeroCapacityRoom(guest.getRoomName());
         validateStayDates(guest.getArrivalAt(), guest.getDepartureAt());
         if (!legacyHistorical && hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
             throw new SQLException(OVERLAPPING_STAY_MESSAGE);
@@ -74,6 +78,7 @@ public class GuestDao {
                 // Check seat availability for the requested dates
                 // This allows multiple guests to book the same room up to its capacity
                 if (!legacyHistorical
+                        && !excelSpecialZeroCapacityRoom
                         && !hasAvailableSeat(connection, accommodationId, guest.getArrivalAt(), guest.getDepartureAt())) {
                     throw new SQLException(NO_SEATS_AVAILABLE_MESSAGE);
                 }
@@ -841,6 +846,10 @@ public class GuestDao {
         if (!departureAt.after(arrivalAt)) {
             throw new SQLException("Departure date must be after arrival date.");
         }
+    }
+
+    private boolean isSpecialZeroCapacityRoom(String roomName) {
+        return roomName != null && SPECIAL_ZERO_CAPACITY_ROOM.equalsIgnoreCase(roomName.trim());
     }
 
     private String digitsOnly(String value) {

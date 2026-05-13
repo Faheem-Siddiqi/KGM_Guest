@@ -18,6 +18,7 @@ import java.util.List;
 
 public final class DatabaseInitializer {
     private static final String SCHEMA_RESOURCE = "/db/schema.sql";
+    private static final String SPECIAL_ACCOMMODATION_NAME = "Rear Wing";
     private static boolean initialized;
 
     private DatabaseInitializer() {
@@ -240,17 +241,21 @@ public final class DatabaseInitializer {
     private static void ensureAccommodationRoomPrefixCheck() throws SQLException {
         String constraintName = "chk_accommodations_room_name_prefix";
         try (Connection connection = DatabaseConnection.getConnection()) {
-            if (hasTableConstraint(connection, "accommodations", constraintName)) {
+            boolean constraintExists = hasTableConstraint(connection, "accommodations", constraintName);
+            if (constraintExists && accommodationRoomPrefixCheckAllowsSpecialName(connection, constraintName)) {
                 return;
             }
-            if (hasActiveAccommodationWithoutRoomPrefix(connection)) {
+            if (hasActiveAccommodationWithoutAllowedName(connection)) {
                 return;
             }
             try (Statement statement = connection.createStatement()) {
+                if (constraintExists) {
+                    statement.executeUpdate("ALTER TABLE accommodations DROP CHECK " + quoteIdentifier(constraintName));
+                }
                 statement.executeUpdate("""
                         ALTER TABLE accommodations
                         ADD CONSTRAINT chk_accommodations_room_name_prefix
-                        CHECK (active = FALSE OR name LIKE 'Room-%')
+                        CHECK (active = FALSE OR name LIKE 'Room-%' OR name = 'Rear Wing')
                         """);
             }
         }
@@ -278,16 +283,41 @@ public final class DatabaseInitializer {
         }
     }
 
-    private static boolean hasActiveAccommodationWithoutRoomPrefix(Connection connection) throws SQLException {
+    private static boolean accommodationRoomPrefixCheckAllowsSpecialName(
+            Connection connection,
+            String constraintName
+    ) throws SQLException {
+        String sql = """
+                SELECT CHECK_CLAUSE
+                FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = ?
+                  AND CONSTRAINT_NAME = ?
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, DatabaseConfig.databaseName());
+            statement.setString(2, constraintName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next()
+                        && resultSet.getString("CHECK_CLAUSE") != null
+                        && resultSet.getString("CHECK_CLAUSE").toLowerCase()
+                        .contains(SPECIAL_ACCOMMODATION_NAME.toLowerCase());
+            }
+        }
+    }
+
+    private static boolean hasActiveAccommodationWithoutAllowedName(Connection connection) throws SQLException {
         String sql = """
                 SELECT COUNT(*) AS accommodation_count
                 FROM accommodations
                 WHERE active = TRUE
                   AND name NOT LIKE 'Room-%'
+                  AND LOWER(TRIM(name)) <> LOWER(?)
                 """;
-        try (PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
-            return resultSet.next() && resultSet.getInt("accommodation_count") > 0;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, SPECIAL_ACCOMMODATION_NAME);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() && resultSet.getInt("accommodation_count") > 0;
+            }
         }
     }
 

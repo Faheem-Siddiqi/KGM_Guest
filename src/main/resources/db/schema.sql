@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS accommodations (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT chk_accommodations_room_name_prefix
-        CHECK (active = FALSE OR name LIKE 'Room-%'),
+        CHECK (active = FALSE OR name LIKE 'Room-%' OR name = 'Rear Wing'),
     CONSTRAINT fk_accommodations_category
         FOREIGN KEY (category_id)
         REFERENCES accommodation_categories (id),

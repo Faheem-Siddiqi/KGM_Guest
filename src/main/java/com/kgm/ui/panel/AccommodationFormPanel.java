@@ -16,11 +16,12 @@ import java.util.List;
 
 public class AccommodationFormPanel extends JPanel {
     private static final String ROOM_PREFIX = "Room-";
+    private static final String SPECIAL_ROOM_NAME = "Rear Wing";
     private static final String DEFAULT_STATUS = "Ready for Assignment";
 
     private final JTextField nameField = new JTextField(ROOM_PREFIX);
     private final JComboBox<String> categoryCombo = AccommodationManagementHelper.combo();
-    private final JSpinner capacitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+    private final JSpinner capacitySpinner = new JSpinner(new SpinnerNumberModel(1, 0, 100, 1));
     private final JComboBox<String> statusCombo = AccommodationManagementHelper.combo(
             DEFAULT_STATUS, "Temporarily Unavailable", "Under Maintenance", "Reserved"
     );
@@ -344,6 +345,9 @@ public class AccommodationFormPanel extends JPanel {
         if (name.equals(ROOM_PREFIX)) {
             errors.append("Name is required after Room-.\n");
         }
+        if (capacity == 0 && !isSpecialRoomName(name)) {
+            errors.append("Only Rear Wing can have capacity 0.\n");
+        }
         if (category.isEmpty()) {
             errors.append("Category is required.\n");
         }
@@ -381,8 +385,9 @@ public class AccommodationFormPanel extends JPanel {
         boolean editing = editingRow >= 0;
         boolean validName = isValidRoomName(nameField.getText());
         boolean validCategory = !selectedCategory().isEmpty();
+        boolean validCapacity = isValidCapacity();
         boolean hasAssignedStaff = !assignedStaffField.getText().trim().isEmpty();
-        boolean canSubmit = validName && validCategory && hasAssignedStaff;
+        boolean canSubmit = validName && validCategory && validCapacity && hasAssignedStaff;
 
         AccommodationManagementHelper.setTextButtonEnabled(saveButton, canSubmit && !editing);
         AccommodationManagementHelper.setTextButtonEnabled(updateButton, canSubmit && editing);
@@ -408,6 +413,14 @@ public class AccommodationFormPanel extends JPanel {
     private boolean isValidRoomName(String value) {
         String name = accommodationNameValue(value);
         return !ROOM_PREFIX.equals(name);
+    }
+
+    private boolean isValidCapacity() {
+        Object value = capacitySpinner.getValue();
+        if (!(value instanceof Integer capacity)) {
+            return false;
+        }
+        return capacity > 0 || isSpecialRoomName(accommodationNameValue(nameField.getText()));
     }
 
     private void syncNamePrefix() {
@@ -440,6 +453,9 @@ public class AccommodationFormPanel extends JPanel {
         if (text.isEmpty()) {
             return ROOM_PREFIX;
         }
+        if (isSpecialRoomName(text)) {
+            return SPECIAL_ROOM_NAME;
+        }
         if (startsWithIgnoreCase(text, ROOM_PREFIX)) {
             return ROOM_PREFIX + text.substring(ROOM_PREFIX.length()).trim();
         }
@@ -450,6 +466,10 @@ public class AccommodationFormPanel extends JPanel {
             return ROOM_PREFIX + text.substring("room ".length()).trim();
         }
         return ROOM_PREFIX + text;
+    }
+
+    private boolean isSpecialRoomName(String value) {
+        return value != null && SPECIAL_ROOM_NAME.equalsIgnoreCase(value.trim());
     }
 
     private boolean startsWithIgnoreCase(String text, String prefix) {

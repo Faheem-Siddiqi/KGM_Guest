@@ -61,6 +61,7 @@ public class ExcelImportService {
     private static final String REMARKS = "Remarks";
     private static final String ROOM_PREFIX = "Room-";
     private static final String ROOMS_PREFIX = "Rooms-";
+    private static final String SPECIAL_ROOM_NAME = "Rear Wing";
 
     private static final List<String> STANDARD_REQUIRED_HEADERS = List.of(
             GUEST_NAME,
@@ -618,6 +619,9 @@ public class ExcelImportService {
         if (text.isEmpty()) {
             return ROOM_PREFIX;
         }
+        if (isSpecialRoomName(text)) {
+            return SPECIAL_ROOM_NAME;
+        }
         if (text.regionMatches(true, 0, ROOM_PREFIX, 0, ROOM_PREFIX.length())) {
             return ROOM_PREFIX + text.substring(ROOM_PREFIX.length()).trim();
         }
@@ -637,6 +641,10 @@ public class ExcelImportService {
             return ROOM_PREFIX + text.substring("rooms ".length()).trim();
         }
         return ROOM_PREFIX + text;
+    }
+
+    private boolean isSpecialRoomName(String value) {
+        return value != null && SPECIAL_ROOM_NAME.equalsIgnoreCase(value.trim());
     }
 
     private String accommodationCategoryValue(String value) {

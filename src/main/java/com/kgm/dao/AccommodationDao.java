@@ -14,6 +14,7 @@ import java.util.List;
 
 public class AccommodationDao {
     private static final String ROOM_PREFIX = "Room-";
+    private static final String SPECIAL_ROOM_NAME = "Rear Wing";
 
     private final AccommodationCategoryDao categoryDao = new AccommodationCategoryDao();
 
@@ -193,6 +194,7 @@ public class AccommodationDao {
 
     public AccommodationRecord save(AccommodationRecord accommodation) throws SQLException {
         accommodation.setName(requiredRoomName(accommodation.getName()));
+        validateCapacity(accommodation);
         DatabaseInitializer.ensureAccommodationNameCanRepeatAcrossCategories();
         long categoryId = categoryDao.findOrCreate(accommodation.getCategory());
         String sql = """
@@ -224,6 +226,7 @@ public class AccommodationDao {
         }
 
         accommodation.setName(requiredRoomName(accommodation.getName()));
+        validateCapacity(accommodation);
         DatabaseInitializer.ensureAccommodationNameCanRepeatAcrossCategories();
         long categoryId = categoryDao.findOrCreate(accommodation.getCategory());
         String sql = """
@@ -351,10 +354,23 @@ public class AccommodationDao {
         return name;
     }
 
+    private void validateCapacity(AccommodationRecord accommodation) throws SQLException {
+        int capacity = accommodation.getCapacity();
+        if (capacity < 0) {
+            throw new SQLException("Accommodation capacity cannot be negative.");
+        }
+        if (capacity == 0 && !isSpecialRoomName(accommodation.getName())) {
+            throw new SQLException("Only Rear Wing can have capacity 0.");
+        }
+    }
+
     private String roomNameValue(String value) {
         String text = value == null ? "" : value.trim();
         if (text.isEmpty()) {
             return ROOM_PREFIX;
+        }
+        if (isSpecialRoomName(text)) {
+            return SPECIAL_ROOM_NAME;
         }
         if (text.regionMatches(true, 0, ROOM_PREFIX, 0, ROOM_PREFIX.length())) {
             return ROOM_PREFIX + text.substring(ROOM_PREFIX.length()).trim();
@@ -366,5 +382,9 @@ public class AccommodationDao {
             return ROOM_PREFIX + text.substring("room ".length()).trim();
         }
         return ROOM_PREFIX + text;
+    }
+
+    private boolean isSpecialRoomName(String value) {
+        return value != null && SPECIAL_ROOM_NAME.equalsIgnoreCase(value.trim());
     }
 }

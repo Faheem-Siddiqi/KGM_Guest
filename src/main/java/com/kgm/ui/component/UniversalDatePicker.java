@@ -14,7 +14,7 @@ import java.util.Locale;
 
 public class UniversalDatePicker extends JPanel {
 
-    private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm";
+    private static final String DATE_FORMAT = "dd-MM-yyyy HH:mm";
 
     private static final Color BORDER_COLOR = new Color(200, 200, 200);
     private static final Color BORDER_FOCUS_COLOR = new Color(0, 112, 210);

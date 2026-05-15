@@ -16,7 +16,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.Date;
 
 public class ReportPeriodDialog extends JDialog {
-    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private final JToggleButton weeklyButton = periodButton("Weekly");
     private final JToggleButton monthlyButton = periodButton("Monthly");
     private final JToggleButton fortnightButton = periodButton("Fortnight");

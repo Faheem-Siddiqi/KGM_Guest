@@ -5,7 +5,7 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
 public class FooterPanel extends JPanel {
-    private static final String FOOTER_TEXT = "Kohinoor Textile Mill Ltd. Gujar Khan";
+    private static final String FOOTER_TEXT = "Kohinoor Textile Mills Gujar Khan Ltd.";
     private static final Color PRIMARY = new Color(0, 112, 210);
 
     public FooterPanel() {

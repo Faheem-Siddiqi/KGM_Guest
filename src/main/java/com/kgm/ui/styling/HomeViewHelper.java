@@ -38,7 +38,7 @@ public final class HomeViewHelper {
     public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
     public static final Color BORDER = new Color(220, 226, 232);
     public static final Color ROW_SELECTION = new Color(229, 242, 255);
-    public static final String DATE_PATTERN = "yyyy-MM-dd";
+    public static final String DATE_PATTERN = "dd-MM-yyyy";
     private static final int TAB_DIVIDER_GAP = 8;
     private static final SimpleDateFormat FILTER_DATE_FORMAT = new SimpleDateFormat(DATE_PATTERN);
 

@@ -17,7 +17,7 @@ import java.util.Date;
 import java.util.Locale;
 
 public class UniversalDateRangePicker extends JPanel {
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final int FIELD_HEIGHT = 34;
     private static final int FIELD_WIDTH = 250;
     private static final int ICON_SIZE = 16;

@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Locale;
 
 public class GuestReportService {
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
 
     private static final double PAGE_WIDTH = 842;
     private static final double PAGE_HEIGHT = 595;
@@ -185,7 +185,7 @@ public class GuestReportService {
             page.image("Logo", MARGIN, top - logoHeight, logoWidth, logoHeight);
             textX = MARGIN + logoWidth + 14;
         }
-        page.text("Kohinoor Textile Mill Ltd.", textX, top - 15, 18, true, TEXT_PRIMARY);
+        page.text("Kohinoor Textile Mills. Gujar Khan", textX, top - 15, 18, true, TEXT_PRIMARY);
         page.text("Guest Accommodation Report", textX, top - 31, 12, false, TEXT_SECONDARY);
         page.text(range.label() + " | " + DATE.format(range.startDate()) + " to " + DATE.format(range.endDate()),
                 textX, top - 47, 9, false, TEXT_SECONDARY);

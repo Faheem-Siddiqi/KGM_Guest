@@ -43,7 +43,9 @@ public class GuestRecordPanel extends JPanel {
     public static final int ID = 15;
     private static final int GUEST_NAME_DEFAULT_WIDTH = 168;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
 
     private final GuestDao guestDao = new GuestDao();
     private final List<Object[]> allData = new ArrayList<>();
@@ -294,9 +296,17 @@ public class GuestRecordPanel extends JPanel {
             return UniversalDateRangePicker.DateRange.empty();
         }
         try {
-            return UniversalDateRangePicker.DateRange.single(LocalDate.parse(text, DATE));
+            return UniversalDateRangePicker.DateRange.single(parseDate(text));
         } catch (DateTimeParseException exception) {
             return UniversalDateRangePicker.DateRange.empty();
+        }
+    }
+
+    private LocalDate parseDate(String value) {
+        try {
+            return LocalDate.parse(value, DISPLAY_DATE);
+        } catch (DateTimeParseException exception) {
+            return LocalDate.parse(value, DATE);
         }
     }
 
@@ -361,7 +371,8 @@ public class GuestRecordPanel extends JPanel {
     }
 
     private String dateTimeText(Object value) {
-        return String.valueOf(value);
+        LocalDateTime dateTime = parseDateTime(value);
+        return dateTime == null ? String.valueOf(value) : dateTime.format(DISPLAY_DATE_TIME);
     }
 
     private String statusText(Object[] record) {
@@ -482,7 +493,7 @@ public class GuestRecordPanel extends JPanel {
         }
         Object[] record = visibleRecords.get(row);
         String guestName = String.valueOf(record[NAME]);
-        String arrivalDate = String.valueOf(record[ARRIVAL]);
+        String arrivalDate = dateTimeText(record[ARRIVAL]);
 
         int result = DialogHelper.option(
                 this,

@@ -4,6 +4,7 @@ import com.kgm.ui.component.UniversalDateRangePicker;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
@@ -35,6 +36,7 @@ public class GuestFilterPanel extends JPanel {
         gbc.anchor = GridBagConstraints.NORTHWEST;
 
         JButton searchButton = HomeViewHelper.textButton("SEARCH");
+        styleSearchButton(searchButton);
 
         searchField.addActionListener(e -> onSearch.run());
         searchField.setToolTipText("Search by guest name or CNIC");
@@ -52,6 +54,7 @@ public class GuestFilterPanel extends JPanel {
             onClear.run();
             updateClearButtonState();
         });
+        styleInlineClearButton();
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent event) {
                 updateClearButtonState();
@@ -99,16 +102,49 @@ public class GuestFilterPanel extends JPanel {
         row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.add(HomeViewHelper.styleField(searchField, 320));
+        row.add(createSearchFieldWithClearButton());
         row.add(Box.createHorizontalStrut(10));
         row.add(searchButton);
-        row.add(Box.createHorizontalStrut(10));
-        row.add(clearButton);
 
         block.add(label);
         block.add(Box.createVerticalStrut(6));
         block.add(row);
         return block;
+    }
+
+    private JComponent createSearchFieldWithClearButton() {
+        JPanel field = new JPanel(new BorderLayout(6, 0));
+        field.setOpaque(true);
+        HomeViewHelper.styleField(field, 320);
+
+        searchField.setBorder(null);
+        searchField.setOpaque(false);
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.add(searchField, BorderLayout.CENTER);
+        field.add(clearButton, BorderLayout.EAST);
+        return field;
+    }
+
+    private void styleInlineClearButton() {
+        clearButton.setText("Clear");
+        clearButton.setFont(new Font("Segoe UI Semibold", Font.BOLD, 12));
+        clearButton.setBorder(new EmptyBorder(2, 6, 2, 2));
+        clearButton.setMargin(new Insets(0, 0, 0, 0));
+        clearButton.setPreferredSize(new Dimension(42, 24));
+        clearButton.setMinimumSize(new Dimension(42, 24));
+        clearButton.setMaximumSize(new Dimension(42, 24));
+    }
+
+    private void styleSearchButton(JButton button) {
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+        button.setBackground(HomeViewHelper.PRIMARY);
+        button.setForeground(Color.WHITE);
+        button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        button.setBorder(new EmptyBorder(0, 18, 0, 18));
+        button.setPreferredSize(new Dimension(92, 34));
+        button.setMinimumSize(new Dimension(92, 34));
+        button.setMaximumSize(new Dimension(92, 34));
     }
 
     private JPanel createDateFilter() {

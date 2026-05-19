@@ -18,7 +18,6 @@ com\kgm\ui\component\UniversalDatePicker.class
 com\kgm\ui\LoginView$PrimaryButton$2.class
 com\kgm\ui\dialog\UniversalDialog$Type.class
 com\kgm\ui\panel\AccommodationTableModel.class
-com\kgm\service\ExcelImportService$ImportAccommodation.class
 com\kgm\ui\dialog\ReportPeriodDialog$1.class
 com\kgm\ui\styling\HomeViewHelper$2.class
 com\kgm\ui\panel\AccommodationTablePanel.class

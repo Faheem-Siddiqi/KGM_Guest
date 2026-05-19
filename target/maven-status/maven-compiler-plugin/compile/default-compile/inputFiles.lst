@@ -13,10 +13,12 @@ D:\KGM_Guest\src\main\java\com\kgm\service\AuthService.java
 D:\KGM_Guest\src\main\java\com\kgm\service\ExcelImportService.java
 D:\KGM_Guest\src\main\java\com\kgm\service\ExcelSampleGenerator.java
 D:\KGM_Guest\src\main\java\com\kgm\service\GuestReportService.java
+D:\KGM_Guest\src\main\java\com\kgm\service\GuestValidationService.java
 D:\KGM_Guest\src\main\java\com\kgm\services\AuthService.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\AccommodationManagement.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\AddGuest.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\component\UniversalDatePicker.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\component\UniversalDateRangePicker.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\dialog\DelayedProgressDialog.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\dialog\ReportPeriodDialog.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\dialog\ReportProgressDialog.java
@@ -37,6 +39,9 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\panel\GuestRecordPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\HeaderPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\HomeKpiPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\HouseOccupancyGraphPanel.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\panel\RoomDetailGuestActivityPanel.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\panel\RoomDetailKpiPanel.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\panel\RoomDetailPagePanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\UniversalGraphPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\UniversalTablePanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\UpdateAccomodation.java
@@ -44,5 +49,6 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\styling\AccommodationManagementHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\AddGuestHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\DialogHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\HomeViewHelper.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\styling\RoomDetailHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\util\SessionManager.java
 D:\KGM_Guest\src\main\java\com\kgm\util\SessionWatcher.java

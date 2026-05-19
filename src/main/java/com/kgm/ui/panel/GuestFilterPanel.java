@@ -10,6 +10,10 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 
 public class GuestFilterPanel extends JPanel {
+    private static final int FILTER_FIELD_GAP = 12;
+    private static final int STATUS_ARROW_AND_PADDING_WIDTH = 36;
+    private static final int FILTER_FIELD_HEIGHT = 34;
+
     private final JTextField searchField = new JTextField();
     private final JComboBox<String> statusFilter = HomeViewHelper.combo(
             "All Status", "Currently Staying", "Departed", "Upcoming"
@@ -75,13 +79,11 @@ public class GuestFilterPanel extends JPanel {
         filters.add(createSearchFilter(searchButton), gbc);
 
         gbc.gridx = 1;
-        gbc.weightx = 0.35;
-        filters.add(HomeViewHelper.filterField("Status", statusFilter, 200), gbc);
-
-        gbc.gridx = 2;
         gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.NORTHEAST;
         gbc.insets = new Insets(0, 0, 14, 0);
-        filters.add(createDateFilter(), gbc);
+        filters.add(createRightAlignedFilters(), gbc);
 
         body.add(filters);
 
@@ -147,23 +149,115 @@ public class GuestFilterPanel extends JPanel {
         button.setMaximumSize(new Dimension(92, 34));
     }
 
+    private JPanel createRightAlignedFilters() {
+        JPanel filters = new JPanel();
+        filters.setLayout(new BoxLayout(filters, BoxLayout.X_AXIS));
+        filters.setOpaque(false);
+        filters.add(createStatusFilter());
+        filters.add(Box.createHorizontalStrut(FILTER_FIELD_GAP));
+        filters.add(createDateFilter());
+        return filters;
+    }
+
+    private JPanel createStatusFilter() {
+        JPanel block = new JPanel();
+        block.setOpaque(false);
+        block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
+
+        // JLabel label = HomeViewHelper.label("Status");
+        // label.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.add(styleHugStatusFilter());
+
+        block.add(createHiddenFilterLabelSpace());
+        block.add(row);
+        return block;
+    }
+
     private JPanel createDateFilter() {
         JPanel block = new JPanel();
         block.setOpaque(false);
         block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
 
-        JLabel label = HomeViewHelper.label("Date Range");
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // JLabel label = HomeViewHelper.label("Date Range");
+        // label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.add(dateRangeFilter);
+        row.add(lockComponentToPreferredWidth(dateRangeFilter));
 
-        block.add(label);
-        block.add(Box.createVerticalStrut(6));
+        block.add(createHiddenFilterLabelSpace());
         block.add(row);
         return block;
+    }
+
+    private Component createHiddenFilterLabelSpace() {
+        return Box.createVerticalStrut(HomeViewHelper.label("Filter").getPreferredSize().height + 6);
+    }
+
+    private JComponent styleHugStatusFilter() {
+        HomeViewHelper.styleField(statusFilter, 150);
+        styleStatusSelectedValueBackground();
+        int width = calculateStatusFilterWidth();
+        Dimension size = new Dimension(width, FILTER_FIELD_HEIGHT);
+        statusFilter.setPreferredSize(size);
+        statusFilter.setMinimumSize(size);
+        statusFilter.setMaximumSize(size);
+        return statusFilter;
+    }
+
+    private int calculateStatusFilterWidth() {
+        FontMetrics metrics = statusFilter.getFontMetrics(statusFilter.getFont());
+        int widestText = 0;
+        for (int index = 0; index < statusFilter.getItemCount(); index++) {
+            String value = String.valueOf(statusFilter.getItemAt(index));
+            widestText = Math.max(widestText, metrics.stringWidth(value));
+        }
+        Insets insets = statusFilter.getInsets();
+        return widestText + insets.left + insets.right + STATUS_ARROW_AND_PADDING_WIDTH;
+    }
+
+    private void styleStatusSelectedValueBackground() {
+        statusFilter.setOpaque(true);
+        statusFilter.setBackground(Color.WHITE);
+        statusFilter.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+            ) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(
+                        list,
+                        value,
+                        index,
+                        isSelected,
+                        cellHasFocus
+                );
+                label.setBorder(new EmptyBorder(0, 0, 0, 0));
+                label.setBackground(index < 0 ? Color.WHITE
+                        : isSelected ? new Color(224, 224, 224) : new Color(245, 245, 245));
+                label.setForeground(Color.BLACK);
+                list.setBackground(new Color(245, 245, 245));
+                list.setSelectionBackground(new Color(224, 224, 224));
+                list.setSelectionForeground(Color.BLACK);
+                return label;
+            }
+        });
+    }
+
+    private JComponent lockComponentToPreferredWidth(JComponent component) {
+        Dimension preferred = component.getPreferredSize();
+        Dimension minimum = component.getMinimumSize();
+        component.setPreferredSize(preferred);
+        component.setMinimumSize(new Dimension(Math.min(minimum.width, preferred.width), preferred.height));
+        component.setMaximumSize(preferred);
+        return component;
     }
 
     public String getSearchText() {

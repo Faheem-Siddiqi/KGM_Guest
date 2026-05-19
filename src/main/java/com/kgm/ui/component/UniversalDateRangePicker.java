@@ -19,8 +19,11 @@ import java.util.Locale;
 public class UniversalDateRangePicker extends JPanel {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final int FIELD_HEIGHT = 34;
-    private static final int FIELD_WIDTH = 250;
+    private static final String MAX_RANGE_TEXT = "00-00-0000 to 00-00-0000";
     private static final int ICON_SIZE = 16;
+    private static final int ICON_AREA_WIDTH = 26;
+    private static final int FIELD_TEXT_GAP = 8;
+    private static final int FIELD_WIDTH_BUFFER = 4;
     private static final Color BORDER_COLOR = new Color(200, 200, 200);
     private static final Color ICON_COLOR = HomeViewHelper.TEXT_SECONDARY;
 
@@ -36,13 +39,10 @@ public class UniversalDateRangePicker extends JPanel {
     private boolean enabled = true;
 
     public UniversalDateRangePicker() {
-        super(new BorderLayout(8, 0));
+        super(new BorderLayout(FIELD_TEXT_GAP, 0));
         setOpaque(true);
         setBackground(Color.WHITE);
         setBorder(fieldBorder());
-        setPreferredSize(new Dimension(FIELD_WIDTH, FIELD_HEIGHT));
-        setMinimumSize(new Dimension(220, FIELD_HEIGHT));
-        setMaximumSize(new Dimension(300, FIELD_HEIGHT));
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         displayLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -50,9 +50,10 @@ public class UniversalDateRangePicker extends JPanel {
         displayLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
         add(displayLabel, BorderLayout.CENTER);
 
-        iconLabel.setPreferredSize(new Dimension(26, FIELD_HEIGHT));
+        iconLabel.setPreferredSize(new Dimension(ICON_AREA_WIDTH, FIELD_HEIGHT));
         iconLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         add(iconLabel, BorderLayout.EAST);
+        lockFieldWidthToRangeText();
 
         styleCalendar(startCalendar);
         styleCalendar(endCalendar);
@@ -229,8 +230,22 @@ public class UniversalDateRangePicker extends JPanel {
 
     private void updateDisplay() {
         DateRange range = getDateRange();
-        displayLabel.setText(range.hasSelection() ? range.displayText() : "Any date");
+        displayLabel.setText(range.hasSelection() ? range.displayText() : "Select Date");
         displayLabel.setToolTipText(range.hasSelection() ? range.displayText() : "Filter by arrival/departure range");
+    }
+
+    private void lockFieldWidthToRangeText() {
+        Insets insets = getInsets();
+        int width = displayLabel.getFontMetrics(displayLabel.getFont()).stringWidth(MAX_RANGE_TEXT)
+                + ICON_AREA_WIDTH
+                + FIELD_TEXT_GAP
+                + insets.left
+                + insets.right
+                + FIELD_WIDTH_BUFFER;
+        Dimension size = new Dimension(width, FIELD_HEIGHT);
+        setPreferredSize(size);
+        setMinimumSize(size);
+        setMaximumSize(size);
     }
 
     private CompoundBorder fieldBorder() {

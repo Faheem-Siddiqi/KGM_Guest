@@ -1,15 +1,16 @@
 package com.kgm.ui.panel;
 import com.kgm.ui.styling.DialogHelper;
+import com.kgm.ui.styling.HomeViewHelper;
 import com.kgm.util.SessionWatcher;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 public class HeaderPanel extends JPanel {
     private static final Color BG = Color.WHITE;
-    private static final Color PRIMARY_TEXT = new Color(38, 45, 56);
-    private static final Color SECONDARY_TEXT = new Color(110, 110, 110);
-    private static final Color LINK_COLOR = new Color(0, 120, 215);
-    private static final Color BORDER = new Color(226, 232, 240);
+    private static final Color PRIMARY_TEXT = HomeViewHelper.TEXT_PRIMARY;
+    private static final Color SECONDARY_TEXT = HomeViewHelper.TEXT_SECONDARY;
+    private static final Color LINK_COLOR = HomeViewHelper.PRIMARY;
+    private static final Color BORDER = HomeViewHelper.BORDER;
     private static final int HORIZONTAL_INSET = 20;
 
     public HeaderPanel(String title) {

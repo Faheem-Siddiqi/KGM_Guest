@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 
 public class KPICategoryPanel extends JPanel {
     private static final int CARD_RADIUS = 8;
+    private static final int METRIC_MIN_WIDTH = 118;
 
     private final DashboardDao.CategoryKpiStats categoryStats;
     private final Consumer<MetricSelection> onMetricClicked;
@@ -71,7 +72,7 @@ public class KPICategoryPanel extends JPanel {
         rowLabel.setVerticalAlignment(SwingConstants.CENTER);
         row.add(rowLabel, BorderLayout.WEST);
 
-        JPanel metricGrid = new JPanel(new GridLayout(1, 3, 12, 0));
+        JPanel metricGrid = responsiveMetricGrid();
         metricGrid.setOpaque(false);
         metricGrid.add(createMetricCard(MetricType.TOTAL, group, total,
                 HomeViewHelper.PRIMARY_DARK, HomeViewHelper.PRIMARY_LIGHT));
@@ -81,6 +82,32 @@ public class KPICategoryPanel extends JPanel {
                 HomeViewHelper.VACANT_DARK, HomeViewHelper.VACANT_LIGHT));
         row.add(metricGrid, BorderLayout.CENTER);
         return row;
+    }
+
+    private JPanel responsiveMetricGrid() {
+        return new JPanel(new GridLayout(0, 3, 12, 8)) {
+            public void doLayout() {
+                updateResponsiveColumns(this);
+                super.doLayout();
+            }
+
+            public Dimension getPreferredSize() {
+                updateResponsiveColumns(this);
+                return super.getPreferredSize();
+            }
+        };
+    }
+
+    private void updateResponsiveColumns(JPanel panel) {
+        int width = panel.getWidth();
+        if (width <= 0 && panel.getParent() != null) {
+            width = panel.getParent().getWidth();
+        }
+        int columns = Math.max(1, Math.min(3, Math.max(1, width / METRIC_MIN_WIDTH)));
+        GridLayout layout = (GridLayout) panel.getLayout();
+        if (layout.getColumns() != columns) {
+            layout.setColumns(columns);
+        }
     }
 
     private JPanel createMetricCard(

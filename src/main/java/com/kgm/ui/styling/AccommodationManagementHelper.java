@@ -13,14 +13,16 @@ import java.awt.*;
 
 public final class AccommodationManagementHelper {
     public static final int CONTENT_WIDTH = 860;
-    public static final Color PAGE_BACKGROUND = Color.WHITE;
+    private static final int FIELD_WIDTH = 300;
+    private static final int FIELD_MIN_WIDTH = 220;
+    public static final Color PAGE_BACKGROUND = HomeViewHelper.PAGE_BACKGROUND;
     public static final Color CARD_BACKGROUND = Color.WHITE;
-    public static final Color TEXT_PRIMARY = new Color(35, 43, 54);
-    public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
-    public static final Color BORDER = new Color(220, 226, 232);
+    public static final Color TEXT_PRIMARY = HomeViewHelper.TEXT_PRIMARY;
+    public static final Color TEXT_SECONDARY = HomeViewHelper.TEXT_SECONDARY;
+    public static final Color BORDER = HomeViewHelper.BORDER;
     public static final Color TABLE_HEADER = Color.WHITE;
-    public static final Color ROW_SELECTION = new Color(229, 242, 255);
-    public static final Color PRIMARY = new Color(0, 112, 210);
+    public static final Color ROW_SELECTION = HomeViewHelper.ROW_SELECTION;
+    public static final Color PRIMARY = HomeViewHelper.PRIMARY;
     public static final Color DANGER = new Color(180, 60, 45);
 
     private AccommodationManagementHelper() {
@@ -37,13 +39,13 @@ public final class AccommodationManagementHelper {
         JPanel card = new JPanel(new BorderLayout(0, 18)) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
 
             public Dimension getMinimumSize() {
                 Dimension size = super.getMinimumSize();
-                size.width = CONTENT_WIDTH;
+                size.width = Math.min(size.width, 320);
                 return size;
             }
         };
@@ -86,7 +88,7 @@ public final class AccommodationManagementHelper {
         JPanel header = new JPanel(new BorderLayout()) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
         };
@@ -121,7 +123,7 @@ public final class AccommodationManagementHelper {
         JPanel breadcrumb = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
         };
@@ -147,7 +149,7 @@ public final class AccommodationManagementHelper {
         JPanel container = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0)) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
         };
@@ -165,7 +167,7 @@ public final class AccommodationManagementHelper {
         link.setBorderPainted(false);
         link.setFocusPainted(false);
         link.setOpaque(false);
-        link.setForeground(new Color(0, 112, 210));
+        link.setForeground(PRIMARY);
         link.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         link.setBorder(new EmptyBorder(4, 0, 4, 0));
@@ -174,7 +176,7 @@ public final class AccommodationManagementHelper {
 
     private static JLabel breadcrumbSlash() {
         JLabel slash = new JLabel("/");
-        slash.setForeground(new Color(0, 112, 210));
+        slash.setForeground(PRIMARY);
         slash.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         slash.setBorder(new EmptyBorder(4, 2, 4, 2));
         return slash;
@@ -185,9 +187,9 @@ public final class AccommodationManagementHelper {
         gbc.gridx = 0;
         gbc.gridy = y;
         gbc.insets = new Insets(0, 0, 18, 0);
-        gbc.fill = GridBagConstraints.NONE;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.NORTH;
-        gbc.weightx = 0;
+        gbc.weightx = 1.0;
         return gbc;
     }
 
@@ -238,9 +240,9 @@ public final class AccommodationManagementHelper {
     }
 
     public static JComponent styleField(JComponent component) {
-        component.setPreferredSize(new Dimension(340, 34));
-        component.setMinimumSize(new Dimension(280, 34));
-        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        component.setPreferredSize(new Dimension(FIELD_WIDTH, 34));
+        component.setMinimumSize(new Dimension(FIELD_MIN_WIDTH, 34));
+        component.setMaximumSize(new Dimension(FIELD_WIDTH, 34));
         component.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         component.setBackground(Color.WHITE);
         component.setBorder(new CompoundBorder(
@@ -428,14 +430,23 @@ public final class AccommodationManagementHelper {
             ) {
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 label.setBorder(new EmptyBorder(0, 0, 0, 0));
-                label.setBackground(isSelected ? new Color(224, 224, 224) : new Color(245, 245, 245));
-                label.setForeground(Color.BLACK);
-                list.setBackground(new Color(245, 245, 245));
-                list.setSelectionBackground(new Color(224, 224, 224));
-                list.setSelectionForeground(Color.BLACK);
+                label.setBackground(isSelected ? ROW_SELECTION : new Color(247, 250, 255));
+                label.setForeground(TEXT_PRIMARY);
+                list.setBackground(new Color(247, 250, 255));
+                list.setSelectionBackground(ROW_SELECTION);
+                list.setSelectionForeground(TEXT_PRIMARY);
                 return label;
             }
         });
+    }
+
+    private static int responsiveWidth(Component component) {
+        Container parent = component.getParent();
+        int width = parent == null ? 0 : parent.getWidth();
+        if (width <= 0) {
+            return CONTENT_WIDTH;
+        }
+        return Math.max(320, Math.min(CONTENT_WIDTH, width));
     }
 
     public static class RoundedBorder extends AbstractBorder {

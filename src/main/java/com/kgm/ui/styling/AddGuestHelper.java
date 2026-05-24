@@ -15,8 +15,10 @@ import java.awt.event.KeyEvent;
 
 public final class AddGuestHelper {
     private static final int CONTENT_WIDTH = 860;
-    private static final Color DROPDOWN_BACKGROUND = new Color(245, 245, 245);
-    private static final Color DROPDOWN_SELECTION = new Color(224, 224, 224);
+    private static final int FIELD_WIDTH = 300;
+    private static final int FIELD_MIN_WIDTH = 220;
+    private static final Color DROPDOWN_BACKGROUND = new Color(247, 250, 255);
+    private static final Color DROPDOWN_SELECTION = HomeViewHelper.ROW_SELECTION;
     private static final String AUTO_COMPLETE_ENABLED = "kgm.autoCompleteEnabled";
     private static final String AUTO_COMPLETE_EDITOR = "kgm.autoCompleteEditor";
 
@@ -34,13 +36,13 @@ public final class AddGuestHelper {
         JPanel card = new JPanel(new GridBagLayout()) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
 
             public Dimension getMinimumSize() {
                 Dimension size = super.getMinimumSize();
-                size.width = CONTENT_WIDTH;
+                size.width = Math.min(size.width, 320);
                 return size;
             }
         };
@@ -68,6 +70,7 @@ public final class AddGuestHelper {
         gbc.insets = new Insets(0, 0, 18, 0);
         gbc.fill = GridBagConstraints.NONE;
         gbc.anchor = GridBagConstraints.NORTH;
+        gbc.weightx = 0.0;
         return gbc;
     }
 
@@ -79,7 +82,7 @@ public final class AddGuestHelper {
         JPanel header = new JPanel(new BorderLayout()) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
         };
@@ -96,7 +99,7 @@ public final class AddGuestHelper {
 
         JLabel subtitle = new JLabel(subtitleText);
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        subtitle.setForeground(new Color(100, 100, 100));
+        subtitle.setForeground(HomeViewHelper.TEXT_SECONDARY);
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         titleBlock.add(title);
@@ -116,7 +119,7 @@ public final class AddGuestHelper {
         JPanel breadcrumb = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
         };
@@ -142,7 +145,7 @@ public final class AddGuestHelper {
         JPanel container = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0)) {
             public Dimension getPreferredSize() {
                 Dimension size = super.getPreferredSize();
-                size.width = CONTENT_WIDTH;
+                size.width = responsiveWidth(this);
                 return size;
             }
         };
@@ -160,7 +163,7 @@ public final class AddGuestHelper {
         link.setBorderPainted(false);
         link.setFocusPainted(false);
         link.setOpaque(false);
-        link.setForeground(new Color(0, 112, 210));
+        link.setForeground(HomeViewHelper.PRIMARY);
         link.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         link.setBorder(new EmptyBorder(4, 0, 4, 0));
@@ -169,7 +172,7 @@ public final class AddGuestHelper {
 
     private static JLabel breadcrumbSlash() {
         JLabel slash = new JLabel("/");
-        slash.setForeground(new Color(0, 112, 210));
+        slash.setForeground(HomeViewHelper.PRIMARY);
         slash.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         slash.setBorder(new EmptyBorder(4, 2, 4, 2));
         return slash;
@@ -193,7 +196,7 @@ public final class AddGuestHelper {
 
         JLabel subtitle = new JLabel("Enter guest information");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        subtitle.setForeground(new Color(100, 100, 100));
+        subtitle.setForeground(HomeViewHelper.TEXT_SECONDARY);
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         titleBlock.add(title);
@@ -218,7 +221,7 @@ public final class AddGuestHelper {
     public static int addSectionTitle(JPanel panel, GridBagConstraints gbc, int y, String text) {
         JLabel section = new JLabel(text);
         section.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        section.setForeground(new Color(60, 60, 60));
+        section.setForeground(HomeViewHelper.TEXT_PRIMARY);
 
         gbc.gridx = 0;
         gbc.gridy = y;
@@ -253,15 +256,15 @@ public final class AddGuestHelper {
     public static JLabel label(String text) {
         JLabel label = new JLabel(text);
         label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        label.setForeground(new Color(70, 70, 70));
+        label.setForeground(new Color(70, 82, 96));
         return label;
     }
 
     @SuppressWarnings("unchecked")
     public static JComponent styleField(JComponent component) {
-        component.setPreferredSize(new Dimension(340, 34));
-        component.setMinimumSize(new Dimension(280, 34));
-        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        component.setPreferredSize(new Dimension(FIELD_WIDTH, 34));
+        component.setMinimumSize(new Dimension(FIELD_MIN_WIDTH, 34));
+        component.setMaximumSize(new Dimension(FIELD_WIDTH, 34));
         component.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         component.setBackground(Color.WHITE);
         component.setBorder(new CompoundBorder(
@@ -294,7 +297,7 @@ public final class AddGuestHelper {
     }
 
     public static void stylePrimary(JButton button) {
-        button.setBackground(new Color(0, 112, 210));
+        button.setBackground(HomeViewHelper.PRIMARY);
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
         button.setFont(new Font("Segoe UI", Font.BOLD, 13));
@@ -313,7 +316,7 @@ public final class AddGuestHelper {
     }
 
     public static void styleBack(JButton button) {
-        button.setForeground(new Color(0, 112, 210));
+        button.setForeground(HomeViewHelper.PRIMARY);
         button.setContentAreaFilled(false);
         button.setFocusPainted(false);
         button.setOpaque(false);
@@ -354,7 +357,7 @@ public final class AddGuestHelper {
             Component editor = comboBox.getEditor().getEditorComponent();
             editor.setFont(new Font("Segoe UI", Font.PLAIN, 13));
             editor.setBackground(Color.WHITE);
-            editor.setForeground(Color.BLACK);
+            editor.setForeground(HomeViewHelper.TEXT_PRIMARY);
             if (editor instanceof JComponent) {
                 ((JComponent) editor).setBorder(new EmptyBorder(0, 0, 0, 0));
             }
@@ -370,13 +373,22 @@ public final class AddGuestHelper {
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 label.setBorder(new EmptyBorder(0, 0, 0, 0));
                 label.setBackground(isSelected ? DROPDOWN_SELECTION : DROPDOWN_BACKGROUND);
-                label.setForeground(Color.BLACK);
+                label.setForeground(HomeViewHelper.TEXT_PRIMARY);
                 list.setBackground(DROPDOWN_BACKGROUND);
                 list.setSelectionBackground(DROPDOWN_SELECTION);
-                list.setSelectionForeground(Color.BLACK);
+                list.setSelectionForeground(HomeViewHelper.TEXT_PRIMARY);
                 return label;
             }
         });
+    }
+
+    private static int responsiveWidth(Component component) {
+        Container parent = component.getParent();
+        int width = parent == null ? 0 : parent.getWidth();
+        if (width <= 0) {
+            return CONTENT_WIDTH;
+        }
+        return Math.max(320, Math.min(CONTENT_WIDTH, width));
     }
 
     private static void enableAutoComplete(JComboBox<String> comboBox) {

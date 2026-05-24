@@ -51,7 +51,7 @@ public class AddGuest extends JFrame {
 
         setContentPane(root);
         pack();
-        setMinimumSize(new Dimension(900, 650));
+        setMinimumSize(new Dimension(760, 620));
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
     }

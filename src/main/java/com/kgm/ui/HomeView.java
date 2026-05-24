@@ -82,7 +82,7 @@ public class HomeView extends JFrame {
         root.add(new FooterPanel(), BorderLayout.SOUTH);
         setContentPane(root);
         pack();
-        setMinimumSize(new Dimension(980, 680));
+        setMinimumSize(new Dimension(760, 620));
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setVisible(true);
@@ -479,7 +479,7 @@ public class HomeView extends JFrame {
         row.setOpaque(false);
         importExcelButton = new JButton("Import Excel");
         importExcelButton.setPreferredSize(new Dimension(126, 32));
-        importExcelButton.setBackground(new Color(28, 137, 85));
+        importExcelButton.setBackground(HomeViewHelper.PRIMARY);
         importExcelButton.setForeground(Color.WHITE);
         importExcelButton.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         importExcelButton.setFocusPainted(false);

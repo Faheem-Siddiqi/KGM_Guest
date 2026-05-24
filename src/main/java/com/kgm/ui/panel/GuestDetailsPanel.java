@@ -4,6 +4,7 @@ import com.kgm.dao.GuestDao;
 import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
+import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -377,7 +378,7 @@ public class GuestDetailsPanel extends JPanel {
         }
 
         if (arrival.after(now)) {
-            statusField.setForeground(new Color(0, 112, 210));
+            statusField.setForeground(HomeViewHelper.PRIMARY);
             statusField.setText("Upcoming");
             return;
         }

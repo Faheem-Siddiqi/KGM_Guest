@@ -1,6 +1,7 @@
 package com.kgm.ui;
 
 import com.kgm.service.AuthService;
+import com.kgm.ui.styling.HomeViewHelper;
 import com.kgm.util.SessionManager;
 import com.kgm.util.SessionWatcher;
 
@@ -28,19 +29,19 @@ private static final String LOGIN_IMAGE_CREDIT = "Made with ♥ by Faheem Siddiq
     // Change this width if the login logo needs to be resized later.
     private static final int LOGO_WIDTH = 70;
     private static final Color PAGE_BACKGROUND = Color.WHITE;
-    private static final Color TEXT_PRIMARY = new Color(24, 32, 43);
-  private static final Color HEADING_GREY = new Color(38, 45, 56);
-    private static final Color TEXT_SECONDARY = new Color(92, 106, 124);
-    private static final Color BORDER = new Color(221, 228, 238);
-    private static final Color FOCUS_BORDER = new Color(0, 112, 210);
-    private static final Color PRIMARY = new Color(0, 112, 210);
-    private static final Color PRIMARY_HOVER = new Color(0, 92, 176);
+    private static final Color TEXT_PRIMARY = HomeViewHelper.TEXT_PRIMARY;
+  private static final Color HEADING_GREY = HomeViewHelper.TEXT_PRIMARY;
+    private static final Color TEXT_SECONDARY = HomeViewHelper.TEXT_SECONDARY;
+    private static final Color BORDER = HomeViewHelper.BORDER;
+    private static final Color FOCUS_BORDER = HomeViewHelper.PRIMARY;
+    private static final Color PRIMARY = HomeViewHelper.PRIMARY;
+    private static final Color PRIMARY_HOVER = HomeViewHelper.PRIMARY_DARK;
 
     public LoginView() {
         setTitle("KGM Login");
         setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
-        setMinimumSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
-        setResizable(false);
+        setMinimumSize(new Dimension(760, 560));
+        setResizable(true);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
@@ -217,8 +218,8 @@ private static final String LOGIN_IMAGE_CREDIT = "Made with ♥ by Faheem Siddiq
                 g.drawImage(image, 0, 0, this);
             } else {
                 Graphics2D g2 = (Graphics2D) g.create();
-                GradientPaint fallback = new GradientPaint(0, 0, new Color(0, 112, 210),
-                        width, height, new Color(11, 31, 55));
+                GradientPaint fallback = new GradientPaint(0, 0, HomeViewHelper.PRIMARY_LIGHT,
+                        width, height, HomeViewHelper.PRIMARY_DARK);
                 g2.setPaint(fallback);
                 g2.fillRect(0, 0, width, height);
                 g2.dispose();
@@ -309,13 +310,13 @@ private static final String LOGIN_IMAGE_CREDIT = "Made with ♥ by Faheem Siddiq
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            Color start = new Color(25, 147, 238);
+            Color start = HomeViewHelper.PRIMARY_LIGHT;
             Color end = PRIMARY;
             if (isFocusOwner()) {
-                start = new Color(14, 133, 229);
-                end = new Color(0, 78, 158);
+                start = HomeViewHelper.OCCUPIED_LIGHT;
+                end = HomeViewHelper.PRIMARY_DARK;
             } else if (hovered) {
-                start = new Color(0, 130, 224);
+                start = HomeViewHelper.OCCUPIED_LIGHT;
                 end = PRIMARY_HOVER;
             }
 

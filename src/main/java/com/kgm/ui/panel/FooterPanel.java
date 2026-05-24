@@ -1,12 +1,14 @@
 package com.kgm.ui.panel;
 
+import com.kgm.ui.styling.HomeViewHelper;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
 public class FooterPanel extends JPanel {
     private static final String FOOTER_TEXT = "Kohinoor Textile Mills Gujar Khan Ltd.";
-    private static final Color PRIMARY = new Color(0, 112, 210);
+    private static final Color PRIMARY = HomeViewHelper.PRIMARY;
 
     public FooterPanel() {
         this(null);

@@ -29,7 +29,7 @@ public class AccommodationCategoryPanel extends JPanel {
 
     public AccommodationCategoryPanel(Consumer<List<String>> onCategoriesChanged) {
         this.onCategoriesChanged = onCategoriesChanged;
-        setLayout(new BorderLayout());
+        setLayout(new GridBagLayout());
         setOpaque(false);
 
         JPanel card = AccommodationManagementHelper.sectionCard(
@@ -47,7 +47,12 @@ public class AccommodationCategoryPanel extends JPanel {
         body.add(categoryTable, BorderLayout.CENTER);
 
         card.add(body, BorderLayout.CENTER);
-        add(card, BorderLayout.CENTER);
+
+        GridBagConstraints cardConstraints = new GridBagConstraints();
+        cardConstraints.gridx = 0;
+        cardConstraints.gridy = 0;
+        cardConstraints.anchor = GridBagConstraints.NORTH;
+        add(card, cardConstraints);
 
         loadCategories();
     }

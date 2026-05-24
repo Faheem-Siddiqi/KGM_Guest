@@ -1,5 +1,6 @@
 package com.kgm.ui.component;
 
+import com.kgm.ui.styling.HomeViewHelper;
 import com.toedter.calendar.JCalendar;
 
 import javax.swing.*;
@@ -17,7 +18,7 @@ public class UniversalDatePicker extends JPanel {
     private static final String DATE_FORMAT = "dd-MM-yyyy HH:mm";
 
     private static final Color BORDER_COLOR = new Color(200, 200, 200);
-    private static final Color BORDER_FOCUS_COLOR = new Color(0, 112, 210);
+    private static final Color BORDER_FOCUS_COLOR = HomeViewHelper.PRIMARY;
     private static final Color BACKGROUND_COLOR = Color.WHITE;
     private static final Color DISABLED_BACKGROUND = new Color(248, 248, 248);
     private static final Color DISABLED_FOREGROUND = new Color(150, 150, 150);
@@ -428,7 +429,7 @@ public class UniversalDatePicker extends JPanel {
         if (primary) {
 
             button.setBackground(
-                    new Color(0, 112, 210)
+                    HomeViewHelper.PRIMARY
             );
 
             button.setForeground(Color.WHITE);
@@ -661,7 +662,7 @@ public class UniversalDatePicker extends JPanel {
                     BACKGROUND_COLOR
             );
 
-            displayField.setForeground(Color.BLACK);
+            displayField.setForeground(HomeViewHelper.TEXT_PRIMARY);
 
             iconPanel.setVisible(true);
 

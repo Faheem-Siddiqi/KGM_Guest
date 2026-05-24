@@ -6,6 +6,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UniversalGraphPanel extends JPanel implements Scrollable {
     private static final int MIN_VISIBLE_BAR_HEIGHT = 4;
@@ -16,6 +18,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     private final String subtitle;
     private String[] categories;
     private Series[] series;
+    private HoverBar hoveredBar;
 
     public UniversalGraphPanel(String title, String subtitle, String[] categories, Series... series) {
         this.title = title;
@@ -26,12 +29,14 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         setPreferredSize(new Dimension(preferredGraphWidth(), GRAPH_HEIGHT));
         setMinimumSize(new Dimension(320, 300));
         setToolTipText("");
+        ToolTipManager.sharedInstance().registerComponent(this);
         installHoverCursor();
     }
 
     public void setGraphData(String[] categories, Series... series) {
         this.categories = categories.clone();
         this.series = series.clone();
+        hoveredBar = null;
         setPreferredSize(new Dimension(preferredGraphWidth(), GRAPH_HEIGHT));
         revalidate();
         repaint();
@@ -58,6 +63,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
         drawHeader(g2, width);
         drawBars(g2, width, height);
+        drawHoverOverlay(g2, width, height);
 
         g2.dispose();
     }
@@ -70,13 +76,20 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     private void installHoverCursor() {
         addMouseMotionListener(new MouseAdapter() {
             public void mouseMoved(MouseEvent event) {
+                HoverBar nextHover = hoverBarAt(event.getPoint());
+                if (nextHover == null ? hoveredBar != null : !nextHover.equals(hoveredBar)) {
+                    hoveredBar = nextHover;
+                    repaint();
+                }
                 setCursor(Cursor.getPredefinedCursor(
-                        hoverBarAt(event.getPoint()) == null ? Cursor.DEFAULT_CURSOR : Cursor.HAND_CURSOR
+                        nextHover == null ? Cursor.DEFAULT_CURSOR : Cursor.HAND_CURSOR
                 ));
             }
         });
         addMouseListener(new MouseAdapter() {
             public void mouseExited(MouseEvent event) {
+                hoveredBar = null;
+                repaint();
                 setCursor(Cursor.getDefaultCursor());
             }
         });
@@ -150,6 +163,15 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
                 g2.setPaint(new GradientPaint(x, y, item.start, x, baseY, item.end));
                 g2.fillRoundRect(x, y, barW, barH, BAR_RADIUS, BAR_RADIUS);
+                if (hoveredBar != null
+                        && hoveredBar.categoryIndex() == categoryIndex
+                        && hoveredBar.seriesIndex() == seriesIndex) {
+                    Stroke originalStroke = g2.getStroke();
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.setColor(new Color(7, 76, 145, 180));
+                    g2.drawRoundRect(x - 1, y - 1, barW + 2, barH + 2, BAR_RADIUS + 2, BAR_RADIUS + 2);
+                    g2.setStroke(originalStroke);
+                }
             }
 
             String label = categories[categoryIndex];
@@ -191,25 +213,80 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     private String tooltipText(int categoryIndex, int hoveredSeriesIndex) {
         StringBuilder tooltip = new StringBuilder("<html>");
         tooltip.append("<b>").append(html(title)).append("</b><br>");
-        tooltip.append(html(categoryLabel(categoryIndex))).append("<br>");
-        for (int seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
-            Series item = series[seriesIndex];
-            int value = categoryIndex < item.values.length ? Math.max(0, item.values[categoryIndex]) : 0;
-            if (seriesIndex == hoveredSeriesIndex) {
-                tooltip.append("<b>");
-            }
-            tooltip.append(html(item.name)).append(": ").append(value);
-            if (seriesIndex == hoveredSeriesIndex) {
-                tooltip.append("</b>");
-            }
-            tooltip.append("<br>");
-        }
-        Integer availableBeds = availableBeds(categoryIndex);
-        if (availableBeds != null) {
-            tooltip.append("Available Beds: ").append(availableBeds).append("<br>");
+        for (String line : statLines(categoryIndex, hoveredSeriesIndex)) {
+            tooltip.append(html(line)).append("<br>");
         }
         tooltip.append("</html>");
         return tooltip.toString();
+    }
+
+    private void drawHoverOverlay(Graphics2D g2, int width, int height) {
+        if (hoveredBar == null) {
+            return;
+        }
+
+        List<String> lines = statLines(hoveredBar.categoryIndex(), hoveredBar.seriesIndex());
+        if (lines.isEmpty()) {
+            return;
+        }
+
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        FontMetrics metrics = g2.getFontMetrics();
+        int boxWidth = metrics.stringWidth(title) + 34;
+        for (String line : lines) {
+            boxWidth = Math.max(boxWidth, metrics.stringWidth(line) + 34);
+        }
+        boxWidth = Math.min(Math.max(boxWidth, 170), Math.max(170, width - 28));
+        int lineHeight = 17;
+        int boxHeight = 32 + lines.size() * lineHeight;
+
+        Point mouse = getMousePosition();
+        int x = mouse == null ? width - boxWidth - 18 : mouse.x + 16;
+        int y = mouse == null ? 70 : mouse.y - boxHeight - 12;
+        x = clamp(x, 14, Math.max(14, width - boxWidth - 14));
+        y = clamp(y, 62, Math.max(62, height - boxHeight - 14));
+
+        Composite originalComposite = g2.getComposite();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.96f));
+        g2.setColor(Color.WHITE);
+        g2.fillRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+        g2.setComposite(originalComposite);
+        g2.setColor(HomeViewHelper.BORDER);
+        g2.drawRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+
+        g2.setColor(HomeViewHelper.TEXT_PRIMARY);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        g2.drawString(title, x + 14, y + 19);
+
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        g2.setColor(HomeViewHelper.TEXT_SECONDARY);
+        int textY = y + 39;
+        for (String line : lines) {
+            g2.drawString(line, x + 14, textY);
+            textY += lineHeight;
+        }
+    }
+
+    private List<String> statLines(int categoryIndex, int hoveredSeriesIndex) {
+        List<String> lines = new ArrayList<>();
+        lines.add(categoryLabel(categoryIndex));
+        for (int seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
+            Series item = series[seriesIndex];
+            int value = categoryIndex < item.values.length ? Math.max(0, item.values[categoryIndex]) : 0;
+            String prefix = seriesIndex == hoveredSeriesIndex ? "* " : "";
+            lines.add(prefix + item.name + ": " + value);
+        }
+        lines.addAll(additionalStatLines(categoryIndex));
+        return lines;
+    }
+
+    protected List<String> additionalStatLines(int categoryIndex) {
+        List<String> lines = new ArrayList<>();
+        Integer availableBeds = availableBeds(categoryIndex);
+        if (availableBeds != null) {
+            lines.add("Available Beds: " + availableBeds);
+        }
+        return lines;
     }
 
     private Integer availableBeds(int categoryIndex) {
@@ -238,6 +315,10 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         return text == null
                 ? ""
                 : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private GraphLayout graphLayout(int width, int height) {

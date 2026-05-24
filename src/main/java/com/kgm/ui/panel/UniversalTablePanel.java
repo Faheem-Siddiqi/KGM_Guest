@@ -697,7 +697,7 @@ public class UniversalTablePanel extends JPanel {
             return new Color(38, 128, 64);
         }
         if (status.equalsIgnoreCase("Upcoming")) {
-            return new Color(0, 112, 210);
+            return AccommodationManagementHelper.PRIMARY;
         }
         if (status.equalsIgnoreCase("Departed")) {
             return new Color(180, 60, 45);

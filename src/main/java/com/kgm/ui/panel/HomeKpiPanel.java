@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class HomeKpiPanel extends JPanel {
+    private static final int KPI_MIN_WIDTH = 220;
+
     public HomeKpiPanel(DashboardDao.DashboardStats stats) {
         setLayout(new BorderLayout());
         setOpaque(false);
@@ -17,7 +19,7 @@ public class HomeKpiPanel extends JPanel {
 
     public void updateStats(DashboardDao.DashboardStats stats) {
         removeAll();
-        JPanel kpiGrid = new JPanel(new GridLayout(2, 3, 16, 16));
+        JPanel kpiGrid = responsiveGrid(6, KPI_MIN_WIDTH, 16, 16);
         kpiGrid.setOpaque(false);
 
         kpiGrid.add(HomeViewHelper.kpiCard(
@@ -129,5 +131,31 @@ public class HomeKpiPanel extends JPanel {
         long days = totalHours / 24;
         long hours = totalHours % 24;
         return days + " days " + hours + " hrs";
+    }
+
+    private JPanel responsiveGrid(int itemCount, int minItemWidth, int horizontalGap, int verticalGap) {
+        return new JPanel(new GridLayout(0, 3, horizontalGap, verticalGap)) {
+            public void doLayout() {
+                updateResponsiveColumns(this, itemCount, minItemWidth);
+                super.doLayout();
+            }
+
+            public Dimension getPreferredSize() {
+                updateResponsiveColumns(this, itemCount, minItemWidth);
+                return super.getPreferredSize();
+            }
+        };
+    }
+
+    private void updateResponsiveColumns(JPanel panel, int itemCount, int minItemWidth) {
+        int width = panel.getWidth();
+        if (width <= 0 && panel.getParent() != null) {
+            width = panel.getParent().getWidth();
+        }
+        int columns = Math.max(1, Math.min(Math.max(1, itemCount), Math.max(1, width / minItemWidth)));
+        GridLayout layout = (GridLayout) panel.getLayout();
+        if (layout.getColumns() != columns) {
+            layout.setColumns(columns);
+        }
     }
 }

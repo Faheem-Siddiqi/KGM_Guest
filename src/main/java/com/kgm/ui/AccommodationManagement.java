@@ -24,7 +24,7 @@ public class AccommodationManagement extends JFrame {
 
         setContentPane(root);
         pack();
-        setMinimumSize(new Dimension(980, 680));
+        setMinimumSize(new Dimension(760, 620));
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
     }

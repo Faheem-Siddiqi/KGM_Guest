@@ -42,7 +42,7 @@ public class AccommodationFormPanel extends JPanel {
     public AccommodationFormPanel(SaveHandler onSave, UpdateHandler onUpdate) {
         this.onSave = onSave;
         this.onUpdate = onUpdate;
-        setLayout(new BorderLayout());
+        setLayout(new GridBagLayout());
         setOpaque(false);
         nameField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent event) {
@@ -65,7 +65,12 @@ public class AccommodationFormPanel extends JPanel {
                 "Create a new accommodation or update the selected record."
         );
         card.add(createFormBody(), BorderLayout.CENTER);
-        add(card, BorderLayout.CENTER);
+
+        GridBagConstraints cardConstraints = new GridBagConstraints();
+        cardConstraints.gridx = 0;
+        cardConstraints.gridy = 0;
+        cardConstraints.anchor = GridBagConstraints.NORTH;
+        add(card, cardConstraints);
         refreshAmenities();
         setDefaultStatus();
     }
@@ -167,8 +172,8 @@ public class AccommodationFormPanel extends JPanel {
 
         amenitiesScrollPane = new JScrollPane(amenitiesListPanel);
         amenitiesScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        amenitiesScrollPane.setPreferredSize(new Dimension(704, 112));
-        amenitiesScrollPane.setMinimumSize(new Dimension(620, 82));
+        amenitiesScrollPane.setPreferredSize(new Dimension(0, 112));
+        amenitiesScrollPane.setMinimumSize(new Dimension(260, 82));
         amenitiesScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 132));
         amenitiesScrollPane.setBorder(new LineBorder(new Color(220, 226, 232)));
         amenitiesScrollPane.setWheelScrollingEnabled(false);
@@ -514,7 +519,7 @@ public class AccommodationFormPanel extends JPanel {
         }
 
         public Dimension getPreferredScrollableViewportSize() {
-            return new Dimension(AccommodationManagementHelper.CONTENT_WIDTH - 156, 112);
+            return new Dimension(320, 112);
         }
 
         public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {

@@ -8,6 +8,8 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 public class GuestFilterPanel extends JPanel {
     private static final int FILTER_FIELD_GAP = 14;
@@ -30,14 +32,6 @@ public class GuestFilterPanel extends JPanel {
         JPanel body = new JPanel();
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setOpaque(false);
-
-        JPanel filters = new JPanel(new GridBagLayout());
-        filters.setOpaque(false);
-        filters.setAlignmentX(Component.LEFT_ALIGNMENT);
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(0, 0, 14, 14);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
 
         JButton searchButton = HomeViewHelper.textButton("SEARCH");
         styleSearchButton(searchButton);
@@ -73,23 +67,48 @@ public class GuestFilterPanel extends JPanel {
             }
         });
 
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 1.0;
-        filters.add(createSearchFilter(searchButton), gbc);
-
-        gbc.gridx = 1;
-        gbc.weightx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.anchor = GridBagConstraints.NORTHEAST;
-        gbc.insets = new Insets(0, 0, 14, 0);
-        filters.add(createRightAlignedFilters(), gbc);
+        JPanel filters = responsiveFilters(createSearchFilter(searchButton), createRightAlignedFilters());
 
         body.add(filters);
 
         card.add(body, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
         updateClearButtonState();
+    }
+
+    private JPanel responsiveFilters(JComponent searchFilter, JComponent rightFilters) {
+        JPanel filters = new JPanel(new GridBagLayout());
+        filters.setOpaque(false);
+        filters.setAlignmentX(Component.LEFT_ALIGNMENT);
+        Runnable layoutUpdater = () -> {
+            boolean stacked = filters.getWidth() > 0 && filters.getWidth() < 780;
+            filters.removeAll();
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(0, 0, 14, stacked ? 0 : 14);
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.anchor = GridBagConstraints.NORTHWEST;
+            gbc.gridx = 0;
+            gbc.gridy = 0;
+            gbc.weightx = 1.0;
+            filters.add(searchFilter, gbc);
+
+            gbc.gridx = stacked ? 0 : 1;
+            gbc.gridy = stacked ? 1 : 0;
+            gbc.weightx = stacked ? 1.0 : 0;
+            gbc.fill = stacked ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
+            gbc.anchor = stacked ? GridBagConstraints.NORTHWEST : GridBagConstraints.NORTHEAST;
+            gbc.insets = new Insets(0, 0, 14, 0);
+            filters.add(rightFilters, gbc);
+            filters.revalidate();
+            filters.repaint();
+        };
+        filters.addComponentListener(new ComponentAdapter() {
+            public void componentResized(ComponentEvent event) {
+                layoutUpdater.run();
+            }
+        });
+        layoutUpdater.run();
+        return filters;
     }
 
     private JPanel createSearchFilter(JButton searchButton) {
@@ -241,11 +260,11 @@ public class GuestFilterPanel extends JPanel {
                 );
                 label.setBorder(new EmptyBorder(0, 0, 0, 0));
                 label.setBackground(index < 0 ? Color.WHITE
-                        : isSelected ? new Color(224, 224, 224) : new Color(245, 245, 245));
-                label.setForeground(Color.BLACK);
-                list.setBackground(new Color(245, 245, 245));
-                list.setSelectionBackground(new Color(224, 224, 224));
-                list.setSelectionForeground(Color.BLACK);
+                        : isSelected ? HomeViewHelper.ROW_SELECTION : new Color(247, 250, 255));
+                label.setForeground(HomeViewHelper.TEXT_PRIMARY);
+                list.setBackground(new Color(247, 250, 255));
+                list.setSelectionBackground(HomeViewHelper.ROW_SELECTION);
+                list.setSelectionForeground(HomeViewHelper.TEXT_PRIMARY);
                 return label;
             }
         });

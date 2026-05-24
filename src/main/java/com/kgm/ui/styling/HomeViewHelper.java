@@ -19,21 +19,21 @@ import java.util.Date;
 
 public final class HomeViewHelper {
     public static final Color PAGE_BACKGROUND = Color.WHITE;
-    public static final Color PRIMARY = new Color(0, 112, 210);
-    public static final Color PRIMARY_DARK = new Color(0, 62, 122);
-    public static final Color PRIMARY_LIGHT = new Color(0, 157, 225);
-    public static final Color VACANT_DARK = new Color(0, 136, 112);
-    public static final Color VACANT_LIGHT = new Color(0, 188, 212);
-    public static final Color OCCUPIED_DARK = new Color(82, 52, 154);
-    public static final Color OCCUPIED_LIGHT = new Color(149, 91, 232);
-    public static final Color KPI_AMBER_DARK = new Color(176, 76, 19);
-    public static final Color KPI_AMBER_LIGHT = new Color(245, 154, 72);
-    public static final Color KPI_SKY_DARK = new Color(51, 65, 85);
-    public static final Color KPI_SKY_LIGHT = new Color(56, 165, 214);
-    public static final Color KPI_ROSE_DARK = new Color(157, 43, 91);
-    public static final Color KPI_ROSE_LIGHT = new Color(232, 96, 145);
-    public static final Color GRAPH_PLUM_DARK = new Color(103, 58, 183);
-    public static final Color GRAPH_PLUM_LIGHT = new Color(213, 87, 128);
+    public static final Color PRIMARY = new Color(11, 111, 211);
+    public static final Color PRIMARY_DARK = new Color(7, 76, 145);
+    public static final Color PRIMARY_LIGHT = new Color(56, 165, 246);
+    public static final Color VACANT_DARK = new Color(14, 116, 144);
+    public static final Color VACANT_LIGHT = new Color(34, 211, 238);
+    public static final Color OCCUPIED_DARK = new Color(30, 58, 138);
+    public static final Color OCCUPIED_LIGHT = new Color(59, 130, 246);
+    public static final Color KPI_AMBER_DARK = new Color(29, 78, 216);
+    public static final Color KPI_AMBER_LIGHT = new Color(96, 165, 250);
+    public static final Color KPI_SKY_DARK = new Color(3, 105, 161);
+    public static final Color KPI_SKY_LIGHT = new Color(125, 211, 252);
+    public static final Color KPI_ROSE_DARK = new Color(67, 56, 202);
+    public static final Color KPI_ROSE_LIGHT = new Color(129, 140, 248);
+    public static final Color GRAPH_PLUM_DARK = OCCUPIED_DARK;
+    public static final Color GRAPH_PLUM_LIGHT = OCCUPIED_LIGHT;
     public static final Color TEXT_PRIMARY = new Color(35, 43, 54);
     public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
     public static final Color BORDER = new Color(220, 226, 232);
@@ -483,11 +483,11 @@ public final class HomeViewHelper {
             ) {
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 label.setBorder(new EmptyBorder(0, 0, 0, 0));
-                label.setBackground(isSelected ? new Color(224, 224, 224) : new Color(245, 245, 245));
-                label.setForeground(Color.BLACK);
-                list.setBackground(new Color(245, 245, 245));
-                list.setSelectionBackground(new Color(224, 224, 224));
-                list.setSelectionForeground(Color.BLACK);
+                label.setBackground(isSelected ? ROW_SELECTION : new Color(247, 250, 255));
+                label.setForeground(TEXT_PRIMARY);
+                list.setBackground(new Color(247, 250, 255));
+                list.setSelectionBackground(ROW_SELECTION);
+                list.setSelectionForeground(TEXT_PRIMARY);
                 return label;
             }
         });

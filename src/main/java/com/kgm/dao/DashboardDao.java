@@ -13,6 +13,7 @@ import java.util.List;
 
 public class DashboardDao {
     private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final int TOP_DEPARTMENT_LIMIT = 5;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a");
 
     public DashboardStats loadStats() throws SQLException {
@@ -267,19 +268,33 @@ public class DashboardDao {
                 FROM guests g
                 GROUP BY COALESCE(NULLIF(TRIM(g.requested_department), ''), 'Unknown')
                 ORDER BY guests DESC, department_name
+                LIMIT ?
                 """;
 
         List<String> labels = new ArrayList<>();
         List<Integer> values = new ArrayList<>();
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-            ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
-                labels.add(labelText(resultSet.getString("department_name")));
-                values.add(resultSet.getInt("guests"));
+        int totalGuestRequests;
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            totalGuestRequests = countGuestRequests(connection);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, TOP_DEPARTMENT_LIMIT);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    while (resultSet.next()) {
+                        labels.add(labelText(resultSet.getString("department_name")));
+                        values.add(resultSet.getInt("guests"));
+                    }
+                }
             }
         }
-        return new DepartmentChartData(toStringArray(labels), toIntArray(values));
+        return new DepartmentChartData(toStringArray(labels), toIntArray(values), totalGuestRequests);
+    }
+
+    private int countGuestRequests(Connection connection) throws SQLException {
+        String sql = "SELECT COUNT(*) AS total_requests FROM guests";
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            return resultSet.next() ? resultSet.getInt("total_requests") : 0;
+        }
     }
 
     public String[] loadAccommodationCategories() throws SQLException {
@@ -338,7 +353,21 @@ public class DashboardDao {
     public record OccupancyChartData(String[] labels, int[] capacity, int[] occupied) {
     }
 
-    public record DepartmentChartData(String[] labels, int[] guests) {
+    public record DepartmentChartData(String[] labels, int[] guests, int totalGuestRequests) {
+        public DepartmentChartData(String[] labels, int[] guests) {
+            this(labels, guests, sum(guests));
+        }
+
+        private static int sum(int[] values) {
+            int total = 0;
+            if (values == null) {
+                return total;
+            }
+            for (int value : values) {
+                total += Math.max(0, value);
+            }
+            return total;
+        }
     }
 
     /**

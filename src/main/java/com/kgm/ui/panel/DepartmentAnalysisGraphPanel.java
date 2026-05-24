@@ -4,37 +4,29 @@ import com.kgm.dao.DashboardDao;
 import com.kgm.ui.styling.HomeViewHelper;
 
 public class DepartmentAnalysisGraphPanel extends UniversalGraphPanel {
-    private static final int TOP_DEPARTMENT_SLOTS = 5;
 
     public DepartmentAnalysisGraphPanel(DashboardDao.DepartmentChartData data) {
         super(
-                "Top 5 Departments",
-                "Guest records grouped by highest requesting departments",
-                topFiveLabels(data.labels()),
+                "Total Departments",
+                subtitle(data),
+                data.labels(),
                 new UniversalGraphPanel.Series(
                         "Guests",
-                        topFiveValues(data.guests()),
+                        data.guests(),
                         HomeViewHelper.KPI_ROSE_LIGHT,
                         HomeViewHelper.KPI_ROSE_DARK
                 )
         );
     }
 
-    private static String[] topFiveLabels(String[] labels) {
-        String[] padded = new String[TOP_DEPARTMENT_SLOTS];
-        for (int i = 0; i < TOP_DEPARTMENT_SLOTS; i++) {
-            padded[i] = i < labels.length && labels[i] != null && !labels[i].isBlank()
-                    ? labels[i]
-                    : "Dept " + (i + 1);
+    private static String subtitle(DashboardDao.DepartmentChartData data) {
+        if (data.labels().length == 0) {
+            return "No guest records available";
         }
-        return padded;
-    }
-
-    private static int[] topFiveValues(int[] values) {
-        int[] padded = new int[TOP_DEPARTMENT_SLOTS];
-        for (int i = 0; i < TOP_DEPARTMENT_SLOTS && i < values.length; i++) {
-            padded[i] = values[i];
+        int totalGuests = 0;
+        for (int value : data.guests()) {
+            totalGuests += Math.max(0, value);
         }
-        return padded;
+        return totalGuests + " guest records across " + data.labels().length + " requesting departments";
     }
 }

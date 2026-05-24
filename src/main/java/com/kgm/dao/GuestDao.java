@@ -57,6 +57,8 @@ public class GuestDao {
                     cnic,
                     nationality,
                     guest_category_id,
+                    company_name,
+                    visit_type,
                     address,
                     requested_by,
                     requested_department,
@@ -70,7 +72,7 @@ public class GuestDao {
                     remarks,
                     review
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (Connection connection = DatabaseConnection.getConnection()) {
             connection.setAutoCommit(false);
@@ -88,18 +90,20 @@ public class GuestDao {
                     statement.setString(2, guest.getCnic());
                     statement.setString(3, guest.getNationality());
                     statement.setLong(4, guestCategoryId);
-                    statement.setString(5, guest.getAddress());
-                    statement.setString(6, guest.getRequestedBy());
-                    statement.setString(7, guest.getRequestedDepartment());
-                    statement.setString(8, guest.getApprovedBy());
-                    statement.setString(9, guest.getAccommodatedBy());
-                    statement.setTimestamp(10, timestamp(guest.getArrivalAt()));
-                    statement.setTimestamp(11, timestamp(guest.getDepartureAt()));
-                    statement.setString(12, guest.getAccommodation());
-                    statement.setLong(13, accommodationId);
-                    statement.setString(14, guest.getRoomName());
-                    statement.setString(15, guest.getRemarks());
-                    statement.setString(16, guest.getReview() == null ? guest.getRemarks() : guest.getReview());
+                    statement.setString(5, text(guest.getCompanyName()));
+                    statement.setString(6, visitType(guest.getVisitType()));
+                    statement.setString(7, guest.getAddress());
+                    statement.setString(8, guest.getRequestedBy());
+                    statement.setString(9, guest.getRequestedDepartment());
+                    statement.setString(10, guest.getApprovedBy());
+                    statement.setString(11, guest.getAccommodatedBy());
+                    statement.setTimestamp(12, timestamp(guest.getArrivalAt()));
+                    statement.setTimestamp(13, timestamp(guest.getDepartureAt()));
+                    statement.setString(14, guest.getAccommodation());
+                    statement.setLong(15, accommodationId);
+                    statement.setString(16, guest.getRoomName());
+                    statement.setString(17, guest.getRemarks());
+                    statement.setString(18, guest.getReview() == null ? guest.getRemarks() : guest.getReview());
                     statement.executeUpdate();
                     try (ResultSet keys = statement.getGeneratedKeys()) {
                         if (keys.next()) {
@@ -132,6 +136,8 @@ public class GuestDao {
                     g.cnic,
                     g.nationality,
                     gc.name AS guest_category,
+                    g.company_name,
+                    g.visit_type,
                     g.address,
                     g.requested_by,
                     g.requested_department,
@@ -167,6 +173,8 @@ public class GuestDao {
                     g.cnic,
                     g.nationality,
                     gc.name AS guest_category,
+                    g.company_name,
+                    g.visit_type,
                     g.address,
                     g.requested_by,
                     g.requested_department,
@@ -209,6 +217,8 @@ public class GuestDao {
                     g.cnic,
                     g.nationality,
                     gc.name AS guest_category,
+                    g.company_name,
+                    g.visit_type,
                     g.address,
                     g.requested_by,
                     g.requested_department,
@@ -254,6 +264,8 @@ public class GuestDao {
                     g.cnic,
                     g.nationality,
                     gc.name AS guest_category,
+                    g.company_name,
+                    g.visit_type,
                     g.address,
                     g.requested_by,
                     g.requested_department,
@@ -301,6 +313,8 @@ public class GuestDao {
                     g.cnic,
                     g.nationality,
                     gc.name AS guest_category,
+                    g.company_name,
+                    g.visit_type,
                     g.address,
                     g.requested_by,
                     g.requested_department,
@@ -680,6 +694,8 @@ public class GuestDao {
         guest.setCnic(resultSet.getString("cnic"));
         guest.setNationality(resultSet.getString("nationality"));
         guest.setGuestCategory(resultSet.getString("guest_category"));
+        guest.setCompanyName(resultSet.getString("company_name"));
+        guest.setVisitType(resultSet.getString("visit_type"));
         guest.setAddress(resultSet.getString("address"));
         guest.setRequestedBy(resultSet.getString("requested_by"));
         guest.setRequestedDepartment(resultSet.getString("requested_department"));
@@ -854,6 +870,15 @@ public class GuestDao {
 
     private String digitsOnly(String value) {
         return value == null ? "" : value.replaceAll("\\D", "");
+    }
+
+    private String text(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String visitType(String value) {
+        String text = text(value);
+        return text.isEmpty() ? "Official Visit" : text;
     }
 
     private Date startOfDay(Date date) {

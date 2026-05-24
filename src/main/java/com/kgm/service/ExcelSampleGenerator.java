@@ -43,6 +43,8 @@ public class ExcelSampleGenerator {
     private static final String CNIC = "CNIC";
     private static final String NATIONALITY = "Nationality";
     private static final String GUEST_CATEGORY = "Guest Category";
+    private static final String COMPANY_NAME = "Company Name";
+    private static final String VISIT_TYPE = "Visit Type";
     private static final String ADDRESS = "Address";
     private static final String REQUESTED_BY = "Requested By";
     private static final String REQUESTED_DEPARTMENT = "Requested Department";
@@ -59,6 +61,8 @@ public class ExcelSampleGenerator {
             CNIC,
             NATIONALITY,
             GUEST_CATEGORY,
+            COMPANY_NAME,
+            VISIT_TYPE,
             ADDRESS,
             REQUESTED_BY,
             REQUESTED_DEPARTMENT,
@@ -245,6 +249,8 @@ public class ExcelSampleGenerator {
                         sampleCnic(rowIndex),
                         "Pakistani",
                         guestCategory,
+                        sampleCompany(rowIndex),
+                        rowIndex % 2 == 0 ? "Official Visit" : "Personal Visit",
                         "Sample address " + (rowIndex + 1),
                         "Sample Requester",
                         sampleDepartment(rowIndex),
@@ -282,6 +288,7 @@ public class ExcelSampleGenerator {
         
         String[] headers = {
                 "Guest Category",
+                "Visit Type",
                 "Accommodation Category",
                 "Room",
                 "Room Status",
@@ -306,6 +313,7 @@ public class ExcelSampleGenerator {
             if (guestCategoryIndex < guestCategories.size()) {
                 textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
             }
+            textCell(row, 1, rowIndex % 2 == 0 ? "Official Visit" : "Personal Visit", plainStyle);
             writeAccommodationValueRow(row, accommodation, plainStyle);
         }
 
@@ -317,15 +325,17 @@ public class ExcelSampleGenerator {
             if (guestCategoryIndex < guestCategories.size()) {
                 textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
             }
-            textCell(row, 1, category, plainStyle);
-            textCell(row, 2, "No active rooms configured", plainStyle);
-            textCell(row, 3, "Not importable", plainStyle);
-            textCell(row, 6, "No", plainStyle);
+            textCell(row, 1, "Official Visit", plainStyle);
+            textCell(row, 2, category, plainStyle);
+            textCell(row, 3, "No active rooms configured", plainStyle);
+            textCell(row, 4, "Not importable", plainStyle);
+            textCell(row, 7, "No", plainStyle);
         }
 
         while (guestCategoryIndex < guestCategories.size()) {
             Row row = values.createRow(rowIndex++);
             textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
+            textCell(row, 1, "Personal Visit", plainStyle);
         }
 
         // Add blank row for separation
@@ -380,12 +390,12 @@ public class ExcelSampleGenerator {
             SampleAccommodation accommodation,
             CellStyle editableStyle
     ) {
-        textCell(row, 1, accommodation.category(), editableStyle);
-        textCell(row, 2, accommodation.room(), editableStyle);
-        textCell(row, 3, accommodation.status(), editableStyle);
-        numberCell(row, 4, accommodation.capacity(), editableStyle);
-        numberCell(row, 5, accommodation.availableBeds(), editableStyle);
-        textCell(row, 6, "Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No", editableStyle);
+        textCell(row, 2, accommodation.category(), editableStyle);
+        textCell(row, 3, accommodation.room(), editableStyle);
+        textCell(row, 4, accommodation.status(), editableStyle);
+        numberCell(row, 5, accommodation.capacity(), editableStyle);
+        numberCell(row, 6, accommodation.availableBeds(), editableStyle);
+        textCell(row, 7, "Ready for Assignment".equalsIgnoreCase(accommodation.status()) ? "Yes" : "No", editableStyle);
     }
 
     private static void textCell(Row row, int index, String value, CellStyle style) {
@@ -448,6 +458,13 @@ public class ExcelSampleGenerator {
             "HR", "Admin", "Finance", "Spinning", "Power House", "IT"
         };
         return departments[index % departments.length];
+    }
+
+    private static String sampleCompany(int index) {
+        String[] companies = {
+                "Kohinoor Textile Mills", "Vendor Partner", "Consultant Group", "Family Visitor"
+        };
+        return companies[index % companies.length];
     }
 
     /**

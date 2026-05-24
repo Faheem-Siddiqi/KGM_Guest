@@ -75,6 +75,8 @@ public class GuestDetailsPanel extends JPanel {
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest CNIC", lockedField(value(record, GuestRecordPanel.CNIC)));
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Nationality", lockedField(value(record, GuestRecordPanel.NATIONALITY)));
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest Category", lockedField(value(record, GuestRecordPanel.CATEGORY)));
+        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Company Name", lockedField(value(record, GuestRecordPanel.COMPANY_NAME)));
+        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Visit Type", lockedField(value(record, GuestRecordPanel.VISIT_TYPE)));
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Address", lockedField(value(record, GuestRecordPanel.ADDRESS)));
 
         JPanel requestCard = AddGuestHelper.cardPanel();

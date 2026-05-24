@@ -5,6 +5,8 @@ import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.List;
+import java.util.function.Consumer;
 
 public class HomeKpiPanel extends JPanel {
     public HomeKpiPanel(DashboardDao.DashboardStats stats) {
@@ -70,6 +72,52 @@ public class HomeKpiPanel extends JPanel {
         add(kpiGrid, BorderLayout.CENTER);
         revalidate();
         repaint();
+    }
+
+    public void showCategoryLoading() {
+        removeAll();
+        add(messagePanel("Loading accommodation KPIs..."), BorderLayout.CENTER);
+        revalidate();
+        repaint();
+    }
+
+    public void updateCategoryStats(
+            List<DashboardDao.CategoryKpiStats> categoryStats,
+            Consumer<KPICategoryPanel.MetricSelection> onMetricClicked
+    ) {
+        removeAll();
+
+        if (categoryStats == null || categoryStats.isEmpty()) {
+            add(messagePanel("No active accommodation categories found."), BorderLayout.CENTER);
+            revalidate();
+            repaint();
+            return;
+        }
+
+        JPanel container = new JPanel();
+        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
+        container.setOpaque(false);
+        container.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        for (DashboardDao.CategoryKpiStats stat : categoryStats) {
+            KPICategoryPanel categoryPanel = new KPICategoryPanel(stat, onMetricClicked);
+            container.add(categoryPanel);
+        }
+
+        add(container, BorderLayout.CENTER);
+        revalidate();
+        repaint();
+    }
+
+    private JComponent messagePanel(String text) {
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        label.setForeground(HomeViewHelper.TEXT_SECONDARY);
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(18, 0, 18, 0));
+        panel.add(label, BorderLayout.CENTER);
+        return panel;
     }
 
     private String monthlyOccupancyDetail(int occupancyPercent) {

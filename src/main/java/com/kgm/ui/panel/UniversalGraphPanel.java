@@ -7,8 +7,10 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
-public class UniversalGraphPanel extends JPanel {
+public class UniversalGraphPanel extends JPanel implements Scrollable {
     private static final int MIN_VISIBLE_BAR_HEIGHT = 4;
+    private static final int BAR_RADIUS = 4;
+    private static final int GRAPH_HEIGHT = 400;
 
     private final String title;
     private final String subtitle;
@@ -21,7 +23,7 @@ public class UniversalGraphPanel extends JPanel {
         this.categories = categories.clone();
         this.series = series.clone();
         setOpaque(false);
-        setPreferredSize(new Dimension(preferredGraphWidth(), 340));
+        setPreferredSize(new Dimension(preferredGraphWidth(), GRAPH_HEIGHT));
         setMinimumSize(new Dimension(320, 300));
         setToolTipText("");
         installHoverCursor();
@@ -30,7 +32,7 @@ public class UniversalGraphPanel extends JPanel {
     public void setGraphData(String[] categories, Series... series) {
         this.categories = categories.clone();
         this.series = series.clone();
-        setPreferredSize(new Dimension(preferredGraphWidth(), 340));
+        setPreferredSize(new Dimension(preferredGraphWidth(), GRAPH_HEIGHT));
         revalidate();
         repaint();
     }
@@ -147,7 +149,7 @@ public class UniversalGraphPanel extends JPanel {
                 int y = baseY - barH;
 
                 g2.setPaint(new GradientPaint(x, y, item.start, x, baseY, item.end));
-                g2.fillRoundRect(x, y, barW, barH, 8, 8);
+                g2.fillRoundRect(x, y, barW, barH, BAR_RADIUS, BAR_RADIUS);
             }
 
             String label = categories[categoryIndex];
@@ -276,8 +278,52 @@ public class UniversalGraphPanel extends JPanel {
     }
 
     private int preferredGraphWidth() {
-        int categoryWidth = series.length > 1 ? 92 : 78;
+        int categoryWidth = series.length > 1
+                ? 92
+                : Math.max(90, Math.min(190, longestCategoryLineLength() * 7 + 24));
         return Math.max(360, 110 + Math.max(1, categories.length) * categoryWidth);
+    }
+
+    private int longestCategoryLineLength() {
+        int longest = 8;
+        for (String category : categories) {
+            if (category == null || category.isBlank()) {
+                continue;
+            }
+            for (String line : category.split("\\R")) {
+                longest = Math.max(longest, line.trim().length());
+            }
+        }
+        return longest;
+    }
+
+    @Override
+    public Dimension getPreferredScrollableViewportSize() {
+        return getPreferredSize();
+    }
+
+    @Override
+    public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+        return 16;
+    }
+
+    @Override
+    public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+        return 96;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+        Container parent = getParent();
+        if (parent instanceof JViewport viewport) {
+            return getPreferredSize().width <= viewport.getWidth();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportHeight() {
+        return true;
     }
 
     private record GraphLayout(int plotX, int plotY, int plotW, int plotH, int baseY, int max) {

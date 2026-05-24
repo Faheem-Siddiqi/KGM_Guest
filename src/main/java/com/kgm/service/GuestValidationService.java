@@ -54,6 +54,12 @@ public class GuestValidationService {
         if (isBlank(guest.getGuestCategory())) {
             guest.setGuestCategory("N/A");
         }
+        if (isBlank(guest.getCompanyName())) {
+            guest.setCompanyName("N/A");
+        }
+        if (isBlank(guest.getVisitType())) {
+            guest.setVisitType("Official Visit");
+        }
         if (isBlank(guest.getAddress())) {
             guest.setAddress("N/A");
         }

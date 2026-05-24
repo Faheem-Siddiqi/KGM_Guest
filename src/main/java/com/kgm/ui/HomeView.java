@@ -1,4 +1,6 @@
 package com.kgm.ui;
+
+import com.kgm.dao.AccommodationDao.AccommodationOccupancyFilter;
 import com.kgm.dao.DashboardDao;
 import com.kgm.database.DatabaseInitializer;
 import com.kgm.service.ExcelImportService;
@@ -7,6 +9,7 @@ import com.kgm.service.GuestReportService;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.dialog.ReportPeriodDialog;
 import com.kgm.ui.dialog.ReportProgressDialog;
+import com.kgm.ui.panel.AccommodationListViewPanel;
 import com.kgm.ui.panel.AccommodationManagementPanel;
 import com.kgm.ui.panel.DepartmentAnalysisGraphPanel;
 import com.kgm.ui.panel.GuestFilterPanel;
@@ -16,11 +19,13 @@ import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.panel.HomeKpiPanel;
 import com.kgm.ui.panel.HouseOccupancyGraphPanel;
+import com.kgm.ui.panel.KPICategoryPanel;
 import com.kgm.ui.panel.UniversalGraphPanel;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
+import com.kgm.ui.util.FileDialogHandler;
+
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -38,8 +43,10 @@ public class HomeView extends JFrame {
     // KPI bottom margin; adjust this value to tune space below KPI cards.
     private static final int KPI_BOTTOM_MARGIN = 36;
     private static final int DASHBOARD_REFRESH_DELAY_MS = 5000;
+    private static final int GRAPH_SCROLL_HEIGHT = 430;
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
+    private static final String ACCOMMODATION_LIST_SCREEN = "accommodationList";
     private static final String HIDDEN_HOUSE_CAPACITY_CATEGORY = "Security Block";
     private static final DateTimeFormatter REPORT_FILE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private GuestFilterPanel guestFilterPanel;
@@ -57,11 +64,13 @@ public class HomeView extends JFrame {
     private JPanel dashboardScreens;
     private JPanel dashboardPage;
     private Component guestDetailsScreen;
+    private Component accommodationListScreen;
+    private String dashboardCard = DASHBOARD_SCREEN;
     private JTabbedPane mainTabs;
     private boolean refreshingAddGuestTab;
     private JButton importExcelButton;
     private Timer dashboardStatsTimer;
-    private SwingWorker<DashboardDao.DashboardStats, Void> dashboardStatsWorker;
+    private SwingWorker<List<DashboardDao.CategoryKpiStats>, Void> dashboardStatsWorker;
     public HomeView() {
         DatabaseInitializer.init();
         setTitle("Guest Management Dashboard");
@@ -167,6 +176,7 @@ public class HomeView extends JFrame {
         GridBagConstraints gbc = HomeViewHelper.pageConstraints(0);
         gbc.insets = new Insets(0, 0, KPI_BOTTOM_MARGIN, 0);
         homeKpiPanel = new HomeKpiPanel(new DashboardDao.DashboardStats(0, 0, 0, 0, 0, 0, "Loading..."));
+        homeKpiPanel.showCategoryLoading();
         dashboardPage.add(homeKpiPanel, gbc);
         
         gbc = HomeViewHelper.pageConstraints(1);
@@ -204,13 +214,13 @@ public class HomeView extends JFrame {
         new SwingWorker<DashboardData, Void>() {
             @Override
             protected DashboardData doInBackground() throws Exception {
-                DashboardDao.DashboardStats stats = dashboardDao.loadStats();
+                List<DashboardDao.CategoryKpiStats> categoryStats = dashboardDao.loadCategoryKpiStats(true);
                 String[] categories = visibleHouseCapacityCategories(dashboardDao.loadAccommodationCategories());
                 DashboardDao.OccupancyChartData occupancyData = loadHouseCapacityOccupancyChart(
                         defaultOccupancyCategory(categories)
                 );
                 DashboardDao.DepartmentChartData departmentData = dashboardDao.loadDepartmentChart();
-                return new DashboardData(stats, occupancyData, categories, departmentData);
+                return new DashboardData(categoryStats, occupancyData, categories, departmentData);
             }
             
             @Override
@@ -218,14 +228,11 @@ public class HomeView extends JFrame {
                 try {
                     DashboardData data = get();
                     if (isDashboardTabOpen()) {
-                        // Update KPI panel
                         if (homeKpiPanel != null) {
-                            homeKpiPanel.updateStats(data.stats());
+                            homeKpiPanel.updateCategoryStats(data.categoryStats(), HomeView.this::showAccommodationList);
                         }
-                        
-                        // Update graph panel
+
                         JPanel graphs = createGraphPanelWithData(data.occupancyData(), data.categories(), data.departmentData());
-                        // Replace placeholder graph panel
                         Component[] components = dashboardPage.getComponents();
                         for (int i = 0; i < components.length; i++) {
                             if (components[i] instanceof JPanel && ((JPanel) components[i]).getClientProperty("placeholder_graph") != null) {
@@ -255,7 +262,7 @@ public class HomeView extends JFrame {
     private JPanel createPlaceholderGraphPanel() {
         JPanel placeholder = new JPanel(new BorderLayout());
         placeholder.setOpaque(false);
-        placeholder.setPreferredSize(new Dimension(0, 360));
+        placeholder.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
         placeholder.putClientProperty("placeholder_graph", true);
         JLabel loadingLabel = new JLabel("Loading graphs...", SwingConstants.CENTER);
         loadingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
@@ -267,17 +274,23 @@ public class HomeView extends JFrame {
     private JPanel createGraphPanelWithData(DashboardDao.OccupancyChartData occupancyData, 
                                             String[] categories, 
                                             DashboardDao.DepartmentChartData departmentData) {
-        JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 16));
+        JPanel graphs = new JPanel();
+        graphs.setLayout(new BoxLayout(graphs, BoxLayout.Y_AXIS));
         graphs.setOpaque(false);
-        graphs.setPreferredSize(new Dimension(0, 360));
-        graphs.add(graphScroll(new HouseOccupancyGraphPanel(houseCapacityDashboardDao, occupancyData, categories)));
-        graphs.add(graphScroll(new DepartmentAnalysisGraphPanel(departmentData)));
+        graphs.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT * 2 + 16));
+        JComponent houseGraph = graphScroll(new HouseOccupancyGraphPanel(houseCapacityDashboardDao, occupancyData, categories));
+        JComponent departmentGraph = graphScroll(new DepartmentAnalysisGraphPanel(departmentData));
+        houseGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
+        departmentGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
+        graphs.add(houseGraph);
+        graphs.add(Box.createVerticalStrut(16));
+        graphs.add(departmentGraph);
         return graphs;
     }
     
     // Data container for async loading
     private record DashboardData(
-            DashboardDao.DashboardStats stats,
+            List<DashboardDao.CategoryKpiStats> categoryStats,
             DashboardDao.OccupancyChartData occupancyData,
             String[] categories,
             DashboardDao.DepartmentChartData departmentData
@@ -305,10 +318,6 @@ public class HomeView extends JFrame {
     }
     private void refreshDashboard() {
         populateDashboardPage(null);
-        refreshDashboardStatsAsync();
-        // All data refresh is handled in populateDashboardPage which creates new instances
-        // Each component (HomeKpiPanel, GuestRecordPanel, graphs) handles its own async loading
-        // with DelayedProgressDialog showing progress if taking longer than expected
     }
     private void startDashboardStatsTimer() {
         if (!isDashboardTabOpen()) {
@@ -334,7 +343,7 @@ public class HomeView extends JFrame {
                 && isDashboardCardOpen();
     }
     private boolean isDashboardCardOpen() {
-        return dashboardScreens == null || guestDetailsScreen == null || !guestDetailsScreen.isShowing();
+        return DASHBOARD_SCREEN.equals(dashboardCard);
     }
     private void refreshDashboardStatsAsync() {
         if (!isDashboardTabOpen() || homeKpiPanel == null) {
@@ -349,13 +358,13 @@ public class HomeView extends JFrame {
                 "Database is taking longer than usual. Updating dashboard stats..."
         );
         dashboardStatsWorker = new SwingWorker<>() {
-            protected DashboardDao.DashboardStats doInBackground() throws Exception {
-                return dashboardDao.loadStats();
+            protected List<DashboardDao.CategoryKpiStats> doInBackground() throws Exception {
+                return dashboardDao.loadCategoryKpiStats(true);
             }
             protected void done() {
                 try {
                     if (isDashboardTabOpen() && homeKpiPanel != null) {
-                        homeKpiPanel.updateStats(get());
+                        homeKpiPanel.updateCategoryStats(get(), HomeView.this::showAccommodationList);
                     }
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
@@ -380,10 +389,55 @@ public class HomeView extends JFrame {
         if (dashboardScreens == null) {
             return;
         }
+        dashboardCard = name;
         CardLayout layout = (CardLayout) dashboardScreens.getLayout();
         layout.show(dashboardScreens, name);
         dashboardScreens.revalidate();
         dashboardScreens.repaint();
+    }
+    private void showAccommodationList(KPICategoryPanel.MetricSelection selection) {
+        if (selection == null || dashboardScreens == null) {
+            return;
+        }
+        if (accommodationListScreen != null) {
+            dashboardScreens.remove(accommodationListScreen);
+        }
+        accommodationListScreen = new AccommodationListViewPanel(
+                selection,
+                accommodationFilter(selection),
+                this::showDashboard,
+                this::showGuestDetailsFromAccommodationList
+        );
+        dashboardScreens.add(accommodationListScreen, ACCOMMODATION_LIST_SCREEN);
+        showDashboardCard(ACCOMMODATION_LIST_SCREEN);
+    }
+    private void showGuestDetailsFromAccommodationList(Object[] guestRecord) {
+        if (dashboardScreens == null) {
+            return;
+        }
+        if (guestDetailsScreen != null) {
+            dashboardScreens.remove(guestDetailsScreen);
+        }
+        guestDetailsScreen = new GuestDetailsPanel(
+                guestRecord,
+                () -> showDashboardCard(ACCOMMODATION_LIST_SCREEN),
+                this::refreshGuestRecords
+        );
+        dashboardScreens.add(guestDetailsScreen, GUEST_DETAILS_SCREEN);
+        showDashboardCard(GUEST_DETAILS_SCREEN);
+    }
+    private AccommodationOccupancyFilter accommodationFilter(KPICategoryPanel.MetricSelection selection) {
+        if (selection.type() == KPICategoryPanel.MetricType.TOTAL) {
+            return AccommodationOccupancyFilter.ALL;
+        }
+        if (selection.group() == KPICategoryPanel.MetricGroup.ROOMS) {
+            return selection.type() == KPICategoryPanel.MetricType.OCCUPIED
+                    ? AccommodationOccupancyFilter.OCCUPIED_ROOMS
+                    : AccommodationOccupancyFilter.VACANT_ROOMS;
+        }
+        return selection.type() == KPICategoryPanel.MetricType.OCCUPIED
+                ? AccommodationOccupancyFilter.OCCUPIED_BEDS
+                : AccommodationOccupancyFilter.VACANT_BEDS;
     }
     private void performSearch() {
         if (guestFilterPanel == null || guestRecordPanel == null) {
@@ -403,16 +457,21 @@ public class HomeView extends JFrame {
         guestRecordPanel.reset();
     }
     private JPanel createGraphPanel() {
-        JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 16));
+        JPanel graphs = new JPanel();
+        graphs.setLayout(new BoxLayout(graphs, BoxLayout.Y_AXIS));
         graphs.setOpaque(false);
-        graphs.setPreferredSize(new Dimension(0, 360));
         String[] accommodationCategories = loadAccommodationCategories();
-        graphs.add(graphScroll(new HouseOccupancyGraphPanel(
+        JComponent houseGraph = graphScroll(new HouseOccupancyGraphPanel(
                 houseCapacityDashboardDao,
                 loadOccupancyChart(defaultOccupancyCategory(accommodationCategories)),
                 accommodationCategories
-        )));
-        graphs.add(graphScroll(new DepartmentAnalysisGraphPanel(loadDepartmentChart())));
+        ));
+        JComponent departmentGraph = graphScroll(new DepartmentAnalysisGraphPanel(loadDepartmentChart()));
+        houseGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
+        departmentGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
+        graphs.add(houseGraph);
+        graphs.add(Box.createVerticalStrut(16));
+        graphs.add(departmentGraph);
         return graphs;
     }
     private JPanel createImportActionsRow() {
@@ -431,23 +490,30 @@ public class HomeView extends JFrame {
         return row;
     }
     private void chooseExcelImportFile() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Import Guest Excel Sheet");
-        chooser.setFileFilter(new FileNameExtensionFilter("Excel files (*.xlsx, *.xls)", "xlsx", "xls"));
-        chooser.setAcceptAllFileFilterUsed(false);
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File selectedFile = chooser.getSelectedFile();
-        if (!isExcelImportFile(selectedFile)) {
-            showUnsupportedImportFileDialog();
-            return;
-        }
-        ExcelImportService.ImportType importType = chooseExcelImportType();
-        if (importType == null) {
-            return;
-        }
-        importGuestsFromExcel(selectedFile, importType);
+        FileDialogHandler.FileDialogConfig config = new FileDialogHandler.FileDialogConfig()
+                .withParent(this)
+                .withTitle("Import Guest Excel Sheet")
+                .withFileType(FileDialogHandler.FileType.EXCEL)
+                .withUploadCard(
+                        "Import Excel Workbook",
+                        "Choose a .xlsx or .xls guest sheet from your computer."
+                );
+
+        FileDialogHandler.openUploadDialog(config, selectedFiles -> {
+            if (selectedFiles.length == 0) {
+                return;
+            }
+            File selectedFile = selectedFiles[0];
+            if (!isExcelImportFile(selectedFile)) {
+                showUnsupportedImportFileDialog();
+                return;
+            }
+            ExcelImportService.ImportType importType = chooseExcelImportType();
+            if (importType == null) {
+                return;
+            }
+            importGuestsFromExcel(selectedFile, importType);
+        });
     }
     private ExcelImportService.ImportType chooseExcelImportType() {
         JRadioButton standardImport = new JRadioButton("Import New / Standard Data", true);
@@ -560,24 +626,25 @@ public class HomeView extends JFrame {
         }
     }
     private void downloadSampleExcel() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Save Guest Import Sample");
-        chooser.setSelectedFile(new File("guest_import_sample.xlsx"));
-        chooser.setFileFilter(new FileNameExtensionFilter("Excel workbook (*.xlsx)", "xlsx"));
-        chooser.setAcceptAllFileFilterUsed(false);
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File target = xlsxFile(chooser.getSelectedFile());
-        try {
-            ExcelSampleGenerator.writeSampleWorkbook(target);
-            DialogHelper.success(this, "Sample Excel file saved:\n" + target.getAbsolutePath());
-        } catch (IOException exception) {
-            DialogHelper.error(this, "Sample not saved", friendlySampleSaveFailure(target, exception));
-        } catch (Exception exception) {
-            DialogHelper.error(this, "Sample not saved", exception.getMessage());
-        }
+        FileDialogHandler.FileDialogConfig config = new FileDialogHandler.FileDialogConfig()
+                .withParent(this)
+                .withTitle("Save Guest Import Sample")
+                .withFileType(FileDialogHandler.FileType.EXCEL)
+                .withDefaultFileName("guest_import_sample.xlsx");
+
+        FileDialogHandler.saveFileDialog(config, selectedFile -> {
+            File target = xlsxFile(selectedFile);
+            try {
+                ExcelSampleGenerator.writeSampleWorkbook(target);
+                DialogHelper.success(this, "Sample Excel file saved:\n" + target.getAbsolutePath());
+            } catch (IOException exception) {
+                DialogHelper.error(this, "Sample not saved", friendlySampleSaveFailure(target, exception));
+            } catch (Exception exception) {
+                DialogHelper.error(this, "Sample not saved", exception.getMessage());
+            }
+        });
     }
+
     private String friendlySampleSaveFailure(File target, IOException exception) {
         String detail = exception.getMessage() == null ? "" : exception.getMessage();
         if (detail.toLowerCase().contains("being used by another process")
@@ -750,14 +817,17 @@ public class HomeView extends JFrame {
         generateGuestReport(range, target);
     }
     private File chooseReportTarget(GuestReportService.ReportRange range) {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Download Guest Report");
-        chooser.setSelectedFile(new File(defaultReportFileName(range)));
-        chooser.setFileFilter(new FileNameExtensionFilter("PDF document (*.pdf)", "pdf"));
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return null;
-        }
-        return pdfFile(chooser.getSelectedFile());
+        final File[] result = new File[1];
+        FileDialogHandler.FileDialogConfig config = new FileDialogHandler.FileDialogConfig()
+                .withParent(this)
+                .withTitle("Download Guest Report")
+                .withFileType(FileDialogHandler.FileType.PDF)
+                .withDefaultFileName(defaultReportFileName(range));
+
+        FileDialogHandler.saveFileDialog(config, selectedFile -> {
+            result[0] = pdfFile(selectedFile);
+        });
+        return result[0];
     }
     private String defaultReportFileName(GuestReportService.ReportRange range) {
         String label = range.label().toLowerCase().replaceAll("[^a-z0-9]+", "_");
@@ -847,6 +917,9 @@ public class HomeView extends JFrame {
     private JComponent graphScroll(UniversalGraphPanel graph) {
         JScrollPane scroll = new JScrollPane(graph);
         scroll.setBorder(null);
+        scroll.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
+        scroll.setMinimumSize(new Dimension(320, GRAPH_SCROLL_HEIGHT));
+        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, GRAPH_SCROLL_HEIGHT));
         scroll.getViewport().setBackground(Color.WHITE);
         scroll.setWheelScrollingEnabled(false);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);

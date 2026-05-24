@@ -2,6 +2,7 @@ package com.kgm.dao;
 
 import com.kgm.config.DatabaseConnection;
 import com.kgm.database.DatabaseInitializer;
+import com.kgm.model.Guest;
 import com.kgm.ui.panel.AccommodationRecord;
 
 import java.sql.Connection;
@@ -386,5 +387,203 @@ public class AccommodationDao {
 
     private boolean isSpecialRoomName(String value) {
         return value != null && SPECIAL_ROOM_NAME.equalsIgnoreCase(value.trim());
+    }
+
+    /**
+     * Get all accommodations for a specific category
+     * @param categoryName The category name to filter by
+     * @return List of accommodation records
+     */
+    public List<AccommodationRecord> getAccommodationsByCategory(String categoryName) throws SQLException {
+        return getAccommodationsByCategory(categoryName, AccommodationOccupancyFilter.ALL);
+    }
+
+    public List<AccommodationRecord> getAccommodationsByCategory(
+            String categoryName,
+            AccommodationOccupancyFilter filter
+    ) throws SQLException {
+        AccommodationOccupancyFilter effectiveFilter = filter == null
+                ? AccommodationOccupancyFilter.ALL
+                : filter;
+        String occupancyCondition = switch (effectiveFilter) {
+            case ALL -> "";
+            case OCCUPIED_ROOMS, OCCUPIED_BEDS -> " AND COALESCE(occupied.current_guests, 0) > 0";
+            case VACANT_ROOMS -> " AND COALESCE(occupied.current_guests, 0) = 0";
+            case VACANT_BEDS -> " AND GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) > 0";
+        };
+        String sql = """
+                SELECT
+                    a.id,
+                    a.name,
+                    a.capacity,
+                    GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) AS available_seats,
+                    a.status,
+                    a.assigned_staff,
+                    c.name AS category_name,
+                    GROUP_CONCAT(aa.amenity ORDER BY aa.amenity SEPARATOR '\\n') AS amenities
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                LEFT JOIN (
+                    SELECT accommodation_id, COUNT(*) AS current_guests
+                    FROM guests
+                    WHERE arrival_at <= NOW()
+                      AND departure_at >= NOW()
+                    GROUP BY accommodation_id
+                ) occupied ON occupied.accommodation_id = a.id
+                LEFT JOIN accommodation_amenities aa ON aa.accommodation_id = a.id
+                WHERE a.active = TRUE AND c.name = ?
+                """ + occupancyCondition + """
+                GROUP BY a.id, a.name, a.capacity, a.status, a.assigned_staff, c.name, occupied.current_guests
+                ORDER BY a.name
+                """;
+        List<AccommodationRecord> accommodations = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, categoryName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    long id = resultSet.getLong("id");
+                    accommodations.add(new AccommodationRecord(
+                            id,
+                            resultSet.getString("name"),
+                            resultSet.getString("category_name"),
+                            resultSet.getInt("capacity"),
+                            resultSet.getInt("available_seats"),
+                            resultSet.getString("status"),
+                            resultSet.getString("assigned_staff"),
+                            amenitiesFrom(resultSet.getString("amenities"))
+                    ));
+                }
+            }
+        }
+        return accommodations;
+    }
+
+    public List<AccommodationKpiRecord> findKpiDrilldownRows(
+            String categoryName,
+            AccommodationOccupancyFilter filter
+    ) throws SQLException {
+        AccommodationOccupancyFilter effectiveFilter = filter == null
+                ? AccommodationOccupancyFilter.ALL
+                : filter;
+        String occupancyCondition = switch (effectiveFilter) {
+            case ALL -> "";
+            case OCCUPIED_ROOMS, OCCUPIED_BEDS -> " AND COALESCE(occupied.current_guests, 0) > 0";
+            case VACANT_ROOMS -> " AND COALESCE(occupied.current_guests, 0) = 0";
+            case VACANT_BEDS -> " AND GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) > 0";
+        };
+        String sql = """
+                SELECT
+                    a.id AS accommodation_id,
+                    a.name AS room_name,
+                    a.capacity,
+                    GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) AS available_seats,
+                    a.status,
+                    a.assigned_staff,
+                    c.name AS category_name,
+                    g.id AS guest_id,
+                    g.guest_name,
+                    g.cnic,
+                    g.nationality,
+                    gc.name AS guest_category,
+                    g.company_name,
+                    g.visit_type,
+                    g.address,
+                    g.requested_by,
+                    g.requested_department,
+                    g.approved_by,
+                    g.accommodated_by,
+                    g.arrival_at,
+                    g.departure_at,
+                    g.accommodation_category,
+                    g.room_name AS guest_room_name,
+                    g.remarks,
+                    g.review
+                FROM accommodations a
+                JOIN accommodation_categories c ON c.id = a.category_id
+                LEFT JOIN (
+                    SELECT accommodation_id, COUNT(*) AS current_guests
+                    FROM guests
+                    WHERE arrival_at <= NOW()
+                      AND departure_at >= NOW()
+                    GROUP BY accommodation_id
+                ) occupied ON occupied.accommodation_id = a.id
+                LEFT JOIN guests g
+                    ON g.accommodation_id = a.id
+                   AND g.arrival_at <= NOW()
+                   AND g.departure_at >= NOW()
+                LEFT JOIN guest_categories gc ON gc.id = g.guest_category_id
+                WHERE a.active = TRUE
+                  AND c.name = ?
+                """ + occupancyCondition + """
+                ORDER BY a.name, g.guest_name
+                """;
+        List<AccommodationKpiRecord> records = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, categoryName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    records.add(new AccommodationKpiRecord(
+                            resultSet.getLong("accommodation_id"),
+                            resultSet.getString("category_name"),
+                            resultSet.getString("room_name"),
+                            resultSet.getInt("capacity"),
+                            resultSet.getInt("available_seats"),
+                            resultSet.getString("status"),
+                            resultSet.getString("assigned_staff"),
+                            guestFromKpiRow(resultSet)
+                    ));
+                }
+            }
+        }
+        return records;
+    }
+
+    private Guest guestFromKpiRow(ResultSet resultSet) throws SQLException {
+        long guestId = resultSet.getLong("guest_id");
+        if (resultSet.wasNull()) {
+            return null;
+        }
+        Guest guest = new Guest();
+        guest.setId(guestId);
+        guest.setGuestName(resultSet.getString("guest_name"));
+        guest.setCnic(resultSet.getString("cnic"));
+        guest.setNationality(resultSet.getString("nationality"));
+        guest.setGuestCategory(resultSet.getString("guest_category"));
+        guest.setCompanyName(resultSet.getString("company_name"));
+        guest.setVisitType(resultSet.getString("visit_type"));
+        guest.setAddress(resultSet.getString("address"));
+        guest.setRequestedBy(resultSet.getString("requested_by"));
+        guest.setRequestedDepartment(resultSet.getString("requested_department"));
+        guest.setApprovedBy(resultSet.getString("approved_by"));
+        guest.setAccommodatedBy(resultSet.getString("accommodated_by"));
+        guest.setArrivalAt(resultSet.getTimestamp("arrival_at"));
+        guest.setDepartureAt(resultSet.getTimestamp("departure_at"));
+        guest.setAccommodation(resultSet.getString("accommodation_category"));
+        guest.setRoomName(resultSet.getString("guest_room_name"));
+        guest.setRemarks(resultSet.getString("remarks"));
+        guest.setReview(resultSet.getString("review"));
+        return guest;
+    }
+
+    public record AccommodationKpiRecord(
+            long accommodationId,
+            String category,
+            String room,
+            int capacity,
+            int availableSeats,
+            String status,
+            String assignedStaff,
+            Guest guest
+    ) {
+    }
+
+    public enum AccommodationOccupancyFilter {
+        ALL,
+        OCCUPIED_ROOMS,
+        VACANT_ROOMS,
+        OCCUPIED_BEDS,
+        VACANT_BEDS
     }
 }

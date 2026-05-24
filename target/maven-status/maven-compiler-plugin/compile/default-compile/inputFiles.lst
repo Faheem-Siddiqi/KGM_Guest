@@ -19,6 +19,7 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\AccommodationManagement.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\AddGuest.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\component\UniversalDatePicker.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\component\UniversalDateRangePicker.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\component\UploadCard.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\dialog\DelayedProgressDialog.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\dialog\ReportPeriodDialog.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\dialog\ReportProgressDialog.java
@@ -27,6 +28,7 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\HomeView.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\LoginView.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\AccommodationCategoryPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\AccommodationFormPanel.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\panel\AccommodationListViewPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\AccommodationManagementPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\AccommodationRecord.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\AccommodationTableModel.java
@@ -39,6 +41,7 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\panel\GuestRecordPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\HeaderPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\HomeKpiPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\HouseOccupancyGraphPanel.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\panel\KPICategoryPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\RoomDetailGuestActivityPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\RoomDetailKpiPanel.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\panel\RoomDetailPagePanel.java
@@ -50,5 +53,6 @@ D:\KGM_Guest\src\main\java\com\kgm\ui\styling\AddGuestHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\DialogHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\HomeViewHelper.java
 D:\KGM_Guest\src\main\java\com\kgm\ui\styling\RoomDetailHelper.java
+D:\KGM_Guest\src\main\java\com\kgm\ui\util\FileDialogHandler.java
 D:\KGM_Guest\src\main\java\com\kgm\util\SessionManager.java
 D:\KGM_Guest\src\main\java\com\kgm\util\SessionWatcher.java

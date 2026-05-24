@@ -8,6 +8,8 @@ public class Guest {
     private String cnic;
     private String nationality;
     private String guestCategory;
+    private String companyName;
+    private String visitType;
     private String address;
     private String requestedBy;
     private String requestedDepartment;
@@ -58,6 +60,22 @@ public class Guest {
 
     public void setGuestCategory(String guestCategory) {
         this.guestCategory = guestCategory;
+    }
+
+    public String getCompanyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
+
+    public String getVisitType() {
+        return visitType;
+    }
+
+    public void setVisitType(String visitType) {
+        this.visitType = visitType;
     }
 
     public String getAddress() {

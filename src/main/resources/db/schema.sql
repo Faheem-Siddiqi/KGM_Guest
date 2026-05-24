@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS guests (
     cnic VARCHAR(30) NOT NULL,
     nationality VARCHAR(80) NOT NULL,
     guest_category_id BIGINT NOT NULL,
+    company_name VARCHAR(150) NOT NULL DEFAULT '',
+    visit_type VARCHAR(40) NOT NULL DEFAULT 'Official Visit',
     address VARCHAR(255) NOT NULL,
     requested_by VARCHAR(120) NOT NULL,
     requested_department VARCHAR(120) NOT NULL,

@@ -29,18 +29,20 @@ public class GuestRecordPanel extends JPanel {
     public static final int CNIC = 1;
     public static final int NATIONALITY = 2;
     public static final int CATEGORY = 3;
-    public static final int ADDRESS = 4;
-    public static final int REQUESTED_BY = 5;
-    public static final int DEPARTMENT = 6;
-    public static final int APPROVED_BY = 7;
-    public static final int ACCOMMODATED_BY = 8;
-    public static final int ARRIVAL = 9;
-    public static final int DEPARTURE = 10;
-    public static final int ACCOMMODATION = 11;
-    public static final int ROOM = 12;
-    public static final int REMARKS = 13;
-    public static final int REVIEW = 14;
-    public static final int ID = 15;
+    public static final int COMPANY_NAME = 4;
+    public static final int VISIT_TYPE = 5;
+    public static final int ADDRESS = 6;
+    public static final int REQUESTED_BY = 7;
+    public static final int DEPARTMENT = 8;
+    public static final int APPROVED_BY = 9;
+    public static final int ACCOMMODATED_BY = 10;
+    public static final int ARRIVAL = 11;
+    public static final int DEPARTURE = 12;
+    public static final int ACCOMMODATION = 13;
+    public static final int ROOM = 14;
+    public static final int REMARKS = 15;
+    public static final int REVIEW = 16;
+    public static final int ID = 17;
     private static final int GUEST_NAME_DEFAULT_WIDTH = 168;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
@@ -214,7 +216,7 @@ public class GuestRecordPanel extends JPanel {
                 ? guestDao.findAll()
                 : guestDao.findByAccommodationId(accommodationId);
         for (Guest guest : guests) {
-            records.add(toRecord(guest));
+            records.add(recordFromGuest(guest));
         }
         return records;
     }
@@ -539,12 +541,14 @@ public class GuestRecordPanel extends JPanel {
         }.execute();
     }
 
-    private Object[] toRecord(Guest guest) {
+    public static Object[] recordFromGuest(Guest guest) {
         return new Object[]{
                 guest.getGuestName(),
                 guest.getCnic(),
                 guest.getNationality(),
                 guest.getGuestCategory(),
+                guest.getCompanyName(),
+                guest.getVisitType(),
                 guest.getAddress(),
                 guest.getRequestedBy(),
                 guest.getRequestedDepartment(),
@@ -560,7 +564,7 @@ public class GuestRecordPanel extends JPanel {
         };
     }
 
-    private String formatDateTime(java.util.Date date) {
+    private static String formatDateTime(java.util.Date date) {
         if (date == null) {
             return "";
         }

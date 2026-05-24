@@ -10,7 +10,7 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 
 public class GuestFilterPanel extends JPanel {
-    private static final int FILTER_FIELD_GAP = 12;
+    private static final int FILTER_FIELD_GAP = 14;
     private static final int STATUS_ARROW_AND_PADDING_WIDTH = 36;
     private static final int FILTER_FIELD_HEIGHT = 34;
 

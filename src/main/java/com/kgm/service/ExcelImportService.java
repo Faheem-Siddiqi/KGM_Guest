@@ -49,6 +49,8 @@ public class ExcelImportService {
     private static final String CNIC = "CNIC";
     private static final String NATIONALITY = "Nationality";
     private static final String GUEST_CATEGORY = "Guest Category";
+    private static final String COMPANY_NAME = "Company Name";
+    private static final String VISIT_TYPE = "Visit Type";
     private static final String ADDRESS = "Address";
     private static final String REQUESTED_BY = "Requested By";
     private static final String REQUESTED_DEPARTMENT = "Requested Department";
@@ -256,6 +258,8 @@ public class ExcelImportService {
         appendFingerprintValue(fingerprint, guest.getCnic());
         appendFingerprintValue(fingerprint, guest.getNationality());
         appendFingerprintValue(fingerprint, guest.getGuestCategory());
+        appendFingerprintValue(fingerprint, guest.getCompanyName());
+        appendFingerprintValue(fingerprint, guest.getVisitType());
         appendFingerprintValue(fingerprint, guest.getAddress());
         appendFingerprintValue(fingerprint, guest.getRequestedBy());
         appendFingerprintValue(fingerprint, guest.getRequestedDepartment());
@@ -301,6 +305,8 @@ public class ExcelImportService {
         String cnic = cnicValue(rowCell(row, headers, CNIC), formatter, evaluator);
         String nationality = optionalText(row, headers, NATIONALITY, formatter, evaluator);
         String guestCategory = optionalText(row, headers, GUEST_CATEGORY, formatter, evaluator);
+        String companyName = optionalText(row, headers, COMPANY_NAME, formatter, evaluator);
+        String visitType = visitTypeValue(optionalText(row, headers, VISIT_TYPE, formatter, evaluator));
         String address = optionalText(row, headers, ADDRESS, formatter, evaluator);
         String requestedBy = optionalText(row, headers, REQUESTED_BY, formatter, evaluator);
         String requestedDepartment = optionalText(row, headers, REQUESTED_DEPARTMENT, formatter, evaluator);
@@ -335,6 +341,8 @@ public class ExcelImportService {
         guest.setCnic(cnic);
         guest.setNationality(nationality);
         guest.setGuestCategory(guestCategory);
+        guest.setCompanyName(companyName);
+        guest.setVisitType(visitType);
         guest.setAddress(address);
         guest.setRequestedBy(requestedBy);
         guest.setRequestedDepartment(requestedDepartment);
@@ -571,6 +579,8 @@ public class ExcelImportService {
         addAliases(aliases, CNIC, "CNIC", "Guest CNIC", "NIC");
         addAliases(aliases, NATIONALITY, "Nationality", "Guest Nationality");
         addAliases(aliases, GUEST_CATEGORY, "Guest Category", "Category");
+        addAliases(aliases, COMPANY_NAME, "Company Name", "Company", "Organization", "Organisation");
+        addAliases(aliases, VISIT_TYPE, "Visit Type", "Visit", "Purpose", "Visit Purpose");
         addAliases(aliases, ADDRESS, "Address", "Guest Address");
         addAliases(aliases, REQUESTED_BY, "Requested By", "Request By");
         addAliases(aliases, REQUESTED_DEPARTMENT, "Requested Department", "Department");
@@ -649,6 +659,17 @@ public class ExcelImportService {
 
     private String accommodationCategoryValue(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String visitTypeValue(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.equalsIgnoreCase("Personal") || text.equalsIgnoreCase("Personal Visit")) {
+            return "Personal Visit";
+        }
+        if (text.equalsIgnoreCase("Official") || text.equalsIgnoreCase("Official Visit")) {
+            return "Official Visit";
+        }
+        return text.isEmpty() ? "Official Visit" : text;
     }
 
     private void addSkippedRow(List<String> skippedRows, int rowNumber, String reason) {

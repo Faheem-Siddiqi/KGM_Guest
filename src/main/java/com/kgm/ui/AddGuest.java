@@ -25,6 +25,7 @@ import java.util.List;
 public class AddGuest extends JFrame {
     private static final String ALL_ROOMS_OCCUPIED = "All rooms occupied";
     private static final String NO_ROOMS_AVAILABLE = "No rooms available";
+    private static final String HIDDEN_ADD_GUEST_CATEGORY = "Security Block";
     private static final Color ROOM_BLOCKED_COLOR = new Color(180, 60, 45);
 
     private static final GuestDao GUEST_DAO = new GuestDao();
@@ -68,6 +69,8 @@ public class AddGuest extends JFrame {
         );
         guestNationalityCombo.setSelectedItem("Pakistani");
         JComboBox<String> guestCategoryCombo = AddGuestHelper.combo("Family", "Non-Family");
+        JTextField companyNameField = new JTextField("");
+        JComboBox<String> visitTypeCombo = AddGuestHelper.combo("Official Visit", "Personal Visit");
         JTextField guestAddressField = new JTextField("");
 
         JTextField requestedByField = new JTextField("");
@@ -87,11 +90,14 @@ public class AddGuest extends JFrame {
         tenureField.setEditable(false);
         tenureField.setFocusable(false);
         tenureField.setBackground(Color.WHITE);
-        JComboBox<String> accommodationCombo = AddGuestHelper.combo(accommodationCategoryItems());
+        JComboBox<String> accommodationCombo = AddGuestHelper.combo("Loading categories...");
+        accommodationCombo.setEnabled(false);
         JComboBox<String> roomCombo = AddGuestHelper.combo();
         installRoomComboRenderer(roomCombo);
-        updateRoomCombo(accommodationCombo, roomCombo);
         accommodationCombo.addActionListener(event -> updateRoomCombo(accommodationCombo, roomCombo));
+        setComboItems(roomCombo, new String[0]);
+        setRoomComboState(roomCombo, false, false);
+        loadAccommodationCategoriesAsync(accommodationCombo, roomCombo);
         JTextArea remarks = AddGuestHelper.remarksArea("N/A");
 
         updateTenure(arrivalDate, departureDate, tenureField);
@@ -105,6 +111,8 @@ public class AddGuest extends JFrame {
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest CNIC", guestCnicField);
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Nationality", guestNationalityCombo);
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest Category", guestCategoryCombo);
+        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Company Name", companyNameField);
+        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Visit Type", visitTypeCombo);
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Address", guestAddressField);
 
         JPanel requestCard = AddGuestHelper.cardPanel();
@@ -148,6 +156,8 @@ public class AddGuest extends JFrame {
                 guestCnicField,
                 guestNationalityCombo,
                 guestCategoryCombo,
+                companyNameField,
+                visitTypeCombo,
                 guestAddressField,
                 requestedByField,
                 requestedDepartmentCombo,
@@ -169,6 +179,8 @@ public class AddGuest extends JFrame {
                 guestCnicField,
                 guestNationalityCombo,
                 guestCategoryCombo,
+                companyNameField,
+                visitTypeCombo,
                 guestAddressField,
                 requestedByField,
                 requestedDepartmentCombo,
@@ -251,6 +263,8 @@ public class AddGuest extends JFrame {
             JTextField guestCnicField,
             JComboBox<String> guestNationalityCombo,
             JComboBox<String> guestCategoryCombo,
+            JTextField companyNameField,
+            JComboBox<String> visitTypeCombo,
             JTextField guestAddressField,
             JTextField requestedByField,
             JComboBox<String> requestedDepartmentCombo,
@@ -267,6 +281,8 @@ public class AddGuest extends JFrame {
         String guestCnic = guestCnicField.getText().trim();
         String guestNationality = String.valueOf(guestNationalityCombo.getEditor().getItem()).trim();
         String guestCategory = selectedText(guestCategoryCombo);
+        String companyName = companyNameField.getText().trim();
+        String visitType = selectedText(visitTypeCombo);
         String guestAddress = guestAddressField.getText().trim();
         String requestedBy = requestedByField.getText().trim();
         String requestedDepartment = String.valueOf(requestedDepartmentCombo.getEditor().getItem()).trim();
@@ -281,6 +297,8 @@ public class AddGuest extends JFrame {
         guest.setCnic(guestCnic);
         guest.setNationality(guestNationality);
         guest.setGuestCategory(guestCategory);
+        guest.setCompanyName(companyName);
+        guest.setVisitType(visitType);
         guest.setAddress(guestAddress);
         guest.setRequestedBy(requestedBy);
         guest.setRequestedDepartment(requestedDepartment);
@@ -312,6 +330,8 @@ public class AddGuest extends JFrame {
                     guestCnicField,
                     guestNationalityCombo,
                     guestCategoryCombo,
+                    companyNameField,
+                    visitTypeCombo,
                     guestAddressField,
                     requestedByField,
                     requestedDepartmentCombo,
@@ -332,12 +352,39 @@ public class AddGuest extends JFrame {
     private static String[] accommodationCategoryItems() {
         try {
             return itemsOrFallback(
-                    ACCOMMODATION_CATEGORY_DAO.findActiveNames(),
+                    visibleAccommodationCategories(ACCOMMODATION_CATEGORY_DAO.findActiveNames()),
                     new String[0]
             );
         } catch (SQLException exception) {
             return new String[0];
         }
+    }
+
+    private static void loadAccommodationCategoriesAsync(
+            JComboBox<String> accommodationCombo,
+            JComboBox<String> roomCombo
+    ) {
+        new SwingWorker<String[], Void>() {
+            @Override
+            protected String[] doInBackground() {
+                return accommodationCategoryItems();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    String[] categories = get();
+                    setComboItems(accommodationCombo, categories);
+                    accommodationCombo.setEnabled(categories.length > 0);
+                    updateRoomCombo(accommodationCombo, roomCombo);
+                } catch (Exception exception) {
+                    setComboItems(accommodationCombo, new String[0]);
+                    accommodationCombo.setEnabled(false);
+                    setComboItems(roomCombo, new String[0]);
+                    setRoomComboState(roomCombo, false, false);
+                }
+            }
+        }.execute();
     }
 
     private static String[] roomItems(String accommodationCategory) {
@@ -384,6 +431,8 @@ public class AddGuest extends JFrame {
             JTextField guestCnicField,
             JComboBox<String> guestNationalityCombo,
             JComboBox<String> guestCategoryCombo,
+            JTextField companyNameField,
+            JComboBox<String> visitTypeCombo,
             JTextField guestAddressField,
             JTextField requestedByField,
             JComboBox<String> requestedDepartmentCombo,
@@ -402,6 +451,10 @@ public class AddGuest extends JFrame {
         if (guestCategoryCombo.getItemCount() > 0) {
             guestCategoryCombo.setSelectedIndex(0);
         }
+        companyNameField.setText("");
+        if (visitTypeCombo.getItemCount() > 0) {
+            visitTypeCombo.setSelectedItem("Official Visit");
+        }
         guestAddressField.setText("");
         requestedByField.setText("");
         requestedDepartmentCombo.setSelectedItem("");
@@ -418,11 +471,23 @@ public class AddGuest extends JFrame {
     private static String[] itemsOrFallback(List<String> values, String... fallback) {
         List<String> cleanValues = new ArrayList<>();
         for (String value : values) {
-            if (value != null && !value.trim().isEmpty()) {
-                cleanValues.add(value.trim());
+            String cleanValue = value == null ? "" : value.trim();
+            if (!cleanValue.isEmpty()) {
+                cleanValues.add(cleanValue);
             }
         }
         return cleanValues.isEmpty() ? fallback : cleanValues.toArray(new String[0]);
+    }
+
+    private static List<String> visibleAccommodationCategories(List<String> values) {
+        List<String> visibleCategories = new ArrayList<>();
+        for (String value : values) {
+            String cleanValue = value == null ? "" : value.trim();
+            if (!cleanValue.isEmpty() && !HIDDEN_ADD_GUEST_CATEGORY.equalsIgnoreCase(cleanValue)) {
+                visibleCategories.add(cleanValue);
+            }
+        }
+        return visibleCategories;
     }
 
     private static boolean hasRoomsInCategory(String accommodationCategory) {

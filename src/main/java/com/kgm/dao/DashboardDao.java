@@ -262,21 +262,20 @@ public class DashboardDao {
     public DepartmentChartData loadDepartmentChart() throws SQLException {
         String sql = """
                 SELECT
-                    COALESCE(NULLIF(TRIM(requested_department), ''), 'Unknown') AS department_name,
-                    COUNT(*) AS guests
-                FROM guests
-                GROUP BY department_name
+                    COALESCE(NULLIF(TRIM(g.requested_department), ''), 'Unknown') AS department_name,
+                    COUNT(g.id) AS guests
+                FROM guests g
+                GROUP BY COALESCE(NULLIF(TRIM(g.requested_department), ''), 'Unknown')
                 ORDER BY guests DESC, department_name
-                LIMIT 5
                 """;
 
         List<String> labels = new ArrayList<>();
         List<Integer> values = new ArrayList<>();
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+            ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
-                labels.add(shortLabel(resultSet.getString("department_name")));
+                labels.add(labelText(resultSet.getString("department_name")));
                 values.add(resultSet.getInt("guests"));
             }
         }
@@ -302,8 +301,12 @@ public class DashboardDao {
     }
 // NAME TRUNCATION FOR CHART LABELS - MAX 16 CHARACTERS WITH ELLIPSIS IF TRUNCATED
     private String shortLabel(String value) {
-        String text = value == null || value.isBlank() ? "-" : value.trim();
+        String text = labelText(value);
         return text.length() <= 16 ? text : text.substring(0, 15) + ".";
+    }
+
+    private String labelText(String value) {
+        return value == null || value.isBlank() ? "-" : value.trim();
     }
 
     private String[] toStringArray(List<String> values) {
@@ -336,5 +339,80 @@ public class DashboardDao {
     }
 
     public record DepartmentChartData(String[] labels, int[] guests) {
+    }
+
+    /**
+     * Category statistics for KPI dashboard display
+     * Contains room-level and bed-level metrics per accommodation category
+     */
+    public record CategoryKpiStats(
+            String categoryName,
+            int totalRooms,
+            int occupiedRooms,
+            int vacantRooms,
+            int totalBeds,
+            int occupiedBeds,
+            int vacantBeds
+    ) {
+    }
+
+    /**
+     * Loads KPI statistics per accommodation category
+     * Excludes security block category if specified
+     * @param excludeSecurityBlock if true, excludes "Security Block" category
+     * @return List of CategoryKpiStats
+     */
+    public List<CategoryKpiStats> loadCategoryKpiStats(boolean excludeSecurityBlock) throws SQLException {
+        String sql = """
+                SELECT
+                    c.name AS category_name,
+                    COUNT(a.id) AS total_rooms,
+                    COALESCE(SUM(CASE
+                        WHEN occupied.current_guests > 0 THEN 1
+                        ELSE 0
+                    END), 0) AS occupied_rooms,
+                    COUNT(a.id) - COALESCE(SUM(CASE
+                        WHEN occupied.current_guests > 0 THEN 1
+                        ELSE 0
+                    END), 0) AS vacant_rooms,
+                    COALESCE(SUM(a.capacity), 0) AS total_beds,
+                    COALESCE(SUM(LEAST(COALESCE(occupied.current_guests, 0), a.capacity)), 0) AS occupied_beds,
+                    COALESCE(SUM(a.capacity), 0) - COALESCE(SUM(LEAST(COALESCE(occupied.current_guests, 0), a.capacity)), 0) AS vacant_beds
+                FROM accommodation_categories c
+                LEFT JOIN accommodations a ON a.category_id = c.id AND a.active = TRUE
+                LEFT JOIN (
+                    SELECT accommodation_id, COUNT(*) AS current_guests
+                    FROM guests
+                    WHERE arrival_at <= NOW()
+                      AND departure_at >= NOW()
+                    GROUP BY accommodation_id
+                ) occupied ON occupied.accommodation_id = a.id
+                WHERE c.active = TRUE
+                """ + (excludeSecurityBlock ? "AND LOWER(c.name) <> LOWER(?)" : "") + """
+                GROUP BY c.id, c.name
+                ORDER BY c.name
+                """;
+
+        List<CategoryKpiStats> stats = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            if (excludeSecurityBlock) {
+                statement.setString(1, "Security Block");
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    stats.add(new CategoryKpiStats(
+                            resultSet.getString("category_name"),
+                            resultSet.getInt("total_rooms"),
+                            resultSet.getInt("occupied_rooms"),
+                            resultSet.getInt("vacant_rooms"),
+                            resultSet.getInt("total_beds"),
+                            resultSet.getInt("occupied_beds"),
+                            resultSet.getInt("vacant_beds")
+                    ));
+                }
+            }
+        }
+        return stats;
     }
 }

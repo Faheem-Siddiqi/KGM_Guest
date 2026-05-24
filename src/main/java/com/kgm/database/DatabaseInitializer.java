@@ -101,6 +101,16 @@ public final class DatabaseInitializer {
                 "accommodation_category",
                 "ALTER TABLE guests ADD COLUMN accommodation_category VARCHAR(120) NOT NULL DEFAULT '' AFTER departure_at"
         );
+        ensureColumn(
+                "guests",
+                "company_name",
+                "ALTER TABLE guests ADD COLUMN company_name VARCHAR(150) NOT NULL DEFAULT '' AFTER guest_category_id"
+        );
+        ensureColumn(
+                "guests",
+                "visit_type",
+                "ALTER TABLE guests ADD COLUMN visit_type VARCHAR(40) NOT NULL DEFAULT 'Official Visit' AFTER company_name"
+        );
         ensureAccommodationCategoryNameUniqueKey();
     }
 

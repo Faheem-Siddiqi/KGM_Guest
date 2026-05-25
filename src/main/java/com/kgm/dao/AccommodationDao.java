@@ -389,6 +389,24 @@ public class AccommodationDao {
         return value != null && SPECIAL_ROOM_NAME.equalsIgnoreCase(value.trim());
     }
 
+    private String occupancyCondition(AccommodationOccupancyFilter filter) {
+        AccommodationOccupancyFilter effectiveFilter = filter == null
+                ? AccommodationOccupancyFilter.ALL
+                : filter;
+        return switch (effectiveFilter) {
+            case ALL -> "";
+            case OCCUPIED_ROOMS, OCCUPIED_BEDS -> """
+                    AND COALESCE(occupied.current_guests, 0) > 0
+                    """;
+            case VACANT_ROOMS -> """
+                    AND COALESCE(occupied.current_guests, 0) = 0
+                    """;
+            case VACANT_BEDS -> """
+                    AND GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) > 0
+                    """;
+        };
+    }
+
     /**
      * Get all accommodations for a specific category
      * @param categoryName The category name to filter by
@@ -402,15 +420,7 @@ public class AccommodationDao {
             String categoryName,
             AccommodationOccupancyFilter filter
     ) throws SQLException {
-        AccommodationOccupancyFilter effectiveFilter = filter == null
-                ? AccommodationOccupancyFilter.ALL
-                : filter;
-        String occupancyCondition = switch (effectiveFilter) {
-            case ALL -> "";
-            case OCCUPIED_ROOMS, OCCUPIED_BEDS -> " AND COALESCE(occupied.current_guests, 0) > 0";
-            case VACANT_ROOMS -> " AND COALESCE(occupied.current_guests, 0) = 0";
-            case VACANT_BEDS -> " AND GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) > 0";
-        };
+        String conditionSql = occupancyCondition(filter);
         String sql = """
                 SELECT
                     a.id,
@@ -432,7 +442,7 @@ public class AccommodationDao {
                 ) occupied ON occupied.accommodation_id = a.id
                 LEFT JOIN accommodation_amenities aa ON aa.accommodation_id = a.id
                 WHERE a.active = TRUE AND c.name = ?
-                """ + occupancyCondition + """
+                """ + conditionSql + """
                 GROUP BY a.id, a.name, a.capacity, a.status, a.assigned_staff, c.name, occupied.current_guests
                 ORDER BY a.name
                 """;
@@ -463,15 +473,7 @@ public class AccommodationDao {
             String categoryName,
             AccommodationOccupancyFilter filter
     ) throws SQLException {
-        AccommodationOccupancyFilter effectiveFilter = filter == null
-                ? AccommodationOccupancyFilter.ALL
-                : filter;
-        String occupancyCondition = switch (effectiveFilter) {
-            case ALL -> "";
-            case OCCUPIED_ROOMS, OCCUPIED_BEDS -> " AND COALESCE(occupied.current_guests, 0) > 0";
-            case VACANT_ROOMS -> " AND COALESCE(occupied.current_guests, 0) = 0";
-            case VACANT_BEDS -> " AND GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) > 0";
-        };
+        String conditionSql = occupancyCondition(filter);
         String sql = """
                 SELECT
                     a.id AS accommodation_id,
@@ -515,7 +517,7 @@ public class AccommodationDao {
                 LEFT JOIN guest_categories gc ON gc.id = g.guest_category_id
                 WHERE a.active = TRUE
                   AND c.name = ?
-                """ + occupancyCondition + """
+                """ + conditionSql + """
                 ORDER BY a.name, g.guest_name
                 """;
         List<AccommodationKpiRecord> records = new ArrayList<>();

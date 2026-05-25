@@ -1,6 +1,5 @@
 package com.kgm.ui;
 
-import com.kgm.dao.AccommodationDao.AccommodationOccupancyFilter;
 import com.kgm.dao.DashboardDao;
 import com.kgm.database.DatabaseInitializer;
 import com.kgm.service.ExcelImportService;
@@ -9,9 +8,9 @@ import com.kgm.service.GuestReportService;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.dialog.ImportProgressDialog;
 import com.kgm.ui.dialog.ReportPeriodDialog;
-import com.kgm.ui.dialog.ReportProgressDialog;
 import com.kgm.ui.panel.AccommodationListViewPanel;
 import com.kgm.ui.panel.AccommodationManagementPanel;
+import com.kgm.ui.panel.AccommodationRecord;
 import com.kgm.ui.panel.DepartmentAnalysisGraphPanel;
 import com.kgm.ui.panel.GuestFilterPanel;
 import com.kgm.ui.panel.GuestDetailsPanel;
@@ -21,6 +20,7 @@ import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.panel.HomeKpiPanel;
 import com.kgm.ui.panel.HouseOccupancyGraphPanel;
 import com.kgm.ui.panel.KPICategoryPanel;
+import com.kgm.ui.panel.RoomDetailPagePanel;
 import com.kgm.ui.panel.UniversalGraphPanel;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
@@ -47,6 +47,7 @@ public class HomeView extends JFrame {
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
     private static final String ACCOMMODATION_LIST_SCREEN = "accommodationList";
+    private static final String ROOM_DETAILS_SCREEN = "roomDetails";
     private static final String HIDDEN_HOUSE_CAPACITY_CATEGORY = "Security Block";
     private static final DateTimeFormatter REPORT_FILE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private GuestFilterPanel guestFilterPanel;
@@ -65,6 +66,8 @@ public class HomeView extends JFrame {
     private JPanel dashboardPage;
     private Component guestDetailsScreen;
     private Component accommodationListScreen;
+    private Component roomDetailsScreen;
+    private AccommodationRecord selectedAccommodationFromList;
     private String dashboardCard = DASHBOARD_SCREEN;
     private JTabbedPane mainTabs;
     private boolean refreshingAddGuestTab;
@@ -229,7 +232,7 @@ public class HomeView extends JFrame {
                     DashboardData data = get();
                     if (isDashboardTabOpen()) {
                         if (homeKpiPanel != null) {
-                            homeKpiPanel.updateCategoryStats(data.categoryStats(), HomeView.this::showAccommodationList);
+                            homeKpiPanel.updateCategoryStats(data.categoryStats());
                         }
 
                         JPanel graphs = createGraphPanelWithData(data.occupancyData(), data.categories(), data.departmentData());
@@ -364,7 +367,7 @@ public class HomeView extends JFrame {
             protected void done() {
                 try {
                     if (isDashboardTabOpen() && homeKpiPanel != null) {
-                        homeKpiPanel.updateCategoryStats(get(), HomeView.this::showAccommodationList);
+                        homeKpiPanel.updateCategoryStats(get());
                     }
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
@@ -392,6 +395,9 @@ public class HomeView extends JFrame {
         dashboardCard = name;
         CardLayout layout = (CardLayout) dashboardScreens.getLayout();
         layout.show(dashboardScreens, name);
+        if (ACCOMMODATION_LIST_SCREEN.equals(name)) {
+            refreshAccommodationListFromDashboard();
+        }
         dashboardScreens.revalidate();
         dashboardScreens.repaint();
     }
@@ -404,14 +410,29 @@ public class HomeView extends JFrame {
         }
         accommodationListScreen = new AccommodationListViewPanel(
                 selection,
-                accommodationFilter(selection),
                 this::showDashboard,
-                this::showGuestDetailsFromAccommodationList
+                this::showRoomDetailsFromAccommodationList
         );
         dashboardScreens.add(accommodationListScreen, ACCOMMODATION_LIST_SCREEN);
         showDashboardCard(ACCOMMODATION_LIST_SCREEN);
     }
-    private void showGuestDetailsFromAccommodationList(Object[] guestRecord) {
+    private void showRoomDetailsFromAccommodationList(AccommodationRecord accommodation) {
+        if (accommodation == null || dashboardScreens == null) {
+            return;
+        }
+        selectedAccommodationFromList = accommodation;
+        if (roomDetailsScreen != null) {
+            dashboardScreens.remove(roomDetailsScreen);
+        }
+        roomDetailsScreen = new RoomDetailPagePanel(
+                accommodation,
+                () -> showDashboardCard(ACCOMMODATION_LIST_SCREEN),
+                this::showGuestDetailsFromRoomDetails
+        );
+        dashboardScreens.add(roomDetailsScreen, ROOM_DETAILS_SCREEN);
+        showDashboardCard(ROOM_DETAILS_SCREEN);
+    }
+    private void showGuestDetailsFromRoomDetails(Object[] guestRecord) {
         if (dashboardScreens == null) {
             return;
         }
@@ -420,24 +441,26 @@ public class HomeView extends JFrame {
         }
         guestDetailsScreen = new GuestDetailsPanel(
                 guestRecord,
-                () -> showDashboardCard(ACCOMMODATION_LIST_SCREEN),
-                this::refreshGuestRecords
+                () -> showDashboardCard(ROOM_DETAILS_SCREEN),
+                this::refreshRoomDetailsFromAccommodationList
         );
         dashboardScreens.add(guestDetailsScreen, GUEST_DETAILS_SCREEN);
         showDashboardCard(GUEST_DETAILS_SCREEN);
     }
-    private AccommodationOccupancyFilter accommodationFilter(KPICategoryPanel.MetricSelection selection) {
-        if (selection.type() == KPICategoryPanel.MetricType.TOTAL) {
-            return AccommodationOccupancyFilter.ALL;
+    private void refreshRoomDetailsFromAccommodationList() {
+        refreshAccommodationListFromDashboard();
+        if (roomDetailsScreen instanceof RoomDetailPagePanel roomDetailPagePanel) {
+            roomDetailPagePanel.refreshData();
+            return;
         }
-        if (selection.group() == KPICategoryPanel.MetricGroup.ROOMS) {
-            return selection.type() == KPICategoryPanel.MetricType.OCCUPIED
-                    ? AccommodationOccupancyFilter.OCCUPIED_ROOMS
-                    : AccommodationOccupancyFilter.VACANT_ROOMS;
+        if (selectedAccommodationFromList != null) {
+            showRoomDetailsFromAccommodationList(selectedAccommodationFromList);
         }
-        return selection.type() == KPICategoryPanel.MetricType.OCCUPIED
-                ? AccommodationOccupancyFilter.OCCUPIED_BEDS
-                : AccommodationOccupancyFilter.VACANT_BEDS;
+    }
+    private void refreshAccommodationListFromDashboard() {
+        if (accommodationListScreen instanceof AccommodationListViewPanel accommodationListViewPanel) {
+            accommodationListViewPanel.refreshData();
+        }
     }
     private void performSearch() {
         if (guestFilterPanel == null || guestRecordPanel == null) {
@@ -851,13 +874,18 @@ public class HomeView extends JFrame {
         return DialogHelper.option(this, "Generate Report", message, "Generate", "Cancel") == 0;
     }
     private void generateGuestReport(GuestReportService.ReportRange range, File target) {
-        ReportProgressDialog progress = new ReportProgressDialog(this, range, target);
+        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
+                this,
+                "Generating Report",
+                "Preparing PDF report and saving the file...",
+                0
+        );
         SwingWorker<File, Void> worker = new SwingWorker<>() {
             protected File doInBackground() throws Exception {
                 return guestReportService.generateReport(target, range);
             }
             protected void done() {
-                progress.dispose();
+                progress.done();
                 try {
                     File savedFile = get();
                     showReportSavedDialog(savedFile, sameFilePath(savedFile, target));
@@ -866,13 +894,19 @@ public class HomeView extends JFrame {
                     DialogHelper.error(HomeView.this, "Report generation stopped", "Report generation was interrupted.");
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
-                    String message = cause == null ? exception.getMessage() : cause.getMessage();
+                    String message = reportFailureMessage(cause == null ? exception : cause);
                     DialogHelper.error(HomeView.this, "Report generation failed", message);
                 }
             }
         };
-        progress.setVisible(true);
         worker.execute();
+    }
+    private String reportFailureMessage(Throwable failure) {
+        String message = failure == null ? null : failure.getMessage();
+        if (message == null || message.isBlank()) {
+            return "The report could not be generated. Please try again.";
+        }
+        return message;
     }
     private void showReportSavedDialog(File savedFile, boolean savedToRequestedPath) {
         String message = savedToRequestedPath

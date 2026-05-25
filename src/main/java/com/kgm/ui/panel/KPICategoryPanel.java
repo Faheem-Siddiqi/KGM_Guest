@@ -5,25 +5,19 @@ import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.util.function.Consumer;
 
 public class KPICategoryPanel extends JPanel {
     private static final int METRIC_MIN_WIDTH = 176;
     private static final int METRIC_MIN_CARD_WIDTH = 148;
     private static final int METRIC_CARD_HEIGHT = 94;
     private static final int METRIC_GAP = 12;
+    private static final int ROW_LABEL_WIDTH = 58;
+    private static final int ROW_LABEL_GAP = 14;
 
     private final DashboardDao.CategoryKpiStats categoryStats;
-    private final Consumer<MetricSelection> onMetricClicked;
 
-    public KPICategoryPanel(
-            DashboardDao.CategoryKpiStats categoryStats,
-            Consumer<MetricSelection> onMetricClicked
-    ) {
+    public KPICategoryPanel(DashboardDao.CategoryKpiStats categoryStats) {
         this.categoryStats = categoryStats;
-        this.onMetricClicked = onMetricClicked;
         initializeUI();
     }
 
@@ -36,12 +30,14 @@ public class KPICategoryPanel extends JPanel {
         JPanel categoryContainer = new JPanel();
         categoryContainer.setLayout(new BoxLayout(categoryContainer, BoxLayout.Y_AXIS));
         categoryContainer.setOpaque(false);
+        categoryContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel headingLabel = new JLabel(categoryStats.categoryName());
         headingLabel.setFont(new Font("Segoe UI", Font.BOLD, 15));
         headingLabel.setForeground(HomeViewHelper.TEXT_PRIMARY);
         headingLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         headingLabel.setToolTipText(categoryStats.categoryName());
+
         categoryContainer.add(headingLabel);
         categoryContainer.add(Box.createVerticalStrut(10));
 
@@ -51,7 +47,9 @@ public class KPICategoryPanel extends JPanel {
                 categoryStats.occupiedRooms(),
                 categoryStats.vacantRooms()
         ));
+
         categoryContainer.add(Box.createVerticalStrut(8));
+
         categoryContainer.add(createMetricRow(
                 MetricGroup.BEDS,
                 categoryStats.totalBeds(),
@@ -63,59 +61,142 @@ public class KPICategoryPanel extends JPanel {
     }
 
     private JPanel createMetricRow(MetricGroup group, int total, int occupied, int vacant) {
-        JPanel row = new JPanel(new BorderLayout(14, 0));
+        JPanel metricGrid = responsiveMetricGrid();
+        metricGrid.setOpaque(false);
+
+        metricGrid.add(createMetricCard(MetricType.TOTAL, group, total, HomeViewHelper.BLUE));
+        metricGrid.add(createMetricCard(MetricType.OCCUPIED, group, occupied, HomeViewHelper.TEAL));
+        metricGrid.add(createMetricCard(MetricType.VACANT, group, vacant, HomeViewHelper.PURPLE));
+
+        JPanel row = new JPanel(new BorderLayout(ROW_LABEL_GAP, 0)) {
+            @Override
+            public Dimension getPreferredSize() {
+                int parentWidth = getParent() == null ? 0 : getParent().getWidth();
+
+                int gridWidth = parentWidth > 0
+                        ? Math.max(METRIC_MIN_CARD_WIDTH, parentWidth - ROW_LABEL_WIDTH - ROW_LABEL_GAP)
+                        : metricGrid.getPreferredSize().width;
+
+                updateResponsiveColumns(metricGrid, gridWidth);
+
+                Dimension labelSize = getComponent(0).getPreferredSize();
+                Dimension gridSize = metricGrid.getPreferredSize();
+
+                int width = parentWidth > 0
+                        ? parentWidth
+                        : labelSize.width + ROW_LABEL_GAP + gridSize.width;
+
+                int height = Math.max(labelSize.height, gridSize.height);
+                return new Dimension(width, height);
+            }
+
+            @Override
+            public Dimension getMinimumSize() {
+                return getPreferredSize();
+            }
+
+            @Override
+            public Dimension getMaximumSize() {
+                Dimension preferred = getPreferredSize();
+                return new Dimension(Integer.MAX_VALUE, preferred.height);
+            }
+
+            @Override
+            public void doLayout() {
+                int gridWidth = Math.max(
+                        METRIC_MIN_CARD_WIDTH,
+                        getWidth() - ROW_LABEL_WIDTH - ROW_LABEL_GAP
+                );
+
+                updateResponsiveColumns(metricGrid, gridWidth);
+                super.doLayout();
+            }
+        };
+
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel rowLabel = new JLabel(group.label());
         rowLabel.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         rowLabel.setForeground(HomeViewHelper.TEXT_SECONDARY);
-        rowLabel.setPreferredSize(new Dimension(58, METRIC_CARD_HEIGHT));
+        rowLabel.setPreferredSize(new Dimension(ROW_LABEL_WIDTH, METRIC_CARD_HEIGHT));
+        rowLabel.setMinimumSize(new Dimension(ROW_LABEL_WIDTH, METRIC_CARD_HEIGHT));
         rowLabel.setHorizontalAlignment(SwingConstants.LEFT);
         rowLabel.setVerticalAlignment(SwingConstants.CENTER);
-        row.add(rowLabel, BorderLayout.WEST);
 
-        JPanel metricGrid = responsiveMetricGrid();
-        metricGrid.setOpaque(false);
-        metricGrid.add(createMetricCard(MetricType.TOTAL, group, total, HomeViewHelper.BLUE));
-        metricGrid.add(createMetricCard(MetricType.OCCUPIED, group, occupied, HomeViewHelper.PURPLE));
-        metricGrid.add(createMetricCard(MetricType.VACANT, group, vacant, HomeViewHelper.TEAL));
+        row.add(rowLabel, BorderLayout.WEST);
         row.add(metricGrid, BorderLayout.CENTER);
+
         return row;
     }
 
     private JPanel responsiveMetricGrid() {
         return new JPanel(new GridLayout(0, 3, METRIC_GAP, METRIC_GAP)) {
+            @Override
             public void doLayout() {
-                updateResponsiveColumns(this);
+                updateResponsiveColumns(this, getWidth());
                 super.doLayout();
             }
 
+            @Override
             public Dimension getPreferredSize() {
-                updateResponsiveColumns(this);
-                Container parent = getParent();
-                int width = parent == null || parent.getWidth() <= 0
-                        ? super.getPreferredSize().width
-                        : parent.getWidth();
+                int width = getWidth();
+
+                if (width <= 0 && getParent() != null) {
+                    width = getParent().getWidth() - ROW_LABEL_WIDTH - ROW_LABEL_GAP;
+                }
+
+                if (width <= 0) {
+                    width = (METRIC_MIN_WIDTH * 3) + (METRIC_GAP * 2);
+                }
+
+                updateResponsiveColumns(this, width);
+
                 GridLayout layout = (GridLayout) getLayout();
                 int columns = Math.max(1, layout.getColumns());
                 int rows = (int) Math.ceil(getComponentCount() / (double) columns);
+
                 int height = rows * METRIC_CARD_HEIGHT + Math.max(0, rows - 1) * METRIC_GAP;
                 return new Dimension(width, height);
+            }
+
+            @Override
+            public Dimension getMinimumSize() {
+                return getPreferredSize();
+            }
+
+            @Override
+            public Dimension getMaximumSize() {
+                Dimension preferred = getPreferredSize();
+                return new Dimension(Integer.MAX_VALUE, preferred.height);
             }
         };
     }
 
-    private void updateResponsiveColumns(JPanel panel) {
-        int width = panel.getWidth();
-        if (width <= 0 && panel.getParent() != null) {
-            width = panel.getParent().getWidth();
+    private void updateResponsiveColumns(JPanel panel, int width) {
+        if (width <= 0) {
+            width = panel.getWidth();
         }
-        int columns = Math.max(1, Math.min(3, Math.max(1, width / (METRIC_MIN_WIDTH + METRIC_GAP))));
+
+        if (width <= 0 && panel.getParent() != null) {
+            width = panel.getParent().getWidth() - ROW_LABEL_WIDTH - ROW_LABEL_GAP;
+        }
+
+        int columns = Math.max(
+                1,
+                Math.min(
+                        3,
+                        (width + METRIC_GAP) / (METRIC_MIN_CARD_WIDTH + METRIC_GAP)
+                )
+        );
+
         columns = Math.min(Math.max(1, panel.getComponentCount()), columns);
+
         GridLayout layout = (GridLayout) panel.getLayout();
+
         if (layout.getColumns() != columns) {
             layout.setColumns(columns);
+            panel.revalidate();
         }
     }
 
@@ -125,8 +206,8 @@ public class KPICategoryPanel extends JPanel {
             int value,
             Color accent
     ) {
-        MetricSelection selection = new MetricSelection(categoryStats.categoryName(), group, type);
         String detail = cardDetail(type, group);
+
         JPanel card = HomeViewHelper.kpiCard(
                 cardTitle(type, group),
                 String.valueOf(value),
@@ -135,19 +216,14 @@ public class KPICategoryPanel extends JPanel {
                 accent,
                 false
         );
-        Dimension cardSize = new Dimension(METRIC_MIN_WIDTH, METRIC_CARD_HEIGHT);
-        card.setPreferredSize(cardSize);
-        card.setMinimumSize(new Dimension(METRIC_MIN_CARD_WIDTH, METRIC_CARD_HEIGHT));
-        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        card.setToolTipText("View " + selection.displayTitle());
-        card.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent event) {
-                if (onMetricClicked != null) {
-                    onMetricClicked.accept(selection);
-                }
-            }
-        });
+
+        Dimension preferredSize = new Dimension(METRIC_MIN_WIDTH, METRIC_CARD_HEIGHT);
+        Dimension minimumSize = new Dimension(METRIC_MIN_CARD_WIDTH, METRIC_CARD_HEIGHT);
+
+        card.setPreferredSize(preferredSize);
+        card.setMinimumSize(minimumSize);
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, METRIC_CARD_HEIGHT));
+
         return card;
     }
 
@@ -159,6 +235,7 @@ public class KPICategoryPanel extends JPanel {
         String categoryName = categoryStats.categoryName() == null || categoryStats.categoryName().isBlank()
                 ? "this category"
                 : categoryStats.categoryName().trim();
+
         if (group == MetricGroup.ROOMS) {
             return switch (type) {
                 case TOTAL -> "All rooms in " + categoryName;
@@ -166,6 +243,7 @@ public class KPICategoryPanel extends JPanel {
                 case VACANT -> "Vacant rooms in " + categoryName;
             };
         }
+
         return switch (type) {
             case TOTAL -> "All beds in " + categoryName;
             case OCCUPIED -> "Currently occupied beds";

@@ -6,7 +6,6 @@ import com.kgm.ui.styling.HomeViewHelper;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
-import java.util.function.Consumer;
 
 public class HomeKpiPanel extends JPanel {
     private static final int KPI_MIN_CARD_WIDTH = 176;
@@ -105,10 +104,7 @@ public class HomeKpiPanel extends JPanel {
         repaint();
     }
 
-    public void updateCategoryStats(
-            List<DashboardDao.CategoryKpiStats> categoryStats,
-            Consumer<KPICategoryPanel.MetricSelection> onMetricClicked
-    ) {
+    public void updateCategoryStats(List<DashboardDao.CategoryKpiStats> categoryStats) {
         removeAll();
 
         if (categoryStats == null || categoryStats.isEmpty()) {
@@ -124,7 +120,7 @@ public class HomeKpiPanel extends JPanel {
         container.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         for (DashboardDao.CategoryKpiStats stat : categoryStats) {
-            KPICategoryPanel categoryPanel = new KPICategoryPanel(stat, onMetricClicked);
+            KPICategoryPanel categoryPanel = new KPICategoryPanel(stat);
             container.add(categoryPanel);
         }
 

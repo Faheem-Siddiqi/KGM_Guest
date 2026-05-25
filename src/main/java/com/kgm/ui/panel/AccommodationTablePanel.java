@@ -13,15 +13,24 @@ import java.util.function.Consumer;
 
 public class AccommodationTablePanel extends JPanel {
     private static final String ALL_CATEGORIES = "All";
+    private static final String[] COLUMNS = {
+            "Category", "Name", "Capacity", "Available", "Status", "Assigned Staff", "Amenities", "Actions"
+    };
+    private static final String[] READ_ONLY_COLUMNS = {
+            "Category", "Name", "Capacity", "Available", "Status", "Assigned Staff", "Amenities"
+    };
+    private static final int ACTION_COLUMN = 7;
+    private static final String DEFAULT_TITLE = "Accommodation List";
+    private static final String DEFAULT_SUBTITLE = "All created accommodations appear here with quick edit access.";
+    private static final String DEFAULT_EMPTY_TEXT = "No accommodation records yet. Save the form above to create one.";
     private final List<AccommodationRecord> records = new ArrayList<>();
     private final List<Integer> visibleIndexes = new ArrayList<>();
     private final CategoryTabsPanel categoryTabs = new CategoryTabsPanel();
-    private final UniversalTablePanel tablePanel = new UniversalTablePanel(
-            new String[]{"Category", "Name", "Capacity", "Available", "Status", "Assigned Staff", "Amenities", "Actions"},
-            "No accommodation records yet. Save the form above to create one."
-    );
+    private final UniversalTablePanel tablePanel;
     private final BiConsumer<Integer, AccommodationRecord> onEdit;
     private final BiConsumer<Integer, AccommodationRecord> onView;
+    private final boolean showCategoryTabs;
+    private final boolean showActionColumn;
     private List<String> availableCategories = new ArrayList<>();
     private String selectedCategory = "";
 
@@ -34,20 +43,34 @@ public class AccommodationTablePanel extends JPanel {
             BiConsumer<Integer, AccommodationRecord> onEdit,
             BiConsumer<Integer, AccommodationRecord> onView
     ) {
+        this(onEdit, onView, true, true, DEFAULT_TITLE, DEFAULT_SUBTITLE, DEFAULT_EMPTY_TEXT);
+    }
+
+    public AccommodationTablePanel(
+            BiConsumer<Integer, AccommodationRecord> onEdit,
+            BiConsumer<Integer, AccommodationRecord> onView,
+            boolean showCategoryTabs,
+            boolean showActionColumn,
+            String title,
+            String subtitle,
+            String emptyText
+    ) {
         this.onEdit = onEdit;
         this.onView = onView;
+        this.showCategoryTabs = showCategoryTabs;
+        this.showActionColumn = showActionColumn;
+        this.tablePanel = new UniversalTablePanel(showActionColumn ? COLUMNS : READ_ONLY_COLUMNS, emptyText);
         setLayout(new BorderLayout());
         setOpaque(false);
 
-        JPanel card = AccommodationManagementHelper.sectionCard(
-                "Accommodation List",
-                "All created accommodations appear here with quick edit access."
-        );
+        JPanel card = AccommodationManagementHelper.sectionCard(title, subtitle);
 
-        tablePanel.setActionColumn(7, "Edit", row -> {
-            int recordIndex = visibleIndexes.get(row);
-            this.onEdit.accept(recordIndex, records.get(recordIndex));
-        });
+        if (showActionColumn) {
+            tablePanel.setActionColumn(ACTION_COLUMN, "Edit", row -> {
+                int recordIndex = visibleIndexes.get(row);
+                this.onEdit.accept(recordIndex, records.get(recordIndex));
+            });
+        }
         tablePanel.setLinkColumn(1, row -> {
             int recordIndex = visibleIndexes.get(row);
             this.onView.accept(recordIndex, records.get(recordIndex));
@@ -55,17 +78,21 @@ public class AccommodationTablePanel extends JPanel {
 
         JPanel body = new JPanel(new BorderLayout(0, 12));
         body.setOpaque(false);
-        body.add(categoryTabs, BorderLayout.NORTH);
+        if (showCategoryTabs) {
+            body.add(categoryTabs, BorderLayout.NORTH);
+        }
         body.add(tablePanel, BorderLayout.CENTER);
 
         card.add(body, BorderLayout.CENTER);
         add(card, BorderLayout.CENTER);
-        refreshCategoryTabs();
+        if (showCategoryTabs) {
+            refreshCategoryTabs();
+        }
     }
 
     public void addAccommodation(AccommodationRecord accommodation) {
         records.add(accommodation);
-        if (!containsCategory(availableCategories, accommodation.getCategory())) {
+        if (showCategoryTabs && !containsCategory(availableCategories, accommodation.getCategory())) {
             availableCategories = categoriesFromRecords();
             refreshCategoryTabs();
         }
@@ -75,7 +102,9 @@ public class AccommodationTablePanel extends JPanel {
     public void setAccommodations(List<AccommodationRecord> accommodations) {
         records.clear();
         records.addAll(accommodations);
-        if (availableCategories.isEmpty()) {
+        if (!showCategoryTabs) {
+            selectedCategory = "";
+        } else if (availableCategories.isEmpty()) {
             availableCategories = categoriesFromRecords();
             refreshCategoryTabs();
         }
@@ -87,7 +116,9 @@ public class AccommodationTablePanel extends JPanel {
         if (!selectedCategory.isEmpty() && !containsCategory(availableCategories, selectedCategory)) {
             selectedCategory = "";
         }
-        refreshCategoryTabs();
+        if (showCategoryTabs) {
+            refreshCategoryTabs();
+        }
         applyCategoryFilter();
     }
 
@@ -97,7 +128,7 @@ public class AccommodationTablePanel extends JPanel {
 
     public void updateAccommodation(int row, AccommodationRecord accommodation) {
         records.set(row, accommodation);
-        if (!containsCategory(availableCategories, accommodation.getCategory())) {
+        if (showCategoryTabs && !containsCategory(availableCategories, accommodation.getCategory())) {
             availableCategories = categoriesFromRecords();
             refreshCategoryTabs();
         }
@@ -105,6 +136,17 @@ public class AccommodationTablePanel extends JPanel {
     }
 
     private Object[] rowValues(AccommodationRecord accommodation) {
+        if (!showActionColumn) {
+            return new Object[]{
+                    accommodation.getCategory(),
+                    accommodation.getName(),
+                    accommodation.getCapacity(),
+                    accommodation.getAvailableSeats(),
+                    accommodation.getStatus(),
+                    accommodation.getAssignedStaff(),
+                    accommodation.getAmenities().size()
+            };
+        }
         return new Object[]{
                 accommodation.getCategory(),
                 accommodation.getName(),

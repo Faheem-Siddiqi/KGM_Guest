@@ -158,12 +158,36 @@ public class ExcelImportService {
      * @throws IOException if the file cannot be read
      */
     public ImportResult importGuests(File file, ImportType importType) throws IOException {
+        return importGuests(file, importType, progress -> {
+        });
+    }
+
+    /**
+     * Imports guests from an Excel file while reporting scan progress.
+     *
+     * @param file             the Excel file to import
+     * @param importType       the type of import to apply
+     * @param progressListener listener for workbook and row progress updates
+     * @return the result containing the number of imported guests and any skipped rows
+     * @throws IOException if the file cannot be read
+     */
+    public ImportResult importGuests(
+            File file,
+            ImportType importType,
+            ImportProgressListener progressListener
+    ) throws IOException {
         ImportType selectedImportType = importType == null ? ImportType.STANDARD : importType;
+        ImportProgressListener listener = progressListener == null ? progress -> {
+        } : progressListener;
         List<String> skippedRows = new ArrayList<>();
         int imported = 0;
         accommodationCategoryLookup = null;
         importAccommodationRecords = null;
 
+        notifyProgress(listener, ImportProgress.indeterminate(
+                "Opening workbook",
+                "Reading " + file.getName() + " before scanning rows."
+        ));
         try (Workbook workbook = openWorkbook(file)) {
             Sheet sheet = workbook.getNumberOfSheets() == 0 ? null : workbook.getSheetAt(0);
             if (sheet == null) {
@@ -172,12 +196,27 @@ public class ExcelImportService {
 
             DataFormatter formatter = new DataFormatter();
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            notifyProgress(listener, ImportProgress.indeterminate(
+                    "Reading header row",
+                    "Checking the workbook format before import."
+            ));
             Map<String, Integer> headers = readHeaders(sheet, formatter, evaluator);
             validateHeaders(headers, selectedImportType);
 
             boolean hasGuestRows = false;
             Map<String, Integer> importedLegacyRowsByFingerprint = new LinkedHashMap<>();
+            int totalRows = Math.max(0, sheet.getLastRowNum());
+            notifyProgress(listener, ImportProgress.row(
+                    0,
+                    totalRows,
+                    "Preparing to scan guest rows."
+            ));
             for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                notifyProgress(listener, ImportProgress.row(
+                        rowIndex,
+                        totalRows,
+                        "Validating and importing Excel row " + (rowIndex + 1) + "."
+                ));
                 Row row = sheet.getRow(rowIndex);
                 if (isBlankRow(row, formatter, evaluator)) {
                     continue;
@@ -217,9 +256,20 @@ public class ExcelImportService {
             if (!hasGuestRows) {
                 throw new IllegalArgumentException("No guest rows found. Add guest records below the header row before importing.");
             }
+            notifyProgress(listener, ImportProgress.complete(
+                    totalRows,
+                    "Finalizing imported guest records."
+            ));
         }
 
         return new ImportResult(imported, skippedRows);
+    }
+
+    private void notifyProgress(ImportProgressListener listener, ImportProgress progress) {
+        try {
+            listener.onProgress(progress);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private void validateGuestForImport(Guest guest, ImportType importType)
@@ -689,6 +739,50 @@ public class ExcelImportService {
      * @param skippedRows   the list of skipped row messages with reasons
      */
     public record ImportResult(int importedCount, List<String> skippedRows) {
+    }
+
+    public interface ImportProgressListener {
+        void onProgress(ImportProgress progress);
+    }
+
+    public record ImportProgress(
+            String state,
+            String detail,
+            int current,
+            int total,
+            boolean determinate
+    ) {
+        private static ImportProgress indeterminate(String state, String detail) {
+            return new ImportProgress(state, detail, 0, 0, false);
+        }
+
+        private static ImportProgress row(int current, int total, String detail) {
+            return new ImportProgress(
+                    "Scanning row: " + Math.max(0, current) + "/" + Math.max(0, total) + " rows",
+                    detail,
+                    Math.max(0, current),
+                    Math.max(0, total),
+                    total > 0
+            );
+        }
+
+        private static ImportProgress complete(int total, String detail) {
+            int safeTotal = Math.max(0, total);
+            return new ImportProgress(
+                    "Finishing import",
+                    detail,
+                    safeTotal,
+                    safeTotal,
+                    safeTotal > 0
+            );
+        }
+
+        public int percentage() {
+            if (!determinate || total <= 0) {
+                return 0;
+            }
+            return Math.max(0, Math.min(100, Math.round((current * 100f) / total)));
+        }
     }
 
     /**

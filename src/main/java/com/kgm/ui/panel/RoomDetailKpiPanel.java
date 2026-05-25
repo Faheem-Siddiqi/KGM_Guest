@@ -12,15 +12,14 @@ import java.util.concurrent.ExecutionException;
 public class RoomDetailKpiPanel extends JPanel {
     private final long accommodationId;
     private final DashboardDao dashboardDao = new DashboardDao();
-    private final HomeKpiPanel kpiPanel = new HomeKpiPanel(
-            new DashboardDao.DashboardStats(0, 0, 0, 0, 0, 0, "Loading...")
-    );
+    private final HomeKpiPanel kpiPanel = new HomeKpiPanel();
     private SwingWorker<DashboardDao.DashboardStats, Void> statsWorker;
 
     public RoomDetailKpiPanel(long accommodationId) {
         this.accommodationId = accommodationId;
         setLayout(new BorderLayout());
         setOpaque(false);
+        kpiPanel.showLoading("Loading room KPIs...");
         add(kpiPanel, BorderLayout.CENTER);
     }
 
@@ -41,7 +40,7 @@ public class RoomDetailKpiPanel extends JPanel {
 
             protected void done() {
                 try {
-                    kpiPanel.updateStats(get());
+                    kpiPanel.updateRoomStats(get());
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {

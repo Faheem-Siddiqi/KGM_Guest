@@ -17,8 +17,8 @@ public class DepartmentAnalysisGraphPanel extends UniversalGraphPanel {
                 new UniversalGraphPanel.Series(
                         "Guests",
                         data.guests(),
-                        HomeViewHelper.KPI_ROSE_LIGHT,
-                        HomeViewHelper.KPI_ROSE_DARK
+                        HomeViewHelper.TEAL,
+                        HomeViewHelper.TEAL_DARK
                 )
         );
         this.data = data;

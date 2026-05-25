@@ -7,7 +7,7 @@ public class Main {
         DatabaseInitializer.init();
         SwingUtilities.invokeLater(() -> {
             new LoginView().setVisible(true);
-            System.out.println("App started");
+            System.out.println("Guest App started");
         });
     }
 }

@@ -13,6 +13,8 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     private static final int MIN_VISIBLE_BAR_HEIGHT = 4;
     private static final int BAR_RADIUS = 4;
     private static final int GRAPH_HEIGHT = 400;
+    private static final int LABEL_TOP_MARGIN = 24;
+    private static final int BOTTOM_CONTENT_PADDING = 74;
 
     private final String title;
     private final String subtitle;
@@ -124,7 +126,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         int plotX = 52;
         int plotY = plotTopInset();
         int plotW = Math.max(120, width - 80);
-        int plotH = Math.max(120, height - plotY - 56);
+        int plotH = Math.max(120, height - plotY - BOTTOM_CONTENT_PADDING);
         int baseY = plotY + plotH;
         int max = niceMax();
 
@@ -168,7 +170,12 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
                         && hoveredBar.seriesIndex() == seriesIndex) {
                     Stroke originalStroke = g2.getStroke();
                     g2.setStroke(new BasicStroke(2f));
-                    g2.setColor(new Color(7, 76, 145, 180));
+                    g2.setColor(new Color(
+                            HomeViewHelper.BLUE.getRed(),
+                            HomeViewHelper.BLUE.getGreen(),
+                            HomeViewHelper.BLUE.getBlue(),
+                            180
+                    ));
                     g2.drawRoundRect(x - 1, y - 1, barW + 2, barH + 2, BAR_RADIUS + 2, BAR_RADIUS + 2);
                     g2.setStroke(originalStroke);
                 }
@@ -176,7 +183,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
             String label = categories[categoryIndex];
             g2.setColor(HomeViewHelper.TEXT_SECONDARY);
-            drawCategoryLabel(g2, label, plotX + categoryIndex * groupW + groupW / 2, baseY + 18);
+            drawCategoryLabel(g2, label, plotX + categoryIndex * groupW + groupW / 2, baseY + LABEL_TOP_MARGIN);
         }
     }
 
@@ -325,7 +332,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         int plotX = 52;
         int plotY = plotTopInset();
         int plotW = Math.max(120, width - 80);
-        int plotH = Math.max(120, height - plotY - 56);
+        int plotH = Math.max(120, height - plotY - BOTTOM_CONTENT_PADDING);
         int baseY = plotY + plotH;
         return new GraphLayout(plotX, plotY, plotW, plotH, baseY, niceMax());
     }

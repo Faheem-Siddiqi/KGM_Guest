@@ -19,21 +19,34 @@ import java.util.Date;
 
 public final class HomeViewHelper {
     public static final Color PAGE_BACKGROUND = Color.WHITE;
+    public static final Color BLUE = new Color(37, 99, 235);
+    public static final Color TEAL = new Color(13, 148, 136);
+    public static final Color PURPLE = new Color(124, 58, 237);
+    public static final Color BLUE_DARK = new Color(30, 64, 175);
+    public static final Color TEAL_DARK = new Color(15, 118, 110);
+    public static final Color PURPLE_DARK = new Color(109, 40, 217);
     public static final Color PRIMARY = new Color(11, 111, 211);
     public static final Color PRIMARY_DARK = new Color(7, 76, 145);
     public static final Color PRIMARY_LIGHT = new Color(56, 165, 246);
     public static final Color VACANT_DARK = new Color(14, 116, 144);
-    public static final Color VACANT_LIGHT = new Color(34, 211, 238);
+    public static final Color VACANT_LIGHT = new Color(87, 199, 238);
     public static final Color OCCUPIED_DARK = new Color(30, 58, 138);
     public static final Color OCCUPIED_LIGHT = new Color(59, 130, 246);
-    public static final Color KPI_AMBER_DARK = new Color(29, 78, 216);
-    public static final Color KPI_AMBER_LIGHT = new Color(96, 165, 250);
-    public static final Color KPI_SKY_DARK = new Color(3, 105, 161);
-    public static final Color KPI_SKY_LIGHT = new Color(125, 211, 252);
-    public static final Color KPI_ROSE_DARK = new Color(67, 56, 202);
-    public static final Color KPI_ROSE_LIGHT = new Color(129, 140, 248);
-    public static final Color GRAPH_PLUM_DARK = OCCUPIED_DARK;
-    public static final Color GRAPH_PLUM_LIGHT = OCCUPIED_LIGHT;
+
+    public static final Color CAPACITY_LIGHT = BLUE;
+    public static final Color CAPACITY_DARK = BLUE_DARK;
+
+    public static final Color OCCUPANCY_LIGHT = PURPLE;
+    public static final Color OCCUPANCY_DARK = PURPLE_DARK;
+
+    public static final Color KPI_AMBER_DARK = BLUE_DARK;
+    public static final Color KPI_AMBER_LIGHT = BLUE;
+    public static final Color KPI_SKY_DARK = TEAL_DARK;
+    public static final Color KPI_SKY_LIGHT = TEAL;
+    public static final Color KPI_ROSE_DARK = PURPLE_DARK;
+    public static final Color KPI_ROSE_LIGHT = PURPLE;
+    public static final Color GRAPH_PLUM_DARK = PURPLE_DARK;
+    public static final Color GRAPH_PLUM_LIGHT = PURPLE;
     public static final Color TEXT_PRIMARY = new Color(35, 43, 54);
     public static final Color TEXT_SECONDARY = new Color(99, 115, 129);
     public static final Color BORDER = new Color(220, 226, 232);
@@ -246,30 +259,30 @@ public final class HomeViewHelper {
     }
 
     public static JPanel kpiCard(String title, String value, String detail, Color start, Color end, boolean featured) {
-        JPanel card = new GradientCard(start, end, 18);
-        card.setLayout(new BorderLayout(0, 10));
-        card.setBorder(new EmptyBorder(18, 20, 18, 20));
-        card.setPreferredSize(new Dimension(220, featured ? 148 : 130));
+        JPanel card = new GradientCard(start, start, 8);
+        card.setLayout(new BorderLayout(0, 6));
+        card.setBorder(new EmptyBorder(12, 16, 12, 16));
+        card.setPreferredSize(new Dimension(190, featured ? 100 : 94));
 
         JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        titleLabel.setForeground(new Color(238, 247, 255));
+        titleLabel.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        titleLabel.setForeground(Color.WHITE);
 
         JLabel valueLabel = new JLabel(value);
-        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, featured ? 34 : 30));
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, featured ? 27 : 24));
         valueLabel.setForeground(Color.WHITE);
 
         JLabel detailLabel = new JLabel(detail);
-        detailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        detailLabel.setForeground(new Color(226, 239, 249));
+        detailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        detailLabel.setForeground(new Color(238, 247, 255));
 
         JPanel text = new JPanel();
         text.setOpaque(false);
         text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
         text.add(titleLabel);
-        text.add(Box.createVerticalStrut(featured ? 14 : 10));
+        text.add(Box.createVerticalStrut(featured ? 8 : 6));
         text.add(valueLabel);
-        text.add(Box.createVerticalStrut(4));
+        text.add(Box.createVerticalStrut(3));
         text.add(detailLabel);
 
         card.add(text, BorderLayout.CENTER);
@@ -508,7 +521,7 @@ public final class HomeViewHelper {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setPaint(new GradientPaint(0, 0, start, getWidth(), getHeight(), end));
+            g2.setColor(start);
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
             g2.dispose();
             super.paintComponent(g);

@@ -30,22 +30,30 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
                 "House Capacity",
                 "Capacity compared with occupied beds",
                 data.labels(),
-                new UniversalGraphPanel.Series(
-                        "Capacity",
-                        data.capacity(),
-                        HomeViewHelper.PRIMARY_LIGHT,
-                        HomeViewHelper.PRIMARY
-                ),
-                new UniversalGraphPanel.Series(
-                        "Occupied",
-                        data.occupied(),
-                        HomeViewHelper.KPI_AMBER_LIGHT,
-                        HomeViewHelper.KPI_AMBER_DARK
-                )
+                capacitySeries(data.capacity()),
+                occupiedSeries(data.occupied())
         );
         this.dashboardDao = dashboardDao;
         setLayout(null);
         configureCategoryTabs(categories);
+    }
+
+    private static UniversalGraphPanel.Series capacitySeries(int[] values) {
+        return new UniversalGraphPanel.Series(
+                "Capacity",
+                values,
+                HomeViewHelper.BLUE,
+                HomeViewHelper.BLUE_DARK
+        );
+    }
+
+    private static UniversalGraphPanel.Series occupiedSeries(int[] values) {
+        return new UniversalGraphPanel.Series(
+                "Occupied",
+                values,
+                HomeViewHelper.PURPLE,
+                HomeViewHelper.PURPLE_DARK
+        );
     }
 
     public void doLayout() {
@@ -100,54 +108,32 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
     }
 
     private void loadSelectedCategory() {
-        // Use async loading with progress indication
         DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
                 this,
                 "Loading Graph Data",
                 "Database is taking longer than usual. Loading occupancy data..."
         );
-        
+
         new SwingWorker<DashboardDao.OccupancyChartData, Void>() {
             @Override
             protected DashboardDao.OccupancyChartData doInBackground() throws Exception {
                 return dashboardDao.loadOccupancyChart(selectedCategory);
             }
-            
+
             @Override
             protected void done() {
                 try {
                     DashboardDao.OccupancyChartData data = get();
                     setGraphData(
                             data.labels(),
-                            new UniversalGraphPanel.Series(
-                                    "Capacity",
-                                    data.capacity(),
-                                    HomeViewHelper.PRIMARY_LIGHT,
-                                    HomeViewHelper.PRIMARY
-                            ),
-                            new UniversalGraphPanel.Series(
-                                    "Occupied",
-                                    data.occupied(),
-                                    HomeViewHelper.KPI_AMBER_LIGHT,
-                                    HomeViewHelper.KPI_AMBER_DARK
-                            )
+                            capacitySeries(data.capacity()),
+                            occupiedSeries(data.occupied())
                     );
                 } catch (InterruptedException | ExecutionException exception) {
-                    // On error, show empty graph
                     setGraphData(
                             new String[0],
-                            new UniversalGraphPanel.Series(
-                                    "Capacity",
-                                    new int[0],
-                                    HomeViewHelper.PRIMARY_LIGHT,
-                                    HomeViewHelper.PRIMARY
-                            ),
-                            new UniversalGraphPanel.Series(
-                                    "Occupied",
-                                    new int[0],
-                                    HomeViewHelper.KPI_AMBER_LIGHT,
-                                    HomeViewHelper.KPI_AMBER_DARK
-                            )
+                            capacitySeries(new int[0]),
+                            occupiedSeries(new int[0])
                     );
                 } finally {
                     progress.done();
@@ -230,7 +216,7 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
             setForeground(HomeViewHelper.TEXT_SECONDARY);
-            setBorder(BorderFactory.createEmptyBorder(4, 0, 7, 8));
+            setBorder(BorderFactory.createEmptyBorder(10, 0, 7, 8));
         }
 
         private boolean hasValue(String otherValue) {

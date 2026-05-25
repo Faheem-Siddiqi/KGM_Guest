@@ -7,6 +7,7 @@ import com.kgm.service.ExcelImportService;
 import com.kgm.service.ExcelSampleGenerator;
 import com.kgm.service.GuestReportService;
 import com.kgm.ui.dialog.DelayedProgressDialog;
+import com.kgm.ui.dialog.ImportProgressDialog;
 import com.kgm.ui.dialog.ReportPeriodDialog;
 import com.kgm.ui.dialog.ReportProgressDialog;
 import com.kgm.ui.panel.AccommodationListViewPanel;
@@ -40,8 +41,7 @@ import java.util.concurrent.ExecutionException;
 public class HomeView extends JFrame {
     private static final int DASHBOARD_TAB = 0;
     private static final int ADD_GUEST_TAB = 1;
-    // KPI bottom margin; adjust this value to tune space below KPI cards.
-    private static final int KPI_BOTTOM_MARGIN = 36;
+    private static final int KPI_BOTTOM_MARGIN = 18;
     private static final int DASHBOARD_REFRESH_DELAY_MS = 5000;
     private static final int GRAPH_SCROLL_HEIGHT = 430;
     private static final String DASHBOARD_SCREEN = "dashboard";
@@ -552,17 +552,18 @@ public class HomeView extends JFrame {
             return;
         }
         setImportButtonEnabled(false);
-        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
-                this,
-                "Importing Excel",
-                "Database is taking longer than usual. Checking and importing guest records as "
-                        + importType.label() + "..."
-        );
-        SwingWorker<ExcelImportService.ImportResult, Void> worker = new SwingWorker<>() {
+        ImportProgressDialog progress = new ImportProgressDialog(this, file, importType.label());
+        SwingWorker<ExcelImportService.ImportResult, ExcelImportService.ImportProgress> worker = new SwingWorker<>() {
             protected ExcelImportService.ImportResult doInBackground() throws Exception {
-                return excelImportService.importGuests(file, importType);
+                return excelImportService.importGuests(file, importType, progressEvent -> publish(progressEvent));
+            }
+            protected void process(List<ExcelImportService.ImportProgress> chunks) {
+                if (!chunks.isEmpty()) {
+                    progress.updateProgress(chunks.get(chunks.size() - 1));
+                }
             }
             protected void done() {
+                progress.close();
                 setImportButtonEnabled(true);
                 try {
                     ExcelImportService.ImportResult result = get();
@@ -586,12 +587,11 @@ public class HomeView extends JFrame {
                             "Excel import needs attention",
                             friendlyImportFailureMessage(message)
                     );
-                } finally {
-                    progress.done();
                 }
             }
         };
         worker.execute();
+        progress.open();
     }
     private boolean isExcelImportFile(File file) {
         if (file == null || !file.isFile()) {

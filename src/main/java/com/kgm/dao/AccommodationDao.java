@@ -399,7 +399,10 @@ public class AccommodationDao {
                     AND COALESCE(occupied.current_guests, 0) > 0
                     """;
             case VACANT_ROOMS -> """
-                    AND COALESCE(occupied.current_guests, 0) = 0
+                    AND (
+                        COALESCE(occupied.current_guests, 0) = 0
+                        OR COALESCE(occupied.current_guests, 0) < a.capacity
+                    )
                     """;
             case VACANT_BEDS -> """
                     AND GREATEST(a.capacity - COALESCE(occupied.current_guests, 0), 0) > 0

@@ -379,6 +379,10 @@ public class DashboardDao {
             int totalRooms,
             int occupiedRooms,
             int vacantRooms,
+            int fullyOccupiedRooms,
+            int partiallyOccupiedRooms,
+            int fullyVacantRooms,
+            int partiallyVacantRooms,
             int totalBeds,
             int occupiedBeds,
             int vacantBeds
@@ -397,13 +401,37 @@ public class DashboardDao {
                     c.name AS category_name,
                     COUNT(a.id) AS total_rooms,
                     COALESCE(SUM(CASE
-                        WHEN occupied.current_guests > 0 THEN 1
+                        WHEN COALESCE(occupied.current_guests, 0) > 0 THEN 1
                         ELSE 0
                     END), 0) AS occupied_rooms,
-                    COUNT(a.id) - COALESCE(SUM(CASE
-                        WHEN occupied.current_guests > 0 THEN 1
+                    COALESCE(SUM(CASE
+                        WHEN COALESCE(occupied.current_guests, 0) > 0
+                         AND COALESCE(occupied.current_guests, 0) >= a.capacity THEN 1
+                        ELSE 0
+                    END), 0) AS fully_occupied_rooms,
+                    COALESCE(SUM(CASE
+                        WHEN COALESCE(occupied.current_guests, 0) > 0
+                         AND COALESCE(occupied.current_guests, 0) < a.capacity THEN 1
+                        ELSE 0
+                    END), 0) AS partially_occupied_rooms,
+                    COALESCE(SUM(CASE
+                        WHEN a.id IS NOT NULL
+                         AND (
+                            COALESCE(occupied.current_guests, 0) = 0
+                            OR COALESCE(occupied.current_guests, 0) < a.capacity
+                         ) THEN 1
                         ELSE 0
                     END), 0) AS vacant_rooms,
+                    COALESCE(SUM(CASE
+                        WHEN a.id IS NOT NULL
+                         AND COALESCE(occupied.current_guests, 0) = 0 THEN 1
+                        ELSE 0
+                    END), 0) AS fully_vacant_rooms,
+                    COALESCE(SUM(CASE
+                        WHEN COALESCE(occupied.current_guests, 0) > 0
+                         AND COALESCE(occupied.current_guests, 0) < a.capacity THEN 1
+                        ELSE 0
+                    END), 0) AS partially_vacant_rooms,
                     COALESCE(SUM(a.capacity), 0) AS total_beds,
                     COALESCE(SUM(LEAST(COALESCE(occupied.current_guests, 0), a.capacity)), 0) AS occupied_beds,
                     COALESCE(SUM(a.capacity), 0) - COALESCE(SUM(LEAST(COALESCE(occupied.current_guests, 0), a.capacity)), 0) AS vacant_beds
@@ -435,6 +463,10 @@ public class DashboardDao {
                             resultSet.getInt("total_rooms"),
                             resultSet.getInt("occupied_rooms"),
                             resultSet.getInt("vacant_rooms"),
+                            resultSet.getInt("fully_occupied_rooms"),
+                            resultSet.getInt("partially_occupied_rooms"),
+                            resultSet.getInt("fully_vacant_rooms"),
+                            resultSet.getInt("partially_vacant_rooms"),
                             resultSet.getInt("total_beds"),
                             resultSet.getInt("occupied_beds"),
                             resultSet.getInt("vacant_beds")

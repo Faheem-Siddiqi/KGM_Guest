@@ -1,17 +1,13 @@
-# KGM Guest and Accommodation Project
+# KGM Guest Source Notes
 
-Java Swing desktop application for guest records, guest details, and accommodation management.
+Source code is organized by application layer:
 
-## Current Structure
-
-- `ui` and `ui.panel`: guest dashboard, add guest, details, and accommodation screens.
+- `ui` and `ui.panel`: dashboard, add guest, guest details, accommodation screens, and report actions.
+- `ui.dialog`: modal dialogs and progress dialogs.
 - `ui.styling`: shared Swing styling helpers.
-- `service` and `util`: authentication, session, validation, filtering, and file helpers.
-- `dao`, `model`, `database`, `config`, and `resources`: kept for future guest/accommodation persistence work.
+- `service`: Excel import/sample generation, report export, validation, and authentication.
+- `dao`, `model`, `database`, `config`, and `resources`: MySQL persistence, schema initialization, and application models.
 
-## Database Status
+For clone, setup, build, and run instructions, see the root `README.md`.
 
-The old employee MySQL/SQLite database layer has been removed. Add new guest and accommodation DAO, model, schema, and connection files in the preserved folders when the new data layer is ready.
-
-
-In bakcend for Beds , Seats are used 
+Note: in backend naming, beds and seats refer to the same accommodation capacity concept.

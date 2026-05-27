@@ -172,6 +172,23 @@ public final class FileDialogHandler {
         dialog.dispose();
     }
 
+    public static void chooseDirectoryDialog(FileDialogConfig config, Consumer<File> onDirectorySelected) {
+        FileDialogConfig effectiveConfig = config == null ? new FileDialogConfig() : config.copy();
+        JFileChooser chooser = new JFileChooser(effectiveConfig.getCurrentDirectory());
+        chooser.setDialogTitle(dialogTitle(effectiveConfig, "Choose Folder"));
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.setApproveButtonText("Select Folder");
+
+        if (chooser.showOpenDialog(effectiveConfig.getParent()) == JFileChooser.APPROVE_OPTION) {
+            File directory = chooser.getSelectedFile();
+            if (directory != null) {
+                onDirectorySelected.accept(directory);
+            }
+        }
+    }
+
     public static boolean isValidFileType(File file, FileType fileType) {
         if (file == null || fileType == null || fileType == FileType.ALL) {
             return true;

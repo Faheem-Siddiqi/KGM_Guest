@@ -8,6 +8,7 @@ import com.kgm.service.GuestReportService;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.dialog.ImportProgressDialog;
 import com.kgm.ui.dialog.ReportPeriodDialog;
+import com.kgm.ui.dialog.ReportProgressDialog;
 import com.kgm.ui.panel.AccommodationListViewPanel;
 import com.kgm.ui.panel.AccommodationManagementPanel;
 import com.kgm.ui.panel.AccommodationRecord;
@@ -34,9 +35,9 @@ import java.awt.event.MouseWheelEvent;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 public class HomeView extends JFrame {
     private static final int DASHBOARD_TAB = 0;
@@ -49,7 +50,6 @@ public class HomeView extends JFrame {
     private static final String ACCOMMODATION_LIST_SCREEN = "accommodationList";
     private static final String ROOM_DETAILS_SCREEN = "roomDetails";
     private static final String HIDDEN_HOUSE_CAPACITY_CATEGORY = "Security Block";
-    private static final DateTimeFormatter REPORT_FILE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private GuestFilterPanel guestFilterPanel;
     private GuestRecordPanel guestRecordPanel;
     private HomeKpiPanel homeKpiPanel;
@@ -500,9 +500,9 @@ public class HomeView extends JFrame {
     private JPanel createImportActionsRow() {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         row.setOpaque(false);
-        importExcelButton = new JButton("Import Excel");
-        importExcelButton.setPreferredSize(new Dimension(126, 32));
-        importExcelButton.setBackground(HomeViewHelper.PRIMARY);
+        importExcelButton = new JButton("Excel Services");
+        importExcelButton.setPreferredSize(new Dimension(136, 32));
+        importExcelButton.setBackground(new Color(28, 137, 85));
         importExcelButton.setForeground(Color.WHITE);
         importExcelButton.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         importExcelButton.setFocusPainted(false);
@@ -835,75 +835,101 @@ public class HomeView extends JFrame {
             return;
         }
         importExcelButton.setEnabled(enabled);
-        importExcelButton.setText(enabled ? "Import Excel" : "Importing...");
+        importExcelButton.setText(enabled ? "Excel Services" : "Importing...");
         importExcelButton.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
     }
     private void showReportDialog() {
         ReportPeriodDialog dialog = new ReportPeriodDialog(this);
         dialog.setVisible(true);
-        GuestReportService.ReportRange range = dialog.getSelectedRange();
-        if (range == null) {
+        GuestReportService.ReportExportRequest request = dialog.getSelectedRequest();
+        if (request == null) {
             return;
         }
-        File target = chooseReportTarget(range);
-        if (target == null) {
-            return;
-        }
-        if (!confirmReportGeneration(range, target)) {
-            return;
-        }
-        generateGuestReport(range, target);
+        chooseReportSaveTarget(request);
     }
-    private File chooseReportTarget(GuestReportService.ReportRange range) {
-        final File[] result = new File[1];
+    private void chooseReportSaveTarget(GuestReportService.ReportExportRequest request) {
         FileDialogHandler.FileDialogConfig config = new FileDialogHandler.FileDialogConfig()
                 .withParent(this)
-                .withTitle("Download Guest Report")
-                .withFileType(FileDialogHandler.FileType.PDF)
-                .withDefaultFileName(defaultReportFileName(range));
+                .withTitle(reportSaveDialogTitle(request))
+                .withFileType(reportSaveFileType(request))
+                .withDefaultFileName(reportDefaultFileName(request));
 
-        FileDialogHandler.saveFileDialog(config, selectedFile -> {
-            result[0] = pdfFile(selectedFile);
-        });
-        return result[0];
-    }
-    private String defaultReportFileName(GuestReportService.ReportRange range) {
-        String label = range.label().toLowerCase().replaceAll("[^a-z0-9]+", "_");
-        return "guest_report_"
-                + label
-                + "_"
-                + range.startDate().format(REPORT_FILE_DATE)
-                + "_"
-                + range.endDate().format(REPORT_FILE_DATE)
-                + ".pdf";
-    }
-    private File pdfFile(File file) {
-        String path = file.getAbsolutePath();
-        return path.toLowerCase().endsWith(".pdf") ? file : new File(path + ".pdf");
-    }
-    private boolean confirmReportGeneration(GuestReportService.ReportRange range, File target) {
-        String message = "Report period: " + range.label()
-                + " (" + range.startDate() + " to " + range.endDate() + ")\n"
-                + "Save path: " + target.getAbsolutePath() + "\n\n"
-                + "Generate this report now?";
-        return DialogHelper.option(this, "Generate Report", message, "Generate", "Cancel") == 0;
-    }
-    private void generateGuestReport(GuestReportService.ReportRange range, File target) {
-        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
-                this,
-                "Generating Report",
-                "Preparing PDF report and saving the file...",
-                0
+        FileDialogHandler.saveFileDialog(config, selectedFile ->
+                generateGuestReports(request.withSaveTarget(reportTargetFile(request, selectedFile)))
         );
-        SwingWorker<File, Void> worker = new SwingWorker<>() {
-            protected File doInBackground() throws Exception {
-                return guestReportService.generateReport(target, range);
+    }
+    private String reportSaveDialogTitle(GuestReportService.ReportExportRequest request) {
+        return request.includePdf() && request.includeExcel()
+                ? "Save Guest Report Folder"
+                : "Save Guest Report";
+    }
+    private FileDialogHandler.FileType reportSaveFileType(GuestReportService.ReportExportRequest request) {
+        if (request.includePdf() && !request.includeExcel()) {
+            return FileDialogHandler.FileType.PDF;
+        }
+        if (request.includeExcel() && !request.includePdf()) {
+            return FileDialogHandler.FileType.EXCEL;
+        }
+        return FileDialogHandler.FileType.ALL;
+    }
+    private String reportDefaultFileName(GuestReportService.ReportExportRequest request) {
+        String baseName = reportBaseName(request.range());
+        if (request.includeExcel() && !request.includePdf()) {
+            return baseName + ".xlsx";
+        }
+        if (request.includePdf() && !request.includeExcel()) {
+            return baseName + ".pdf";
+        }
+        return baseName;
+    }
+    private File reportTargetFile(GuestReportService.ReportExportRequest request, File selectedFile) {
+        if (request.includeExcel() && !request.includePdf()) {
+            return xlsxFile(selectedFile);
+        }
+        if (request.includePdf() && !request.includeExcel()) {
+            return fileWithExtension(selectedFile, ".pdf");
+        }
+        return reportFolderTarget(selectedFile);
+    }
+    private File reportFolderTarget(File selectedFile) {
+        String path = selectedFile.getAbsolutePath();
+        String lower = path.toLowerCase(Locale.ROOT);
+        for (String extension : List.of(".xlsx", ".xls", ".pdf")) {
+            if (lower.endsWith(extension)) {
+                return new File(path.substring(0, path.length() - extension.length()));
+            }
+        }
+        return selectedFile;
+    }
+    private File fileWithExtension(File file, String extension) {
+        String path = file.getAbsolutePath();
+        return path.toLowerCase(Locale.ROOT).endsWith(extension) ? file : new File(path + extension);
+    }
+    private String reportBaseName(GuestReportService.ReportRange range) {
+        String label = range == null || range.label() == null || range.label().isBlank()
+                ? "Guest"
+                : range.label().trim();
+        String clean = (label + " Guest Report KGM")
+                .replaceAll("[\\\\/:*?\"<>|]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return clean.isEmpty() ? "Guest Report KGM" : clean;
+    }
+    private void generateGuestReports(GuestReportService.ReportExportRequest request) {
+        ReportProgressDialog progressDialog = new ReportProgressDialog(this, request);
+        SwingWorker<GuestReportService.ReportExportResult, String> worker = new SwingWorker<>() {
+            protected GuestReportService.ReportExportResult doInBackground() throws Exception {
+                return guestReportService.generateReports(request, progressEvent -> publish(progressEvent));
+            }
+            protected void process(List<String> chunks) {
+                if (!chunks.isEmpty()) {
+                    progressDialog.updateProgress(chunks.get(chunks.size() - 1));
+                }
             }
             protected void done() {
-                progress.done();
+                progressDialog.close();
                 try {
-                    File savedFile = get();
-                    showReportSavedDialog(savedFile, sameFilePath(savedFile, target));
+                    showReportExportedDialog(get());
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                     DialogHelper.error(HomeView.this, "Report generation stopped", "Report generation was interrupted.");
@@ -915,6 +941,7 @@ public class HomeView extends JFrame {
             }
         };
         worker.execute();
+        progressDialog.open();
     }
     private String reportFailureMessage(Throwable failure) {
         String message = failure == null ? null : failure.getMessage();
@@ -923,15 +950,34 @@ public class HomeView extends JFrame {
         }
         return message;
     }
-    private void showReportSavedDialog(File savedFile, boolean savedToRequestedPath) {
-        String message = savedToRequestedPath
-                ? "PDF report downloaded:\n" + savedFile.getAbsolutePath()
-                : "The selected file was open, so a new PDF copy was downloaded:\n" + savedFile.getAbsolutePath();
+    private void showReportExportedDialog(GuestReportService.ReportExportResult result) {
+        if (result.files().size() == 1) {
+            File file = result.files().get(0);
+            String openOption = file.getName().toLowerCase(Locale.ROOT).endsWith(".xlsx")
+                    ? "Open Excel"
+                    : "Open PDF";
+            showDownloadedFileDialog(
+                    file,
+                    "Report Downloaded",
+                    "Guest report saved:\n" + file.getAbsolutePath(),
+                    openOption
+            );
+            return;
+        }
+        StringBuilder message = new StringBuilder();
+        message.append("Guest report folder created:\n")
+                .append(result.folder().getAbsolutePath());
+        if (!result.files().isEmpty()) {
+            message.append("\n\nFiles:");
+            for (File file : result.files()) {
+                message.append("\n- ").append(file.getName());
+            }
+        }
         showDownloadedFileDialog(
-                savedFile,
-                "Report Downloaded",
-                message,
-                "Open PDF"
+                result.folder(),
+                "Reports Downloaded",
+                message.toString(),
+                "Open Folder"
         );
     }
     private void showDownloadedFileDialog(File file, String title, String message, String openOption) {
@@ -951,7 +997,7 @@ public class HomeView extends JFrame {
             DialogHelper.warning(
                     this,
                     openOption + " unavailable",
-                    "The file was downloaded, but this system does not allow the app to open files automatically.\n"
+                    "The download is ready, but this system does not allow the app to open it automatically.\n"
                             + file.getAbsolutePath()
             );
             return;
@@ -962,14 +1008,11 @@ public class HomeView extends JFrame {
             DialogHelper.error(
                     this,
                     "File not opened",
-                    "The file was downloaded, but it could not be opened automatically.\n"
+                    "The download is ready, but it could not be opened automatically.\n"
                             + file.getAbsolutePath()
                             + "\n\n" + exception.getMessage()
             );
         }
-    }
-    private boolean sameFilePath(File first, File second) {
-        return first.toPath().toAbsolutePath().normalize().equals(second.toPath().toAbsolutePath().normalize());
     }
     private JComponent graphScroll(UniversalGraphPanel graph) {
         JScrollPane scroll = new JScrollPane(graph);

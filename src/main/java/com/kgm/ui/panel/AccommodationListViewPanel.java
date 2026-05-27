@@ -159,7 +159,7 @@ public class AccommodationListViewPanel extends JPanel {
         return switch (selectedFilter()) {
             case ALL -> "Showing every room in this category.";
             case OCCUPIED_ROOMS, OCCUPIED_BEDS -> "Showing rooms that are fully or partially occupied.";
-            case VACANT_ROOMS -> "Showing rooms with no current guests.";
+            case VACANT_ROOMS -> "Showing rooms that are fully or partially vacant.";
             case VACANT_BEDS -> "Showing rooms with available bed capacity.";
         };
     }

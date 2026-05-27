@@ -1,6 +1,7 @@
 package com.kgm.ui.dialog;
 
 import com.kgm.service.GuestReportService;
+import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
@@ -23,15 +24,19 @@ public class ReportPeriodDialog extends JDialog {
     private final JToggleButton customButton = periodButton("Custom Range");
     private final JSpinner startDate = HomeViewHelper.dateSpinner(date(LocalDate.now().minusDays(6)));
     private final JSpinner endDate = HomeViewHelper.dateSpinner(date(LocalDate.now()));
-    private final JButton generateButton = primaryButton("Generate Report");
+    private final JButton generateButton = primaryButton("Generate Reports");
+    private final JCheckBox pdfCheck = formatCheck("PDF", true);
+    private final JCheckBox excelCheck = formatCheck("Excel", false);
     private GuestReportService.ReportRange selectedRange;
+    private GuestReportService.ReportExportRequest selectedRequest;
 
     public ReportPeriodDialog(Window owner) {
         super(owner, "Guest Report", ModalityType.APPLICATION_MODAL);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setContentPane(content());
         pack();
-        setMinimumSize(new Dimension(520, 440));
+        setMinimumSize(new Dimension(620, 500));
+        setResizable(true);
         setLocationRelativeTo(owner);
         weeklyButton.setSelected(true);
         installDateValidation(startDate);
@@ -41,6 +46,10 @@ public class ReportPeriodDialog extends JDialog {
 
     public GuestReportService.ReportRange getSelectedRange() {
         return selectedRange;
+    }
+
+    public GuestReportService.ReportExportRequest getSelectedRequest() {
+        return selectedRequest;
     }
 
     private JPanel content() {
@@ -63,7 +72,7 @@ public class ReportPeriodDialog extends JDialog {
         JLabel title = new JLabel("Download Guest Report");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
         title.setForeground(Color.WHITE);
-        JLabel subtitle = new JLabel("Select a report period and generate a PDF report.");
+        JLabel subtitle = new JLabel("Select a report period and export PDF, Excel, or both.");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subtitle.setForeground(new Color(226, 239, 249));
         text.add(title);
@@ -74,20 +83,49 @@ public class ReportPeriodDialog extends JDialog {
         return header;
     }
 
-    private JPanel dialogBody() {
+    private JComponent dialogBody() {
         JPanel body = new JPanel();
-        body.setOpaque(false);
+        body.setBackground(new Color(247, 249, 251));
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBorder(BorderFactory.createEmptyBorder(20, 22, 18, 22));
 
-        JLabel periodLabel = fieldLabel("Report Period");
-        periodLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        body.add(periodLabel);
-        body.add(Box.createVerticalStrut(8));
-        body.add(periodOptions());
-        body.add(Box.createVerticalStrut(18));
-        body.add(customDatePanel());
-        return body;
+        body.add(sectionCard("Report Period", periodPanel()));
+        body.add(Box.createVerticalStrut(14));
+        body.add(sectionCard("Export Format", formatPanel()));
+
+        JScrollPane scroll = new JScrollPane(body);
+        scroll.setBorder(null);
+        scroll.getViewport().setBackground(new Color(247, 249, 251));
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        return scroll;
+    }
+
+    private JPanel sectionCard(String title, JComponent content) {
+        JPanel card = new JPanel(new BorderLayout(0, 10));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(HomeViewHelper.BORDER),
+                BorderFactory.createEmptyBorder(14, 16, 16, 16)
+        ));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        JLabel label = fieldLabel(title);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        card.add(label, BorderLayout.NORTH);
+        card.add(content, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JPanel periodPanel() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.add(periodOptions());
+        panel.add(Box.createVerticalStrut(14));
+        panel.add(customDatePanel());
+        return panel;
     }
 
     private JPanel periodOptions() {
@@ -121,6 +159,60 @@ public class ReportPeriodDialog extends JDialog {
         return panel;
     }
 
+    private JPanel formatPanel() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel options = new JPanel(new GridLayout(1, 2, 12, 0));
+        options.setOpaque(false);
+        options.setAlignmentX(Component.LEFT_ALIGNMENT);
+        options.add(formatCard(pdfCheck, "Portable PDF report"));
+        options.add(formatCard(excelCheck, "Editable Excel workbook"));
+
+        panel.add(options);
+        return panel;
+    }
+
+    private JPanel formatCard(JCheckBox checkBox, String description) {
+        JPanel card = new JPanel(new BorderLayout(8, 2));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(HomeViewHelper.BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.add(checkBox, BorderLayout.NORTH);
+
+        JLabel help = new JLabel(description);
+        help.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        help.setForeground(HomeViewHelper.TEXT_SECONDARY);
+        card.add(help, BorderLayout.CENTER);
+        card.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent event) {
+                checkBox.setSelected(!checkBox.isSelected());
+                updateGenerateButtonState();
+            }
+        });
+        checkBox.addItemListener(event -> {
+            styleFormatCard(card, checkBox.isSelected());
+            updateGenerateButtonState();
+        });
+        styleFormatCard(card, checkBox.isSelected());
+        return card;
+    }
+
+    private static JCheckBox formatCheck(String text, boolean selected) {
+        JCheckBox checkBox = new JCheckBox(text, selected);
+        checkBox.setOpaque(false);
+        checkBox.setFocusPainted(false);
+        checkBox.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
+        checkBox.setForeground(HomeViewHelper.TEXT_PRIMARY);
+        checkBox.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return checkBox;
+    }
+
     private JPanel dateField(String labelText, JSpinner spinner) {
         JPanel field = new JPanel();
         field.setOpaque(false);
@@ -152,10 +244,19 @@ public class ReportPeriodDialog extends JDialog {
         boolean custom = customButton.isSelected();
         startDate.setEnabled(custom);
         endDate.setEnabled(custom);
+        refreshPeriodButtonStyles();
         updateGenerateButtonState();
     }
 
     private void selectRange() {
+        if (!hasSelectedFormat()) {
+            DialogHelper.error(
+                    this,
+                    "Report format needed",
+                    "Choose PDF, Excel, or both before generating the report."
+            );
+            return;
+        }
         LocalDate today = LocalDate.now();
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         if (weeklyButton.isSelected()) {
@@ -176,21 +277,34 @@ public class ReportPeriodDialog extends JDialog {
             LocalDate start = inputDate(startDate);
             LocalDate end = inputDate(endDate);
             if (start == null || end == null || end.isBefore(start)) {
-                updateGenerateButtonState();
+                DialogHelper.error(
+                        this,
+                        "Report period needs attention",
+                        "Enter a valid custom date range in dd-MM-yyyy format. The end date cannot be before the start date."
+                );
                 return;
             }
             startDate.setValue(date(start));
             endDate.setValue(date(end));
             selectedRange = new GuestReportService.ReportRange("Custom Range", start, end);
         }
+        selectedRequest = new GuestReportService.ReportExportRequest(
+                selectedRange,
+                pdfCheck.isSelected(),
+                excelCheck.isSelected(),
+                null
+        );
         dispose();
     }
 
     private void updateGenerateButtonState() {
-        boolean enabled = !customButton.isSelected() || customDateRangeValid();
-        generateButton.setEnabled(enabled);
-        generateButton.setBackground(enabled ? HomeViewHelper.PRIMARY : new Color(188, 198, 208));
-        generateButton.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+        generateButton.setEnabled(true);
+        generateButton.setBackground(HomeViewHelper.PRIMARY);
+        generateButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+
+    private boolean hasSelectedFormat() {
+        return pdfCheck.isSelected() || excelCheck.isSelected();
     }
 
     private boolean customDateRangeValid() {
@@ -248,6 +362,31 @@ public class ReportPeriodDialog extends JDialog {
         label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         label.setForeground(new Color(70, 82, 96));
         return label;
+    }
+
+    private void refreshPeriodButtonStyles() {
+        stylePeriodButton(weeklyButton);
+        stylePeriodButton(monthlyButton);
+        stylePeriodButton(fortnightButton);
+        stylePeriodButton(customButton);
+    }
+
+    private static void stylePeriodButton(JToggleButton button) {
+        boolean selected = button.isSelected();
+        button.setBackground(selected ? new Color(232, 245, 240) : Color.WHITE);
+        button.setForeground(selected ? HomeViewHelper.PRIMARY : HomeViewHelper.TEXT_PRIMARY);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(selected ? HomeViewHelper.PRIMARY : HomeViewHelper.BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+    }
+
+    private static void styleFormatCard(JPanel card, boolean selected) {
+        card.setBackground(selected ? new Color(232, 245, 240) : Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(selected ? HomeViewHelper.PRIMARY : HomeViewHelper.BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
     }
 
     private static JToggleButton periodButton(String text) {

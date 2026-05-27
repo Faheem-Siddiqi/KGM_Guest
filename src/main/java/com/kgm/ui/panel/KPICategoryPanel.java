@@ -239,8 +239,18 @@ public class KPICategoryPanel extends JPanel {
         if (group == MetricGroup.ROOMS) {
             return switch (type) {
                 case TOTAL -> "All rooms in " + categoryName;
-                case OCCUPIED -> "Fully or partially occupied";
-                case VACANT -> "Vacant rooms in " + categoryName;
+                case OCCUPIED -> roomBreakdown(
+                        categoryStats.occupiedRooms(),
+                        categoryStats.fullyOccupiedRooms(),
+                        categoryStats.partiallyOccupiedRooms(),
+                        "occupied"
+                );
+                case VACANT -> roomBreakdown(
+                        categoryStats.vacantRooms(),
+                        categoryStats.fullyVacantRooms(),
+                        categoryStats.partiallyVacantRooms(),
+                        "vacant"
+                );
             };
         }
 
@@ -249,6 +259,23 @@ public class KPICategoryPanel extends JPanel {
             case OCCUPIED -> "Currently occupied beds";
             case VACANT -> "Available vacant beds";
         };
+    }
+
+    private String roomBreakdown(int total, int fully, int partially, String state) {
+        if (total <= 0) {
+            return "No " + state + " rooms";
+        }
+        if (fully > 0 && partially > 0) {
+            return "Full " + fully + " / Partial " + partially;
+        }
+        if (partially > 0) {
+            return partially + " partially " + state + " room" + plural(partially);
+        }
+        return total + " " + state + " room" + plural(total);
+    }
+
+    private String plural(int count) {
+        return count == 1 ? "" : "s";
     }
 
     public record MetricSelection(String categoryName, MetricGroup group, MetricType type) {

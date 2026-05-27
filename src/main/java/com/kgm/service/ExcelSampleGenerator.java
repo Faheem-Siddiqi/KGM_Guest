@@ -7,6 +7,9 @@ import com.kgm.ui.panel.AccommodationRecord;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DataValidation;
+import org.apache.poi.ss.usermodel.DataValidationConstraint;
+import org.apache.poi.ss.usermodel.DataValidationHelper;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
@@ -14,6 +17,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
@@ -55,15 +59,17 @@ public class ExcelSampleGenerator {
     private static final String ACCOMMODATION_CATEGORY = "Accommodation Category";
     private static final String ROOM = "Room";
     private static final String REMARKS = "Remarks";
+    private static final String[] VISIT_TYPES = {"Official Visit", "Personal Visit"};
+    private static final int TEMPLATE_DROPDOWN_LAST_ROW = 1000;
 
     private static final List<String> TEMPLATE_HEADERS = List.of(
             GUEST_NAME,
             CNIC,
             NATIONALITY,
             GUEST_CATEGORY,
+            ADDRESS,
             COMPANY_NAME,
             VISIT_TYPE,
-            ADDRESS,
             REQUESTED_BY,
             REQUESTED_DEPARTMENT,
             APPROVED_BY,
@@ -105,6 +111,8 @@ public class ExcelSampleGenerator {
 
                 Current accommodation and guest category values:
                 Download the sample file and review the Valid Values sheet. It is generated from the current database and includes active accommodation categories, all active rooms, room status, available beds, and all active guest categories.
+
+                Visit Type is required and must be Official Visit or Personal Visit. Company Name is required.
 
                 This import is only for guest data. It checks existing accommodation categories and rooms from DB; it does not create, edit, or rename accommodation records.
                 """.formatted(templateHeaderLine());
@@ -180,6 +188,7 @@ public class ExcelSampleGenerator {
                 for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
                     sheet.autoSizeColumn(index);
                 }
+                addVisitTypeDropdown(sheet);
 
                 writeValidValuesSheet(workbook, headerStyle, editableStyle, accommodationCategories, accommodations, guestCategories);
                 workbook.write(output);
@@ -249,9 +258,9 @@ public class ExcelSampleGenerator {
                         sampleCnic(rowIndex),
                         "Pakistani",
                         guestCategory,
+                        "Sample address " + (rowIndex + 1),
                         sampleCompany(rowIndex),
                         rowIndex % 2 == 0 ? "Official Visit" : "Personal Visit",
-                        "Sample address " + (rowIndex + 1),
                         "Sample Requester",
                         sampleDepartment(rowIndex),
                         "Sample Approver",
@@ -307,13 +316,14 @@ public class ExcelSampleGenerator {
         Set<String> coveredCategories = new LinkedHashSet<>();
         int rowIndex = 1;
         int guestCategoryIndex = 0;
+        int visitTypeIndex = 0;
         for (SampleAccommodation accommodation : accommodations) {
             coveredCategories.add(accommodation.category());
             Row row = values.createRow(rowIndex++);
             if (guestCategoryIndex < guestCategories.size()) {
                 textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
             }
-            textCell(row, 1, rowIndex % 2 == 0 ? "Official Visit" : "Personal Visit", plainStyle);
+            visitTypeIndex = writeNextVisitType(row, visitTypeIndex, plainStyle);
             writeAccommodationValueRow(row, accommodation, plainStyle);
         }
 
@@ -325,7 +335,7 @@ public class ExcelSampleGenerator {
             if (guestCategoryIndex < guestCategories.size()) {
                 textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
             }
-            textCell(row, 1, "Official Visit", plainStyle);
+            visitTypeIndex = writeNextVisitType(row, visitTypeIndex, plainStyle);
             textCell(row, 2, category, plainStyle);
             textCell(row, 3, "No active rooms configured", plainStyle);
             textCell(row, 4, "Not importable", plainStyle);
@@ -335,7 +345,12 @@ public class ExcelSampleGenerator {
         while (guestCategoryIndex < guestCategories.size()) {
             Row row = values.createRow(rowIndex++);
             textCell(row, 0, guestCategories.get(guestCategoryIndex++), plainStyle);
-            textCell(row, 1, "Personal Visit", plainStyle);
+            visitTypeIndex = writeNextVisitType(row, visitTypeIndex, plainStyle);
+        }
+
+        while (visitTypeIndex < VISIT_TYPES.length) {
+            Row row = values.createRow(rowIndex++);
+            visitTypeIndex = writeNextVisitType(row, visitTypeIndex, plainStyle);
         }
 
         // Add blank row for separation
@@ -383,6 +398,36 @@ public class ExcelSampleGenerator {
         for (int index = 0; index < headers.length; index++) {
             values.autoSizeColumn(index);
         }
+    }
+
+    private static void addVisitTypeDropdown(Sheet sheet) {
+        int visitTypeColumn = TEMPLATE_HEADERS.indexOf(VISIT_TYPE);
+        if (visitTypeColumn < 0) {
+            return;
+        }
+
+        DataValidationHelper helper = sheet.getDataValidationHelper();
+        DataValidationConstraint constraint = helper.createExplicitListConstraint(VISIT_TYPES);
+        CellRangeAddressList range = new CellRangeAddressList(
+                1,
+                TEMPLATE_DROPDOWN_LAST_ROW,
+                visitTypeColumn,
+                visitTypeColumn
+        );
+        DataValidation validation = helper.createValidation(constraint, range);
+        validation.setShowErrorBox(true);
+        validation.createErrorBox("Invalid Visit Type", "Choose Official Visit or Personal Visit.");
+        validation.setShowPromptBox(true);
+        validation.createPromptBox("Visit Type", "Choose Official Visit or Personal Visit.");
+        sheet.addValidationData(validation);
+    }
+
+    private static int writeNextVisitType(Row row, int visitTypeIndex, CellStyle style) {
+        if (visitTypeIndex < VISIT_TYPES.length) {
+            textCell(row, 1, VISIT_TYPES[visitTypeIndex], style);
+            return visitTypeIndex + 1;
+        }
+        return visitTypeIndex;
     }
 
     private static void writeAccommodationValueRow(

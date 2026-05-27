@@ -19,6 +19,7 @@ public final class AddGuestHelper {
     private static final int FIELD_MIN_WIDTH = 220;
     private static final Color DROPDOWN_BACKGROUND = new Color(247, 250, 255);
     private static final Color DROPDOWN_SELECTION = HomeViewHelper.ROW_SELECTION;
+    private static final String REQUIRED_MARKER_COLOR = "#d92d20";
     private static final String AUTO_COMPLETE_ENABLED = "kgm.autoCompleteEnabled";
     private static final String AUTO_COMPLETE_EDITOR = "kgm.autoCompleteEditor";
 
@@ -232,11 +233,27 @@ public final class AddGuestHelper {
     }
 
     public static void addField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
+        addField(panel, gbc, y, xOffset, labelText, field, false);
+    }
+
+    public static void addRequiredField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
+        addField(panel, gbc, y, xOffset, labelText, field, true);
+    }
+
+    private static void addField(
+            JPanel panel,
+            GridBagConstraints gbc,
+            int y,
+            int xOffset,
+            String labelText,
+            JComponent field,
+            boolean required
+    ) {
         JPanel fieldBlock = new JPanel();
         fieldBlock.setLayout(new BoxLayout(fieldBlock, BoxLayout.Y_AXIS));
         fieldBlock.setBackground(Color.WHITE);
 
-        JLabel label = label(labelText);
+        JLabel label = label(labelText, required);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JComponent styledField = styleField(field);
@@ -254,10 +271,30 @@ public final class AddGuestHelper {
     }
 
     public static JLabel label(String text) {
+        return label(text, false);
+    }
+
+    private static JLabel label(String text, boolean required) {
         JLabel label = new JLabel(text);
+        if (required) {
+            label.setText(requiredLabelText(text));
+        }
         label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         label.setForeground(new Color(70, 82, 96));
         return label;
+    }
+
+    private static String requiredLabelText(String text) {
+        return "<html>" + html(text) + "<span style='color:" + REQUIRED_MARKER_COLOR + ";'> *</span></html>";
+    }
+
+    private static String html(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     @SuppressWarnings("unchecked")

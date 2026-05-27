@@ -508,21 +508,31 @@ public class HomeView extends JFrame {
         importExcelButton.setFocusPainted(false);
         importExcelButton.setBorderPainted(false);
         importExcelButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        importExcelButton.addActionListener(event -> chooseExcelImportFile());
+        importExcelButton.addActionListener(event -> showExcelImportOptions());
         row.add(importExcelButton);
         return row;
+    }
+    private void showExcelImportOptions() {
+        int selected = DialogHelper.option(
+                this,
+                "Excel Import",
+                "Choose an import action\nDownload the sample workbook if you need the correct Excel format, or import a completed guest workbook.",
+                "Import Excel",
+                "Download Sample"
+        );
+        if (selected == 0) {
+            chooseExcelImportFile();
+        } else if (selected == 1) {
+            downloadSampleExcel();
+        }
     }
     private void chooseExcelImportFile() {
         FileDialogHandler.FileDialogConfig config = new FileDialogHandler.FileDialogConfig()
                 .withParent(this)
                 .withTitle("Import Guest Excel Sheet")
-                .withFileType(FileDialogHandler.FileType.EXCEL)
-                .withUploadCard(
-                        "Import Excel Workbook",
-                        "Choose a .xlsx or .xls guest sheet from your computer."
-                );
+                .withFileType(FileDialogHandler.FileType.EXCEL);
 
-        FileDialogHandler.openUploadDialog(config, selectedFiles -> {
+        FileDialogHandler.openFileDialog(config, selectedFiles -> {
             if (selectedFiles.length == 0) {
                 return;
             }
@@ -659,7 +669,12 @@ public class HomeView extends JFrame {
             File target = xlsxFile(selectedFile);
             try {
                 ExcelSampleGenerator.writeSampleWorkbook(target);
-                DialogHelper.success(this, "Sample Excel file saved:\n" + target.getAbsolutePath());
+                showDownloadedFileDialog(
+                        target,
+                        "Sample Downloaded",
+                        "Sample Excel file downloaded:\n" + target.getAbsolutePath(),
+                        "Open Excel"
+                );
             } catch (IOException exception) {
                 DialogHelper.error(this, "Sample not saved", friendlySampleSaveFailure(target, exception));
             } catch (Exception exception) {
@@ -910,25 +925,33 @@ public class HomeView extends JFrame {
     }
     private void showReportSavedDialog(File savedFile, boolean savedToRequestedPath) {
         String message = savedToRequestedPath
-                ? "Your PDF report is ready:\n" + savedFile.getAbsolutePath()
-                : "The selected file was open, so a new PDF copy was saved:\n" + savedFile.getAbsolutePath();
+                ? "PDF report downloaded:\n" + savedFile.getAbsolutePath()
+                : "The selected file was open, so a new PDF copy was downloaded:\n" + savedFile.getAbsolutePath();
+        showDownloadedFileDialog(
+                savedFile,
+                "Report Downloaded",
+                message,
+                "Open PDF"
+        );
+    }
+    private void showDownloadedFileDialog(File file, String title, String message, String openOption) {
         int selected = DialogHelper.successOption(
                 this,
-                "Report Saved",
+                title,
                 message,
-                "Open PDF",
+                openOption,
                 "Close"
         );
         if (selected == 0) {
-            openSavedReport(savedFile);
+            openDownloadedFile(file, openOption);
         }
     }
-    private void openSavedReport(File file) {
+    private void openDownloadedFile(File file, String openOption) {
         if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
             DialogHelper.warning(
                     this,
-                    "Open PDF unavailable",
-                    "The report was saved, but this system does not allow the app to open files automatically.\n"
+                    openOption + " unavailable",
+                    "The file was downloaded, but this system does not allow the app to open files automatically.\n"
                             + file.getAbsolutePath()
             );
             return;
@@ -938,8 +961,8 @@ public class HomeView extends JFrame {
         } catch (IOException exception) {
             DialogHelper.error(
                     this,
-                    "PDF not opened",
-                    "The report was saved, but it could not be opened automatically.\n"
+                    "File not opened",
+                    "The file was downloaded, but it could not be opened automatically.\n"
                             + file.getAbsolutePath()
                             + "\n\n" + exception.getMessage()
             );

@@ -107,30 +107,30 @@ public class AddGuest extends JFrame {
         JPanel basicCard = AddGuestHelper.cardPanel();
         GridBagConstraints basicGbc = AddGuestHelper.formConstraints();
         int y = AddGuestHelper.addSectionTitle(basicCard, basicGbc, 0, "Basic Information");
-        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Name", guestNameField);
-        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest CNIC", guestCnicField);
-        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Nationality", guestNationalityCombo);
-        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest Category", guestCategoryCombo);
-        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Company Name", companyNameField);
-        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Visit Type", visitTypeCombo);
-        AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Address", guestAddressField);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Name", guestNameField);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Guest CNIC", guestCnicField);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Nationality", guestNationalityCombo);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Guest Category", guestCategoryCombo);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Company Name", companyNameField);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Visit Type", visitTypeCombo);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Address", guestAddressField);
 
         JPanel requestCard = AddGuestHelper.cardPanel();
         GridBagConstraints requestGbc = AddGuestHelper.formConstraints();
         y = AddGuestHelper.addSectionTitle(requestCard, requestGbc, 0, "Request Details");
-        AddGuestHelper.addField(requestCard, requestGbc, y, 0, "Requested By", requestedByField);
-        AddGuestHelper.addField(requestCard, requestGbc, y++, 2, "Requested Department", requestedDepartmentCombo);
-        AddGuestHelper.addField(requestCard, requestGbc, y, 0, "Approved By", approvedByField);
-        AddGuestHelper.addField(requestCard, requestGbc, y++, 2, "Accommodated By", accommodatedByField);
+        AddGuestHelper.addRequiredField(requestCard, requestGbc, y, 0, "Requested By", requestedByField);
+        AddGuestHelper.addRequiredField(requestCard, requestGbc, y++, 2, "Requested Department", requestedDepartmentCombo);
+        AddGuestHelper.addRequiredField(requestCard, requestGbc, y, 0, "Approved By", approvedByField);
+        AddGuestHelper.addRequiredField(requestCard, requestGbc, y++, 2, "Accommodated By", accommodatedByField);
 
         JPanel stayCard = AddGuestHelper.cardPanel();
         GridBagConstraints stayGbc = AddGuestHelper.formConstraints();
         y = AddGuestHelper.addSectionTitle(stayCard, stayGbc, 0, "Stay Details");
-        AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Arrival Date", arrivalDate);
-        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Departure Date", departureDate);
+        AddGuestHelper.addRequiredField(stayCard, stayGbc, y, 0, "Arrival Date", arrivalDate);
+        AddGuestHelper.addRequiredField(stayCard, stayGbc, y++, 2, "Departure Date", departureDate);
         AddGuestHelper.addField(stayCard, stayGbc, y, 0, "Tenure", tenureField);
-        AddGuestHelper.addField(stayCard, stayGbc, y++, 2, "Accommodation Category", accommodationCombo);
-        AddGuestHelper.addField(stayCard, stayGbc, y++, 0, "Room", roomCombo);
+        AddGuestHelper.addRequiredField(stayCard, stayGbc, y++, 2, "Accommodation Category", accommodationCombo);
+        AddGuestHelper.addRequiredField(stayCard, stayGbc, y++, 0, "Room", roomCombo);
 
         JLabel remarksLabel = AddGuestHelper.label("Remarks");
         stayGbc.gridx = 0;

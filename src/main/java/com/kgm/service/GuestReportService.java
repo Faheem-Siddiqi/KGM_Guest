@@ -44,7 +44,7 @@ public class GuestReportService {
     private static final String ROW_ALT = "F7F9FB";
 
     private static final String[] COLUMNS = {
-            "Guest Name", "CNIC", "Category", "Department", "Accommodation", "Room",
+            "Guest Name", "CNIC", "Visit Type", "Department", "Accommodation", "Room",
             "Arrival", "Departure", "Status", "Tenure"
     };
     private static final double[] COLUMN_WIDTHS = {
@@ -293,7 +293,7 @@ public class GuestReportService {
         return new String[]{
                 text(guest.getGuestName()),
                 text(guest.getCnic()),
-                text(guest.getGuestCategory()),
+                text(guest.getVisitType()),
                 text(guest.getRequestedDepartment()),
                 text(guest.getAccommodation()),
                 text(guest.getRoomName()),

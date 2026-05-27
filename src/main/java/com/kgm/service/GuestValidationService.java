@@ -13,6 +13,8 @@ public class GuestValidationService {
 
     private static final String ALL_ROOMS_OCCUPIED = "All rooms occupied";
     private static final String NO_ROOMS_AVAILABLE = "No rooms available";
+    private static final String OFFICIAL_VISIT = "Official Visit";
+    private static final String PERSONAL_VISIT = "Personal Visit";
 
     private final AccommodationDao accommodationDao = new AccommodationDao();
 
@@ -37,6 +39,12 @@ public class GuestValidationService {
                 && !text(guest.getCnic()).matches("\\d{13}")) {
             fieldIssues.add("Guest CNIC must contain exactly 13 digits.");
         }
+        if (!containsField(missingFields, "Visit Type")) {
+            String visitTypeIssue = visitTypeIssue(guest.getVisitType());
+            if (visitTypeIssue != null) {
+                fieldIssues.add(visitTypeIssue);
+            }
+        }
 
         return new ValidationResult(missingFields, fieldIssues, dateIssue, roomIssue);
     }
@@ -53,12 +61,6 @@ public class GuestValidationService {
         }
         if (isBlank(guest.getGuestCategory())) {
             guest.setGuestCategory("N/A");
-        }
-        if (isBlank(guest.getCompanyName())) {
-            guest.setCompanyName("N/A");
-        }
-        if (isBlank(guest.getVisitType())) {
-            guest.setVisitType("Official Visit");
         }
         if (isBlank(guest.getAddress())) {
             guest.setAddress("N/A");
@@ -140,6 +142,8 @@ public class GuestValidationService {
         addIfBlank(missingFields, "Guest CNIC", guest.getCnic());
         addIfBlank(missingFields, "Guest Nationality", guest.getNationality());
         addIfBlank(missingFields, "Guest Category", guest.getGuestCategory());
+        addIfBlank(missingFields, "Company Name", guest.getCompanyName());
+        addIfBlank(missingFields, "Visit Type", guest.getVisitType());
         addIfBlank(missingFields, "Guest Address", guest.getAddress());
         addIfBlank(missingFields, "Requested By", guest.getRequestedBy());
         addIfBlank(missingFields, "Requested Department", guest.getRequestedDepartment());
@@ -151,6 +155,8 @@ public class GuestValidationService {
 
     private List<String> missingLegacyFields(Guest guest) {
         List<String> missingFields = new ArrayList<>();
+        addIfBlank(missingFields, "Company Name", guest.getCompanyName());
+        addIfBlank(missingFields, "Visit Type", guest.getVisitType());
         addIfBlank(missingFields, "Accommodation Category", guest.getAccommodation());
         addIfBlank(missingFields, "Room", guest.getRoomName());
         return missingFields;
@@ -230,6 +236,14 @@ public class GuestValidationService {
             }
         }
         return false;
+    }
+
+    private static String visitTypeIssue(String value) {
+        String text = text(value);
+        if (OFFICIAL_VISIT.equals(text) || PERSONAL_VISIT.equals(text)) {
+            return null;
+        }
+        return "Visit Type must be Official Visit or Personal Visit.";
     }
 
     private static boolean isRoomPlaceholder(String value) {

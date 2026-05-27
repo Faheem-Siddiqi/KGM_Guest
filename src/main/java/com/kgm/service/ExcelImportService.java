@@ -70,6 +70,8 @@ public class ExcelImportService {
             CNIC,
             NATIONALITY,
             GUEST_CATEGORY,
+            COMPANY_NAME,
+            VISIT_TYPE,
             ADDRESS,
             REQUESTED_BY,
             REQUESTED_DEPARTMENT,
@@ -81,6 +83,8 @@ public class ExcelImportService {
             ROOM
     );
     private static final List<String> LEGACY_REQUIRED_HEADERS = List.of(
+            COMPANY_NAME,
+            VISIT_TYPE,
             ARRIVAL_DATE_TIME,
             DEPARTURE_DATE_TIME,
             ACCOMMODATION_CATEGORY,
@@ -713,13 +717,13 @@ public class ExcelImportService {
 
     private String visitTypeValue(String value) {
         String text = value == null ? "" : value.trim();
-        if (text.equalsIgnoreCase("Personal") || text.equalsIgnoreCase("Personal Visit")) {
+        if (text.equalsIgnoreCase("Personal Visit")) {
             return "Personal Visit";
         }
-        if (text.equalsIgnoreCase("Official") || text.equalsIgnoreCase("Official Visit")) {
+        if (text.equalsIgnoreCase("Official Visit")) {
             return "Official Visit";
         }
-        return text.isEmpty() ? "Official Visit" : text;
+        return text;
     }
 
     private void addSkippedRow(List<String> skippedRows, int rowNumber, String reason) {

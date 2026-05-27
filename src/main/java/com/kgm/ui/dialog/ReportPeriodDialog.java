@@ -1,29 +1,25 @@
 package com.kgm.ui.dialog;
 
 import com.kgm.service.GuestReportService;
+import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Date;
 
 public class ReportPeriodDialog extends JDialog {
-    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private final JToggleButton weeklyButton = periodButton("Weekly");
     private final JToggleButton monthlyButton = periodButton("Monthly");
     private final JToggleButton fortnightButton = periodButton("Fortnight");
     private final JToggleButton customButton = periodButton("Custom Range");
-    private final JSpinner startDate = HomeViewHelper.dateSpinner(date(LocalDate.now().minusDays(6)));
-    private final JSpinner endDate = HomeViewHelper.dateSpinner(date(LocalDate.now()));
+    private final UniversalDatePicker startDate = new UniversalDatePicker(date(LocalDate.now().minusDays(6)));
+    private final UniversalDatePicker endDate = new UniversalDatePicker(date(LocalDate.now()));
     private final JButton generateButton = primaryButton("Generate Reports");
     private final JCheckBox pdfCheck = formatCheck("PDF", true);
     private final JCheckBox excelCheck = formatCheck("Excel", false);
@@ -213,17 +209,19 @@ public class ReportPeriodDialog extends JDialog {
         return checkBox;
     }
 
-    private JPanel dateField(String labelText, JSpinner spinner) {
+    private JPanel dateField(String labelText, UniversalDatePicker picker) {
         JPanel field = new JPanel();
         field.setOpaque(false);
         field.setLayout(new BoxLayout(field, BoxLayout.Y_AXIS));
         JLabel label = fieldLabel(labelText);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JComponent styled = HomeViewHelper.styleField(spinner, 210);
-        styled.setAlignmentX(Component.LEFT_ALIGNMENT);
+        picker.setPreferredSize(new Dimension(230, 34));
+        picker.setMinimumSize(new Dimension(210, 34));
+        picker.setMaximumSize(new Dimension(230, 34));
+        picker.setAlignmentX(Component.LEFT_ALIGNMENT);
         field.add(label);
         field.add(Box.createVerticalStrut(6));
-        field.add(styled);
+        field.add(picker);
         return field;
     }
 
@@ -280,12 +278,12 @@ public class ReportPeriodDialog extends JDialog {
                 DialogHelper.error(
                         this,
                         "Report period needs attention",
-                        "Enter a valid custom date range in dd-MM-yyyy format. The end date cannot be before the start date."
+                        "Choose a valid custom date range. The end date cannot be before the start date."
                 );
                 return;
             }
-            startDate.setValue(date(start));
-            endDate.setValue(date(end));
+            startDate.setDate(date(start));
+            endDate.setDate(date(end));
             selectedRange = new GuestReportService.ReportRange("Custom Range", start, end);
         }
         selectedRequest = new GuestReportService.ReportExportRequest(
@@ -313,48 +311,13 @@ public class ReportPeriodDialog extends JDialog {
         return start != null && end != null && !end.isBefore(start);
     }
 
-    private LocalDate inputDate(JSpinner spinner) {
-        JFormattedTextField field = dateTextField(spinner);
-        if (field == null) {
-            return null;
-        }
-        String value = field.getText().trim();
-        if (value.isEmpty()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(value, INPUT_DATE);
-        } catch (DateTimeParseException exception) {
-            return null;
-        }
+    private LocalDate inputDate(UniversalDatePicker picker) {
+        Date value = picker == null ? null : picker.getDate();
+        return value == null ? null : localDate(value);
     }
 
-    private void installDateValidation(JSpinner spinner) {
-        spinner.addChangeListener(event -> updateGenerateButtonState());
-        JFormattedTextField field = dateTextField(spinner);
-        if (field == null) {
-            return;
-        }
-        field.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent event) {
-                updateGenerateButtonState();
-            }
-
-            public void removeUpdate(DocumentEvent event) {
-                updateGenerateButtonState();
-            }
-
-            public void changedUpdate(DocumentEvent event) {
-                updateGenerateButtonState();
-            }
-        });
-    }
-
-    private JFormattedTextField dateTextField(JSpinner spinner) {
-        if (spinner.getEditor() instanceof JSpinner.DefaultEditor editor) {
-            return editor.getTextField();
-        }
-        return null;
+    private void installDateValidation(UniversalDatePicker picker) {
+        picker.addDateChangeListener(this::updateGenerateButtonState);
     }
 
     private static JLabel fieldLabel(String text) {
@@ -430,10 +393,6 @@ public class ReportPeriodDialog extends JDialog {
 
     private static Date date(LocalDate date) {
         return Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
-    }
-
-    private static LocalDate localDate(JSpinner spinner) {
-        return ((Date) spinner.getValue()).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
     }
 
     private static LocalDate localDate(Date date) {

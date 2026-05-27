@@ -480,12 +480,12 @@ public class GuestReportService {
         );
         addSummaryCharts(sheet, chartRanges);
 
-        int[] widths = {
-                6200, 2600, 2600, 6200, 2600, 2600, 500,
-                5200, 5200, 5200, 5200, 5200, 5200
-        };
+        int[] widths = {6200, 2600, 2600, 6200, 2600, 2600, 500};
         for (int index = 0; index < widths.length; index++) {
             sheet.setColumnWidth(index, widths[index]);
+        }
+        for (int index = 7; index <= 20; index++) {
+            sheet.setColumnWidth(index, 3000);
         }
         sheet.createFreezePane(0, 4);
     }

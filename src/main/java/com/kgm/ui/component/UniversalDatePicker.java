@@ -39,7 +39,8 @@ public class UniversalDatePicker extends JPanel {
     private final JPanel iconPanel;
 
     private final JCalendar calendar;
-    private final JDialog calendarDialog;
+    private final JPanel calendarContainer;
+    private JDialog calendarDialog;
 
     private JSpinner hourSpinner;
     private JSpinner minuteSpinner;
@@ -119,7 +120,7 @@ public class UniversalDatePicker extends JPanel {
 
         forceCompactCalendar(calendar);
 
-        JPanel calendarContainer =
+        calendarContainer =
                 new JPanel(new BorderLayout());
 
         calendarContainer.setBackground(BACKGROUND_COLOR);
@@ -146,31 +147,6 @@ public class UniversalDatePicker extends JPanel {
                 createTimePanel(),
                 BorderLayout.SOUTH
         );
-
-        Window owner = null;
-
-        try {
-            owner = SwingUtilities.getWindowAncestor(this);
-        } catch (Exception ignored) {
-        }
-
-        calendarDialog = new JDialog(owner);
-
-        calendarDialog.setUndecorated(true);
-
-        calendarDialog.setModal(false);
-
-        calendarDialog.setAlwaysOnTop(false);
-
-        calendarDialog.setLayout(new BorderLayout());
-
-        calendarDialog.getRootPane().setBorder(
-                new LineBorder(new Color(190, 190, 190), 1)
-        );
-
-        calendarDialog.add(calendarContainer, BorderLayout.CENTER);
-
-        calendarDialog.setSize(POPUP_WIDTH, POPUP_HEIGHT);
 
         MouseAdapter showCalendarListener =
                 new MouseAdapter() {
@@ -517,7 +493,7 @@ public class UniversalDatePicker extends JPanel {
             setSelectedDate(finalDate.getTime());
         }
 
-        calendarDialog.setVisible(false);
+        hideCalendarDialog();
     }
 
     private void updateSpinners() {
@@ -565,6 +541,8 @@ public class UniversalDatePicker extends JPanel {
             return;
         }
 
+        ensureCalendarDialog();
+
         calendar.setDate(selectedDate);
 
         updateSpinners();
@@ -601,6 +579,52 @@ public class UniversalDatePicker extends JPanel {
         calendarDialog.setLocation(x, y);
 
         calendarDialog.setVisible(true);
+
+        calendarDialog.toFront();
+
+        calendarDialog.requestFocus();
+    }
+
+    private void ensureCalendarDialog() {
+
+        Window owner = SwingUtilities.getWindowAncestor(this);
+
+        if (calendarDialog != null && calendarDialog.getOwner() == owner) {
+            return;
+        }
+
+        if (calendarDialog != null) {
+            calendarDialog.setVisible(false);
+            calendarDialog.remove(calendarContainer);
+            calendarDialog.dispose();
+        }
+
+        calendarDialog = new JDialog(owner);
+
+        calendarDialog.setUndecorated(true);
+
+        calendarDialog.setModal(false);
+
+        calendarDialog.setModalityType(Dialog.ModalityType.MODELESS);
+
+        calendarDialog.setAlwaysOnTop(false);
+
+        calendarDialog.setLayout(new BorderLayout());
+
+        calendarDialog.getRootPane().setBorder(
+                new LineBorder(new Color(190, 190, 190), 1)
+        );
+
+        calendarDialog.add(calendarContainer, BorderLayout.CENTER);
+
+        calendarDialog.setSize(POPUP_WIDTH, POPUP_HEIGHT);
+    }
+
+    private void hideCalendarDialog() {
+
+        if (calendarDialog != null) {
+            calendarDialog.setVisible(false);
+        }
     }
 
     public Date getDate() {
@@ -686,7 +710,7 @@ public class UniversalDatePicker extends JPanel {
 
             iconPanel.setVisible(false);
 
-            calendarDialog.setVisible(false);
+            hideCalendarDialog();
         }
     }
 

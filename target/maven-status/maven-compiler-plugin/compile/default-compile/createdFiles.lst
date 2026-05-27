@@ -55,7 +55,6 @@ com\kgm\config\DatabaseConnection.class
 com\kgm\ui\HomeView$DashboardData.class
 com\kgm\ui\util\FileDialogHandler$FileType.class
 com\kgm\service\ExcelImportService$ImportResult.class
-com\kgm\ui\dialog\ReportPeriodDialog$2.class
 com\kgm\ui\panel\UniversalTablePanel.class
 com\kgm\ui\styling\AccommodationManagementHelper$3.class
 com\kgm\ui\styling\HomeViewHelper$6.class

@@ -17,6 +17,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -70,12 +71,21 @@ public class ExcelSampleGenerator {
     private static final String LEGACY_REQUIRED_RULE = "Required values: Company Name, Visit Type, Arrival Date Time, Departure Date Time, Accommodation Category, and Room. Other blank guest fields are stored as N/A for historical records.";
     private static final String STANDARD_STAY_RULE = "Blocks the import when the same CNIC / Passport already has any booking or stay overlapping the selected arrival/departure period. One guest can only be allotted one room at a time.";
     private static final String LEGACY_STAY_RULE = "Overlap, capacity, and room-status checks are intentionally bypassed for historical records.";
-    private static final String DATE_RULE = "Arrival and Departure must be valid date/time values. Departure must be after Arrival. Recommended format: yyyy-MM-dd HH:mm.";
+    private static final String DATE_RULE = "Arrival and Departure must be valid date/time values. Departure must be after Arrival. Recommended format: yyyy-MM-dd HH:mm. Date-only values are read at midnight.";
     private static final String VISIT_TYPE_RULE = "Visit Type must be exactly Official Visit or Personal Visit.";
     private static final String STANDARD_ROOM_RULE = "Accommodation Category and Room must match the current Valid Values list. New/standard import requires a ready room with available capacity for the selected dates.";
     private static final String LEGACY_ROOM_RULE = "Accommodation Category and Room must already exist in the database, but the room does not need to be ready and capacity is not checked.";
     private static final String LEGACY_DUPLICATE_RULE = "Legacy duplicate check against existing DB records uses Guest Name + exact Arrival Date Time + exact Departure Date Time + Guest Category. CNIC / Passport does not need to be unique for legacy imports.";
     private static final String LEGACY_WORKBOOK_DUPLICATE_RULE = "Within the same legacy workbook, an exact duplicate row is skipped when all guest, request, stay, room, CNIC / Passport, and remarks values match a row already imported from that workbook.";
+    private static final String STANDARD_HEADER_RULE = "Use the sample headers. Old header names such as CNIC, CNIC/Passport, Guest CNIC, and Passport are still accepted for compatibility.";
+    private static final String LEGACY_HEADER_RULE = "Legacy workbooks may use the same sample headers. Only the legacy required values are mandatory.";
+    private static final String STANDARD_DEFAULT_RULE = "Remarks defaults to N/A when blank. Identifiers are compacted before saving after validation.";
+    private static final String LEGACY_DEFAULT_RULE = "Blank optional guest fields are stored as N/A and remarks include Old record - validation bypassed.";
+    private static final String ACCEPTED_DATE_FORMATS_RULE = "Accepted text date/time formats: yyyy-MM-dd HH:mm or H:mm, yyyy/MM/dd HH:mm or H:mm, dd-MM-yyyy HH:mm or H:mm, dd/MM/yyyy HH:mm or H:mm, M/d/yyyy HH:mm or H:mm, and M/d/yy HH:mm or H:mm. Date-only variants of these formats and native Excel date cells are also accepted.";
+    private static final String IMPORT_SCOPE_RULE = "The sample uses current DB accommodation categories, rooms, and guest categories. Import checks those records only; it does not create, edit, or rename accommodation records.";
+    private static final String ROOM_NAME_RULE = "Use the room name from the Valid Values table. The importer can add the Room prefix when needed, but exact DB names are safest.";
+    private static final String WORKBOOK_ROW_RULE = "The importer reads the first worksheet only. Row 1 must contain headers, guest records start on Row 2, blank rows are ignored, and rows with validation errors are skipped with a reason while other valid rows continue.";
+    private static final int VALID_VALUES_LAST_COLUMN = 7;
 
     private static final List<String> TEMPLATE_HEADERS = List.of(
             GUEST_NAME,
@@ -131,13 +141,15 @@ public class ExcelSampleGenerator {
 
                 CNIC / Passport is strict:
                 - Pakistani/Pakistan guests use a 13-digit CNIC without dashes, for example 3520212345678.
-                - Other nationalities use passport values with letters/digits only, for example PX1234567 or AB-123 456.
+                - Other nationalities use passport values with letters/digits and optional space/hyphen separators, for example PX1234567 or AB-123 456.
                 - New/standard import applies Add Guest overlap, capacity, and room status rules.
                 - Legacy/historical import may repeat old placeholder CNIC / Passport values such as 9999999999999, but any provided value must still match the CNIC/passport format.
                 - Legacy duplicate check uses Guest Name + exact Arrival Date Time + exact Departure Date Time + Guest Category, plus an exact-row duplicate check inside the same workbook.
 
-                This import is only for guest data. It checks existing accommodation categories and rooms from DB; it does not create, edit, or rename accommodation records.
-                """.formatted(templateHeaderLine());
+                Date values must be valid and Departure Date Time must be after Arrival Date Time. %s
+
+                %s
+                """.formatted(templateHeaderLine(), ACCEPTED_DATE_FORMATS_RULE, IMPORT_SCOPE_RULE);
     }
 
     /**
@@ -326,8 +338,8 @@ public class ExcelSampleGenerator {
             List<String> guestCategories
     ) {
         Sheet values = workbook.createSheet("Valid Values");
-        
-        // Create a plain style for data rows (no formatting)
+        values.setDisplayGridlines(false);
+
         CellStyle plainStyle = workbook.createCellStyle();
         plainStyle.setLocked(false);
         CellStyle ruleStyle = workbook.createCellStyle();
@@ -336,7 +348,10 @@ public class ExcelSampleGenerator {
         CellStyle ruleHeaderStyle = workbook.createCellStyle();
         ruleHeaderStyle.cloneStyleFrom(headerStyle);
         ruleHeaderStyle.setWrapText(true);
-        
+        CellStyle sectionStyle = workbook.createCellStyle();
+        sectionStyle.cloneStyleFrom(headerStyle);
+        sectionStyle.setWrapText(true);
+
         String[] headers = {
                 "Guest Category",
                 "Visit Type",
@@ -348,7 +363,17 @@ public class ExcelSampleGenerator {
                 "Importable"
         };
         unlockColumns(values, editableStyle, headers.length);
-        Row header = values.createRow(0);
+
+        int rowIndex = 0;
+        Row valuesTitle = values.createRow(rowIndex++);
+        mergedTextCell(values, valuesTitle, 0, VALID_VALUES_LAST_COLUMN, "Current Valid Values From Database", sectionStyle);
+        Row valuesNote = values.createRow(rowIndex++);
+        mergedTextCell(values, valuesNote, 0, VALID_VALUES_LAST_COLUMN,
+                "Start here. Use these values in the Guest Import sheet. Importable = Yes means the room is Ready for Assignment in the current database snapshot.",
+                ruleStyle);
+
+        int validValuesHeaderRow = rowIndex;
+        Row header = values.createRow(rowIndex++);
         for (int index = 0; index < headers.length; index++) {
             Cell cell = header.createCell(index);
             cell.setCellValue(headers[index]);
@@ -356,7 +381,6 @@ public class ExcelSampleGenerator {
         }
 
         Set<String> coveredCategories = new LinkedHashSet<>();
-        int rowIndex = 1;
         int guestCategoryIndex = 0;
         int visitTypeIndex = 0;
         for (SampleAccommodation accommodation : accommodations) {
@@ -395,57 +419,177 @@ public class ExcelSampleGenerator {
             visitTypeIndex = writeNextVisitType(row, visitTypeIndex, plainStyle);
         }
 
-        rowIndex = writeImportRulesSection(values, rowIndex, headerStyle, ruleHeaderStyle, ruleStyle);
-
-        // Add blank row for separation
-        values.createRow(rowIndex++);
-        
-        // Add Date Format Instructions
-        Row dateNoteHeader = values.createRow(rowIndex++);
-        Cell dateNoteHeaderCell = dateNoteHeader.createCell(0);
-        dateNoteHeaderCell.setCellValue("Date Format Instructions:");
-        dateNoteHeaderCell.setCellStyle(headerStyle);
-        
-        Row dateNote1 = values.createRow(rowIndex++);
-        textCell(dateNote1, 0, "For Arrival Date Time and Departure Date Time columns:", plainStyle);
-        
-        Row dateNote2 = values.createRow(rowIndex++);
-        textCell(dateNote2, 0, "1. Select the cells containing dates", plainStyle);
-        textCell(dateNote2, 1, "Format: yyyy-MM-dd HH:mm (e.g., 2024-01-15 14:30)", plainStyle);
-        
-        Row dateNote3 = values.createRow(rowIndex++);
-        textCell(dateNote3, 0, "2. Press Ctrl+1 to open Format Cells dialog", plainStyle);
-        
-        Row dateNote4 = values.createRow(rowIndex++);
-        textCell(dateNote4, 0, "3. Go to Number tab > Custom category", plainStyle);
-        
-        Row dateNote5 = values.createRow(rowIndex++);
-        textCell(dateNote5, 0, "4. In Type field, enter: yyyy-MM-dd HH:mm", plainStyle);
-        
-        Row dateNote6 = values.createRow(rowIndex++);
-        textCell(dateNote6, 0, "5. Click OK to apply the format", plainStyle);
-        
-        // Add blank row for separation
-        values.createRow(rowIndex++);
-        
-        // Add Valid Departments Section
-        Row deptHeader = values.createRow(rowIndex++);
-        Cell deptHeaderCell = deptHeader.createCell(0);
-        deptHeaderCell.setCellValue("Valid Departments (for Requested Department column):");
-        deptHeaderCell.setCellStyle(headerStyle);
-        
-        for (String department : VALID_DEPARTMENTS) {
-            Row deptRow = values.createRow(rowIndex++);
-            textCell(deptRow, 0, department, plainStyle);
+        if (rowIndex > validValuesHeaderRow + 1) {
+            values.setAutoFilter(new CellRangeAddress(validValuesHeaderRow, rowIndex - 1, 0, headers.length - 1));
         }
+        rowIndex = writeDepartmentsSection(values, rowIndex, sectionStyle, ruleStyle);
+        rowIndex = writeGuideHeader(values, rowIndex, sectionStyle, ruleStyle);
+        rowIndex = writeImportRulesSection(values, rowIndex, sectionStyle, ruleHeaderStyle, ruleStyle);
+        rowIndex = writeIdentifierExamplesSection(values, rowIndex, sectionStyle, ruleHeaderStyle, ruleStyle);
+        writeDateFormatSection(values, rowIndex, sectionStyle, ruleHeaderStyle, ruleStyle);
+        setValidValuesColumnWidths(values);
+        values.createFreezePane(0, validValuesHeaderRow + 1);
+    }
 
-        for (int index = 0; index < headers.length; index++) {
-            values.autoSizeColumn(index);
+    private static int writeGuideHeader(Sheet sheet, int rowIndex, CellStyle titleStyle, CellStyle noteStyle) {
+        sheet.createRow(rowIndex++);
+        Row title = sheet.createRow(rowIndex++);
+        title.setHeightInPoints(24);
+        mergedTextCell(sheet, title, 0, VALID_VALUES_LAST_COLUMN, "Import Guide and Rules", titleStyle);
+
+        Row note = sheet.createRow(rowIndex++);
+        note.setHeightInPoints(44);
+        mergedTextCell(sheet, note, 0, VALID_VALUES_LAST_COLUMN,
+                "After choosing values from the tables above, review these rules before importing. They explain what the app checks for new and legacy data.",
+                noteStyle);
+        return rowIndex;
+    }
+
+    private static int writeIdentifierExamplesSection(
+            Sheet sheet,
+            int rowIndex,
+            CellStyle titleStyle,
+            CellStyle headerStyle,
+            CellStyle rowStyle
+    ) {
+        sheet.createRow(rowIndex++);
+
+        Row title = sheet.createRow(rowIndex++);
+        mergedTextCell(sheet, title, 0, VALID_VALUES_LAST_COLUMN, "CNIC / Passport Examples", titleStyle);
+
+        Row header = sheet.createRow(rowIndex++);
+        textCell(header, 0, "Guest Nationality", headerStyle);
+        textCell(header, 1, "Valid Example", headerStyle);
+        textCell(header, 2, "Invalid Examples", headerStyle);
+        textCell(header, 3, "Rule", headerStyle);
+
+        rowIndex = writeExampleRow(
+                sheet,
+                rowIndex,
+                "Pakistan or Pakistani",
+                "3520212345678",
+                "35202-1234567-8, 352021234567, ABC123",
+                "CNIC must be exactly 13 digits and must not contain dashes.",
+                rowStyle
+        );
+        rowIndex = writeExampleRow(
+                sheet,
+                rowIndex,
+                "Any other nationality",
+                "PX1234567 or AB-123 456",
+                "12345678, AB_12345, AB--12345, AB/12345",
+                "Passport must be 4 to 30 letters/digits, include at least one letter, and only use spaces or hyphens as separators.",
+                rowStyle
+        );
+        return writeExampleRow(
+                sheet,
+                rowIndex,
+                "Legacy historical placeholder",
+                "9999999999999",
+                "Repeated value is allowed only in legacy mode.",
+                "Legacy mode may repeat old CNIC / Passport values and does not use CNIC / Passport for uniqueness.",
+                rowStyle
+        );
+    }
+
+    private static int writeDateFormatSection(
+            Sheet sheet,
+            int rowIndex,
+            CellStyle titleStyle,
+            CellStyle headerStyle,
+            CellStyle rowStyle
+    ) {
+        sheet.createRow(rowIndex++);
+
+        Row title = sheet.createRow(rowIndex++);
+        mergedTextCell(sheet, title, 0, VALID_VALUES_LAST_COLUMN, "Date and Time Rules", titleStyle);
+
+        Row header = sheet.createRow(rowIndex++);
+        textCell(header, 0, "Area", headerStyle);
+        textCell(header, 1, "Rule", headerStyle);
+
+        rowIndex = writeTwoColumnRow(sheet, rowIndex, "Required", DATE_RULE, rowStyle);
+        rowIndex = writeTwoColumnRow(sheet, rowIndex, "Accepted formats", ACCEPTED_DATE_FORMATS_RULE, rowStyle);
+        rowIndex = writeTwoColumnRow(
+                sheet,
+                rowIndex,
+                "Excel tip",
+                "For manual formatting, select the date cells, press Ctrl+1, choose Custom, and use yyyy-MM-dd HH:mm.",
+                rowStyle
+        );
+        return writeTwoColumnRow(
+                sheet,
+                rowIndex,
+                "Import behavior",
+                "Date-only values are imported at 00:00. Blank or unparseable arrival/departure values are rejected.",
+                rowStyle
+        );
+    }
+
+    private static int writeDepartmentsSection(
+            Sheet sheet,
+            int rowIndex,
+            CellStyle titleStyle,
+            CellStyle rowStyle
+    ) {
+        sheet.createRow(rowIndex++);
+
+        Row title = sheet.createRow(rowIndex++);
+        mergedTextCell(sheet, title, 0, VALID_VALUES_LAST_COLUMN, "Requested Department Values", titleStyle);
+
+        Row note = sheet.createRow(rowIndex++);
+        mergedTextCell(sheet, note, 0, VALID_VALUES_LAST_COLUMN,
+                "Requested Department is required for new/standard import. These are the values shown in the Add Guest screen.",
+                rowStyle);
+
+        for (int index = 0; index < VALID_DEPARTMENTS.length; index += 4) {
+            Row row = sheet.createRow(rowIndex++);
+            for (int column = 0; column < 4 && index + column < VALID_DEPARTMENTS.length; column++) {
+                textCell(row, column, VALID_DEPARTMENTS[index + column], rowStyle);
+            }
         }
-        values.setColumnWidth(0, Math.max(values.getColumnWidth(0), 34 * 256));
-        values.setColumnWidth(1, Math.max(values.getColumnWidth(1), 70 * 256));
-        values.setColumnWidth(2, Math.max(values.getColumnWidth(2), 70 * 256));
-        values.createFreezePane(0, 1);
+        return rowIndex;
+    }
+
+    private static int writeExampleRow(
+            Sheet sheet,
+            int rowIndex,
+            String nationality,
+            String validExample,
+            String invalidExamples,
+            String rule,
+            CellStyle style
+    ) {
+        Row row = sheet.createRow(rowIndex++);
+        row.setHeightInPoints(48);
+        textCell(row, 0, nationality, style);
+        textCell(row, 1, validExample, style);
+        textCell(row, 2, invalidExamples, style);
+        textCell(row, 3, rule, style);
+        return rowIndex;
+    }
+
+    private static int writeTwoColumnRow(Sheet sheet, int rowIndex, String label, String value, CellStyle style) {
+        Row row = sheet.createRow(rowIndex++);
+        row.setHeightInPoints(44);
+        textCell(row, 0, label, style);
+        mergedTextCell(sheet, row, 1, VALID_VALUES_LAST_COLUMN, value, style);
+        return rowIndex;
+    }
+
+    private static void mergedTextCell(Sheet sheet, Row row, int firstColumn, int lastColumn, String value, CellStyle style) {
+        textCell(row, firstColumn, value, style);
+        for (int column = firstColumn + 1; column <= lastColumn; column++) {
+            textCell(row, column, "", style);
+        }
+        sheet.addMergedRegion(new CellRangeAddress(row.getRowNum(), row.getRowNum(), firstColumn, lastColumn));
+    }
+
+    private static void setValidValuesColumnWidths(Sheet sheet) {
+        int[] widths = {30, 56, 56, 34, 24, 16, 18, 18};
+        for (int index = 0; index < widths.length; index++) {
+            sheet.setColumnWidth(index, widths[index] * 256);
+        }
     }
 
     private static int writeImportRulesSection(
@@ -458,13 +602,29 @@ public class ExcelSampleGenerator {
         values.createRow(rowIndex++);
 
         Row title = values.createRow(rowIndex++);
-        textCell(title, 0, "Import Rules and Checks", titleStyle);
+        mergedTextCell(values, title, 0, VALID_VALUES_LAST_COLUMN, "Import Rules and Checks", titleStyle);
 
         Row columns = values.createRow(rowIndex++);
         textCell(columns, 0, "Rule Area", ruleHeaderStyle);
         textCell(columns, 1, "Import New / Standard Data", ruleHeaderStyle);
         textCell(columns, 2, "Import Legacy / Historical Data", ruleHeaderStyle);
 
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Workbook and rows",
+                WORKBOOK_ROW_RULE,
+                WORKBOOK_ROW_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Headers",
+                STANDARD_HEADER_RULE,
+                LEGACY_HEADER_RULE,
+                ruleStyle
+        );
         rowIndex = writeRuleRow(
                 values,
                 rowIndex,
@@ -509,8 +669,8 @@ public class ExcelSampleGenerator {
                 values,
                 rowIndex,
                 "Accommodation and room",
-                STANDARD_ROOM_RULE,
-                LEGACY_ROOM_RULE,
+                STANDARD_ROOM_RULE + " " + ROOM_NAME_RULE,
+                LEGACY_ROOM_RULE + " " + ROOM_NAME_RULE,
                 ruleStyle
         );
         rowIndex = writeRuleRow(
@@ -535,6 +695,22 @@ public class ExcelSampleGenerator {
                 "Same-workbook duplicate rows",
                 "Rows must pass standard validation independently.",
                 LEGACY_WORKBOOK_DUPLICATE_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Defaults and saved values",
+                STANDARD_DEFAULT_RULE,
+                LEGACY_DEFAULT_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Import scope",
+                IMPORT_SCOPE_RULE,
+                IMPORT_SCOPE_RULE,
                 ruleStyle
         );
         return writeRuleRow(

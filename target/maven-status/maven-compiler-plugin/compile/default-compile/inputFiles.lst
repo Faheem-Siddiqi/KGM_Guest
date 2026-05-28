@@ -1,5 +1,6 @@
 D:\KGM_Guest\src\main\java\com\kgm\config\DatabaseConfig.java
 D:\KGM_Guest\src\main\java\com\kgm\config\DatabaseConnection.java
+D:\KGM_Guest\src\main\java\com\kgm\config\EnvironmentConfig.java
 D:\KGM_Guest\src\main\java\com\kgm\controller\UserSessions.java
 D:\KGM_Guest\src\main\java\com\kgm\dao\AccommodationCategoryDao.java
 D:\KGM_Guest\src\main\java\com\kgm\dao\AccommodationDao.java
@@ -12,6 +13,9 @@ D:\KGM_Guest\src\main\java\com\kgm\model\UserSession.java
 D:\KGM_Guest\src\main\java\com\kgm\service\AuthService.java
 D:\KGM_Guest\src\main\java\com\kgm\service\ExcelImportService.java
 D:\KGM_Guest\src\main\java\com\kgm\service\ExcelSampleGenerator.java
+D:\KGM_Guest\src\main\java\com\kgm\service\GuestExcelReportGenerator.java
+D:\KGM_Guest\src\main\java\com\kgm\service\GuestIdentifierRules.java
+D:\KGM_Guest\src\main\java\com\kgm\service\GuestPdfReportGenerator.java
 D:\KGM_Guest\src\main\java\com\kgm\service\GuestReportService.java
 D:\KGM_Guest\src\main\java\com\kgm\service\GuestValidationService.java
 D:\KGM_Guest\src\main\java\com\kgm\services\AuthService.java

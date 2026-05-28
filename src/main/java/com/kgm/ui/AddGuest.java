@@ -113,15 +113,15 @@ public class AddGuest extends JFrame {
         GridBagConstraints basicGbc = AddGuestHelper.formConstraints();
         int y = AddGuestHelper.addSectionTitle(basicCard, basicGbc, 0, "Basic Information");
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Name", guestNameField);
+        AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Guest Nationality", guestNationalityCombo);
         JLabel guestIdentifierLabel = AddGuestHelper.addRequiredField(
                 basicCard,
                 basicGbc,
-                y++,
-                2,
+                y,
+                0,
                 guestIdentifierLabelText(guestNationalityCombo),
                 guestCnicField
         );
-        AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Nationality", guestNationalityCombo);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Guest Category", guestCategoryCombo);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Company Name", companyNameField);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Visit Type", visitTypeCombo);

@@ -1,0 +1,17 @@
+# Local build output
+target/
+
+# Local database/runtime configuration
+.env
+
+# Local uploads and generated reports
+uploads/
+*.pdf
+*.xlsx
+*.xls
+
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

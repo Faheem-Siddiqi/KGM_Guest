@@ -243,13 +243,15 @@ public class KPICategoryPanel extends JPanel {
                         categoryStats.occupiedRooms(),
                         categoryStats.fullyOccupiedRooms(),
                         categoryStats.partiallyOccupiedRooms(),
-                        "occupied"
+                        "occupied",
+                        true
                 );
                 case VACANT -> roomBreakdown(
                         categoryStats.vacantRooms(),
                         categoryStats.fullyVacantRooms(),
                         categoryStats.partiallyVacantRooms(),
-                        "vacant"
+                        "vacant",
+                        false
                 );
             };
         }
@@ -261,7 +263,10 @@ public class KPICategoryPanel extends JPanel {
         };
     }
 
-    private String roomBreakdown(int total, int fully, int partially, String state) {
+    private String roomBreakdown(int total, int fully, int partially, String state, boolean alwaysShowSplit) {
+        if (alwaysShowSplit) {
+            return "Full " + Math.max(0, fully) + " / Partial " + Math.max(0, partially);
+        }
         if (total <= 0) {
             return "No " + state + " rooms";
         }

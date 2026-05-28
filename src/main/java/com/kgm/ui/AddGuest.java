@@ -5,6 +5,7 @@ import com.kgm.dao.AccommodationDao;
 import com.kgm.dao.GuestDao;
 import com.kgm.database.DatabaseInitializer;
 import com.kgm.model.Guest;
+import com.kgm.service.GuestIdentifierRules;
 import com.kgm.service.GuestValidationService;
 import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
@@ -15,6 +16,10 @@ import com.kgm.ui.styling.DialogHelper;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import java.awt.*;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -108,12 +113,20 @@ public class AddGuest extends JFrame {
         GridBagConstraints basicGbc = AddGuestHelper.formConstraints();
         int y = AddGuestHelper.addSectionTitle(basicCard, basicGbc, 0, "Basic Information");
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Name", guestNameField);
-        AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Guest CNIC", guestCnicField);
+        JLabel guestIdentifierLabel = AddGuestHelper.addRequiredField(
+                basicCard,
+                basicGbc,
+                y++,
+                2,
+                guestIdentifierLabelText(guestNationalityCombo),
+                guestCnicField
+        );
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Nationality", guestNationalityCombo);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Guest Category", guestCategoryCombo);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Company Name", companyNameField);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y++, 2, "Visit Type", visitTypeCombo);
         AddGuestHelper.addRequiredField(basicCard, basicGbc, y, 0, "Guest Address", guestAddressField);
+        installGuestIdentifierInput(guestNationalityCombo, guestIdentifierLabel, guestCnicField);
 
         JPanel requestCard = AddGuestHelper.cardPanel();
         GridBagConstraints requestGbc = AddGuestHelper.formConstraints();
@@ -257,6 +270,146 @@ public class AddGuest extends JFrame {
         SwingUtilities.invokeLater(() -> new AddGuest().setVisible(true));
     }
 
+    private static void installGuestIdentifierInput(
+            JComboBox<String> guestNationalityCombo,
+            JLabel guestIdentifierLabel,
+            JTextField guestIdentifierField
+    ) {
+        if (guestIdentifierField.getDocument() instanceof AbstractDocument document) {
+            document.setDocumentFilter(new GuestIdentifierDocumentFilter(guestNationalityCombo));
+        }
+        Runnable update = () -> AddGuestHelper.setRequiredLabelText(
+                guestIdentifierLabel,
+                guestIdentifierLabelText(guestNationalityCombo)
+        );
+        Runnable updateAll = () -> {
+            update.run();
+            formatGuestIdentifierField(guestNationalityCombo, guestIdentifierField);
+        };
+        guestNationalityCombo.addActionListener(event -> updateAll.run());
+        Component editor = guestNationalityCombo.getEditor().getEditorComponent();
+        if (editor instanceof JTextField textField) {
+            textField.getDocument().addDocumentListener(new DocumentListener() {
+                public void insertUpdate(DocumentEvent event) {
+                    updateLater();
+                }
+
+                public void removeUpdate(DocumentEvent event) {
+                    updateLater();
+                }
+
+                public void changedUpdate(DocumentEvent event) {
+                    updateLater();
+                }
+
+                private void updateLater() {
+                    SwingUtilities.invokeLater(updateAll);
+                }
+            });
+        }
+        updateAll.run();
+    }
+
+    private static String guestIdentifierLabelText(JComboBox<String> guestNationalityCombo) {
+        return isPakistaniNationality(editableComboText(guestNationalityCombo))
+                ? "Guest CNIC"
+                : "Guest Passport";
+    }
+
+    private static String editableComboText(JComboBox<String> comboBox) {
+        if (comboBox != null && comboBox.isEditable()) {
+            Object editorItem = comboBox.getEditor().getItem();
+            return editorItem == null ? "" : String.valueOf(editorItem).trim();
+        }
+        return selectedText(comboBox);
+    }
+
+    private static boolean isPakistaniNationality(String nationality) {
+        return "pakistan".equalsIgnoreCase(nationality == null ? "" : nationality.trim())
+                || "pakistani".equalsIgnoreCase(nationality == null ? "" : nationality.trim());
+    }
+
+    private static String guestIdentifierStorageValue(String nationality, String value) {
+        String text = value == null ? "" : value.trim();
+        if (isPakistaniNationality(nationality)) {
+            return isAddGuestCnicInput(text) ? digitsOnly(text) : text;
+        }
+        return GuestIdentifierRules.isPassport(text)
+                ? GuestIdentifierRules.compactIdentifier(text)
+                : text;
+    }
+
+    private static boolean isAddGuestCnicInput(String value) {
+        String text = value == null ? "" : value.trim();
+        return text.matches("\\d{13}") || text.matches("\\d{5}-\\d{7}-\\d");
+    }
+
+    private static void formatGuestIdentifierField(JComboBox<String> nationalityCombo, JTextField identifierField) {
+        if (identifierField == null || !isPakistaniNationality(editableComboText(nationalityCombo))) {
+            return;
+        }
+        String formatted = cnicDisplayText(identifierField.getText());
+        if (!formatted.equals(identifierField.getText())) {
+            identifierField.setText(formatted);
+        }
+    }
+
+    private static String cnicDisplayText(String value) {
+        String digits = digitsOnly(value);
+        if (digits.length() > 13) {
+            digits = digits.substring(0, 13);
+        }
+        if (digits.length() <= 5) {
+            return digits;
+        }
+        if (digits.length() <= 12) {
+            return digits.substring(0, 5) + "-" + digits.substring(5);
+        }
+        return digits.substring(0, 5) + "-" + digits.substring(5, 12) + "-" + digits.substring(12);
+    }
+
+    private static String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
+    }
+
+    private static final class GuestIdentifierDocumentFilter extends DocumentFilter {
+        private final JComboBox<String> nationalityCombo;
+
+        private GuestIdentifierDocumentFilter(JComboBox<String> nationalityCombo) {
+            this.nationalityCombo = nationalityCombo;
+        }
+
+        @Override
+        public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr)
+                throws BadLocationException {
+            replace(fb, offset, 0, string, attr);
+        }
+
+        @Override
+        public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
+                throws BadLocationException {
+            if (!isPakistaniNationality(editableComboText(nationalityCombo))) {
+                super.replace(fb, offset, length, text, attrs);
+                return;
+            }
+            String current = fb.getDocument().getText(0, fb.getDocument().getLength());
+            String replacement = text == null ? "" : text;
+            String next = current.substring(0, offset)
+                    + replacement
+                    + current.substring(offset + length);
+            fb.replace(0, fb.getDocument().getLength(), cnicDisplayText(next), attrs);
+        }
+
+        @Override
+        public void remove(FilterBypass fb, int offset, int length) throws BadLocationException {
+            if (!isPakistaniNationality(editableComboText(nationalityCombo))) {
+                super.remove(fb, offset, length);
+                return;
+            }
+            replace(fb, offset, length, "", null);
+        }
+    }
+
     private static void submitGuest(
             Component parent,
             JTextField guestNameField,
@@ -278,8 +431,8 @@ public class AddGuest extends JFrame {
             JTextArea remarks
     ) {
         String guestName = guestNameField.getText().trim();
-        String guestCnic = guestCnicField.getText().trim();
         String guestNationality = String.valueOf(guestNationalityCombo.getEditor().getItem()).trim();
+        String guestCnic = guestIdentifierStorageValue(guestNationality, guestCnicField.getText());
         String guestCategory = selectedText(guestCategoryCombo);
         String companyName = companyNameField.getText().trim();
         String visitType = selectedText(visitTypeCombo);

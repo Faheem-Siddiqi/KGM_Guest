@@ -232,15 +232,15 @@ public final class AddGuestHelper {
         return y + 1;
     }
 
-    public static void addField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
-        addField(panel, gbc, y, xOffset, labelText, field, false);
+    public static JLabel addField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
+        return addField(panel, gbc, y, xOffset, labelText, field, false);
     }
 
-    public static void addRequiredField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
-        addField(panel, gbc, y, xOffset, labelText, field, true);
+    public static JLabel addRequiredField(JPanel panel, GridBagConstraints gbc, int y, int xOffset, String labelText, JComponent field) {
+        return addField(panel, gbc, y, xOffset, labelText, field, true);
     }
 
-    private static void addField(
+    private static JLabel addField(
             JPanel panel,
             GridBagConstraints gbc,
             int y,
@@ -268,6 +268,7 @@ public final class AddGuestHelper {
         gbc.gridwidth = 2;
         panel.add(fieldBlock, gbc);
         gbc.gridwidth = 1;
+        return label;
     }
 
     public static JLabel label(String text) {
@@ -286,6 +287,12 @@ public final class AddGuestHelper {
 
     private static String requiredLabelText(String text) {
         return "<html>" + html(text) + "<span style='color:" + REQUIRED_MARKER_COLOR + ";'> *</span></html>";
+    }
+
+    public static void setRequiredLabelText(JLabel label, String text) {
+        if (label != null) {
+            label.setText(requiredLabelText(text));
+        }
     }
 
     private static String html(String text) {

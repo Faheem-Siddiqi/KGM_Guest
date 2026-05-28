@@ -35,9 +35,10 @@ public class GuestValidationService {
         String roomIssue = roomIssue(guest, mode);
 
         if (mode == ValidationMode.STANDARD
-                && !containsField(missingFields, "Guest CNIC")
-                && !text(guest.getCnic()).matches("\\d{13}")) {
-            fieldIssues.add("Guest CNIC must contain exactly 13 digits.");
+                && !containsField(missingFields, "Guest Nationality")
+                && !missingIdentifier(missingFields)
+                && !validGuestIdentifier(guest)) {
+            fieldIssues.add(identifierIssue(guest));
         }
         if (!containsField(missingFields, "Visit Type")) {
             String visitTypeIssue = visitTypeIssue(guest.getVisitType());
@@ -139,7 +140,7 @@ public class GuestValidationService {
     private List<String> missingStandardFields(Guest guest) {
         List<String> missingFields = new ArrayList<>();
         addIfBlank(missingFields, "Guest Name", guest.getGuestName());
-        addIfBlank(missingFields, "Guest CNIC", guest.getCnic());
+        addIfBlank(missingFields, identifierFieldName(guest), guest.getCnic());
         addIfBlank(missingFields, "Guest Nationality", guest.getNationality());
         addIfBlank(missingFields, "Guest Category", guest.getGuestCategory());
         addIfBlank(missingFields, "Company Name", guest.getCompanyName());
@@ -238,6 +239,13 @@ public class GuestValidationService {
         return false;
     }
 
+    private static boolean missingIdentifier(List<String> fields) {
+        return containsField(fields, "Guest CNIC")
+                || containsField(fields, "Guest Passport")
+                || containsField(fields, "Guest CNIC / Passport")
+                || containsField(fields, "Guest CNIC/Passport");
+    }
+
     private static String visitTypeIssue(String value) {
         String text = text(value);
         if (OFFICIAL_VISIT.equals(text) || PERSONAL_VISIT.equals(text)) {
@@ -252,6 +260,34 @@ public class GuestValidationService {
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private static boolean validGuestIdentifier(Guest guest) {
+        String text = text(guest.getCnic());
+        if (isPakistaniNationality(guest.getNationality())) {
+            return GuestIdentifierRules.isCnicWithoutDashes(text);
+        }
+        return GuestIdentifierRules.isPassport(text);
+    }
+
+    private static String identifierIssue(Guest guest) {
+        if (isPakistaniNationality(guest.getNationality())) {
+            return "Guest CNIC must contain exactly 13 digits without dashes.";
+        }
+        return "Guest Passport must use 4 to 30 letters or digits, include at least one letter, and only use spaces or hyphens as separators.";
+    }
+
+    private static String identifierFieldName(Guest guest) {
+        String nationality = text(guest.getNationality());
+        if (nationality.isEmpty()) {
+            return "Guest CNIC / Passport";
+        }
+        return isPakistaniNationality(nationality) ? "Guest CNIC" : "Guest Passport";
+    }
+
+    private static boolean isPakistaniNationality(String nationality) {
+        String text = text(nationality);
+        return "pakistan".equalsIgnoreCase(text) || "pakistani".equalsIgnoreCase(text);
     }
 
     private static String text(String value) {

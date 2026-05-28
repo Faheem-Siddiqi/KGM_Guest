@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.dao.GuestDao;
+import com.kgm.model.Guest;
 import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
@@ -31,7 +32,8 @@ public class GuestDetailsPanel extends JPanel {
         add(createContent(record, onBack, onUpdated), BorderLayout.CENTER);
     }
 
-    private JComponent createContent(Object[] record, Runnable onBack, Runnable onUpdated) {
+    private JComponent createContent(Object[] sourceRecord, Runnable onBack, Runnable onUpdated) {
+        Object[] record = latestRecord(sourceRecord);
         final JScrollPane[] scrollRef = new JScrollPane[1];
 
         JPanel page = AddGuestHelper.pagePanel();
@@ -73,7 +75,7 @@ public class GuestDetailsPanel extends JPanel {
         int y = AddGuestHelper.addSectionTitle(basicCard, basicGbc, 0, "Basic Information");
 
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Name", lockedField(value(record, GuestRecordPanel.NAME)));
-        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest CNIC", lockedField(value(record, GuestRecordPanel.CNIC)));
+        AddGuestHelper.addField(basicCard, basicGbc, y++, 2, identifierLabel(record), lockedField(value(record, GuestRecordPanel.CNIC)));
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Guest Nationality", lockedField(value(record, GuestRecordPanel.NATIONALITY)));
         AddGuestHelper.addField(basicCard, basicGbc, y++, 2, "Guest Category", lockedField(value(record, GuestRecordPanel.CATEGORY)));
         AddGuestHelper.addField(basicCard, basicGbc, y, 0, "Company Name", lockedField(value(record, GuestRecordPanel.COMPANY_NAME)));
@@ -238,6 +240,30 @@ public class GuestDetailsPanel extends JPanel {
             return "";
         }
         return String.valueOf(record[index]);
+    }
+
+    private Object[] latestRecord(Object[] record) {
+        long guestId = recordId(record);
+        if (guestId <= 0) {
+            return record;
+        }
+
+        try {
+            Guest guest = guestDao.findById(guestId);
+            return GuestRecordPanel.recordFromGuest(guest);
+        } catch (SQLException exception) {
+            return record;
+        }
+    }
+
+    private String identifierLabel(Object[] record) {
+        String nationality = value(record, GuestRecordPanel.NATIONALITY).trim();
+        return isPakistaniNationality(nationality) ? "Guest CNIC" : "Guest Passport";
+    }
+
+    private boolean isPakistaniNationality(String nationality) {
+        return "pakistan".equalsIgnoreCase(nationality)
+                || "pakistani".equalsIgnoreCase(nationality);
     }
 
     private long recordId(Object[] record) {

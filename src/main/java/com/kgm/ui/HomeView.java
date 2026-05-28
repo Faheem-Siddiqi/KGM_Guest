@@ -560,7 +560,7 @@ public class HomeView extends JFrame {
         panel.add(new JLabel("Choose how this Excel workbook should be imported:"));
         panel.add(Box.createVerticalStrut(10));
         panel.add(standardImport);
-        panel.add(new JLabel("Apply Add Guest rules: required fields, CNIC, overlap, capacity, and room status."));
+        panel.add(new JLabel("Apply Add Guest rules: required fields, CNIC / Passport, overlap, capacity, and room status."));
         panel.add(Box.createVerticalStrut(8));
         panel.add(legacyImport);
         panel.add(new JLabel("Only require dates, accommodation category, and room. No duplicate, overlap, capacity, or status checks."));
@@ -667,20 +667,54 @@ public class HomeView extends JFrame {
 
         FileDialogHandler.saveFileDialog(config, selectedFile -> {
             File target = xlsxFile(selectedFile);
-            try {
-                ExcelSampleGenerator.writeSampleWorkbook(target);
-                showDownloadedFileDialog(
-                        target,
-                        "Sample Downloaded",
-                        "Sample Excel file downloaded:\n" + target.getAbsolutePath(),
-                        "Open Excel"
-                );
-            } catch (IOException exception) {
-                DialogHelper.error(this, "Sample not saved", friendlySampleSaveFailure(target, exception));
-            } catch (Exception exception) {
-                DialogHelper.error(this, "Sample not saved", exception.getMessage());
-            }
+            saveSampleExcelAsync(target);
         });
+    }
+
+    private void saveSampleExcelAsync(File target) {
+        setSampleDownloadButtonEnabled(false);
+        DelayedProgressDialog.Handle progress = DelayedProgressDialog.showAfter(
+                this,
+                "Downloading Sample",
+                "Building the guest import sample workbook. This can take a moment...",
+                0
+        );
+        SwingWorker<File, Void> worker = new SwingWorker<>() {
+            @Override
+            protected File doInBackground() throws Exception {
+                ExcelSampleGenerator.writeSampleWorkbook(target);
+                return target;
+            }
+
+            @Override
+            protected void done() {
+                progress.done();
+                setSampleDownloadButtonEnabled(true);
+                try {
+                    File savedFile = get();
+                    showDownloadedFileDialog(
+                            savedFile,
+                            "Sample Downloaded",
+                            "Sample Excel file downloaded:\n" + savedFile.getAbsolutePath(),
+                            "Open Excel"
+                    );
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    DialogHelper.error(HomeView.this, "Sample download stopped", "Sample download was interrupted.");
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    if (cause instanceof IOException ioException) {
+                        DialogHelper.error(HomeView.this, "Sample not saved", friendlySampleSaveFailure(target, ioException));
+                        return;
+                    }
+                    String message = cause == null || cause.getMessage() == null || cause.getMessage().isBlank()
+                            ? "The sample file could not be saved."
+                            : cause.getMessage();
+                    DialogHelper.error(HomeView.this, "Sample not saved", message);
+                }
+            }
+        };
+        worker.execute();
     }
 
     private String friendlySampleSaveFailure(File target, IOException exception) {
@@ -754,9 +788,15 @@ public class HomeView extends JFrame {
             String field = reason.substring(0, reason.length() - " is required and must be a date/time.".length());
             return rowPrefix + "Add a valid " + field + " using yyyy-MM-dd HH:mm.";
         }
-        if (reason.equals("CNIC must contain exactly 13 digits.")
-                || reason.equals("Guest CNIC must contain exactly 13 digits.")) {
-            return rowPrefix + "CNIC must be exactly 13 digits.";
+        if (reason.equals("Guest CNIC must contain exactly 13 digits without dashes.")) {
+            return rowPrefix + "Guest CNIC must be exactly 13 digits without dashes.";
+        }
+        if (reason.equals("Guest Passport must use 4 to 30 letters or digits, include at least one letter, and only use spaces or hyphens as separators.")) {
+            return rowPrefix + reason;
+        }
+        if (reason.equals("Guest CNIC / Passport must be either a 13-digit CNIC without dashes or a passport using 4 to 30 letters/digits, including at least one letter. Spaces and hyphens are allowed only as separators.")
+                || reason.equals("Guest CNIC/Passport must be either a 13-digit CNIC without dashes or a passport using 4 to 30 letters/digits, including at least one letter. Spaces and hyphens are allowed only as separators.")) {
+            return rowPrefix + reason;
         }
         if (reason.equals("Arrival and departure dates are required.")) {
             return rowPrefix + "Add valid arrival and departure dates using yyyy-MM-dd HH:mm.";
@@ -765,14 +805,19 @@ public class HomeView extends JFrame {
                 || reason.equals("Departure date must be after arrival date.")) {
             return rowPrefix + "Departure date must be after arrival date.";
         }
-        if (reason.startsWith("Guest CNIC already exists for this arrival date:")) {
-            return rowPrefix + "Guest CNIC already exists for this arrival date.";
+        if (reason.startsWith("Guest CNIC already exists for this arrival date:")
+                || reason.startsWith("Guest CNIC / Passport already exists for this arrival date:")
+                || reason.startsWith("Guest CNIC/Passport already exists for this arrival date:")) {
+            return rowPrefix + "Guest CNIC / Passport already exists for this arrival date.";
         }
         if (reason.startsWith("Guest already exists for this guest name, arrival date, departure date, and guest category.")) {
             return rowPrefix + "Guest already exists.";
         }
-        if (reason.startsWith("This CNIC already has an overlapping guest stay.")) {
-            return rowPrefix + "This CNIC already has an overlapping stay. A guest cannot be assigned to more than one room at the same time.";
+        if (reason.startsWith("This guest already has a booking or stay during the selected period.")
+                || reason.startsWith("This CNIC already has an overlapping guest stay.")
+                || reason.startsWith("This CNIC / Passport already has an overlapping guest stay.")
+                || reason.startsWith("This CNIC/Passport already has an overlapping guest stay.")) {
+            return rowPrefix + "This guest already has a booking or stay during the selected period. One guest can only be allotted one room at a time";
         }
         if (reason.startsWith("Accommodation Category not found in DB:")) {
             String category = quotedValue(reason, "Accommodation Category '");
@@ -831,11 +876,17 @@ public class HomeView extends JFrame {
         return count == 1 ? "" : "s";
     }
     private void setImportButtonEnabled(boolean enabled) {
+        setExcelServicesButtonState(enabled, "Importing...");
+    }
+    private void setSampleDownloadButtonEnabled(boolean enabled) {
+        setExcelServicesButtonState(enabled, "Downloading...");
+    }
+    private void setExcelServicesButtonState(boolean enabled, String disabledText) {
         if (importExcelButton == null) {
             return;
         }
         importExcelButton.setEnabled(enabled);
-        importExcelButton.setText(enabled ? "Excel Services" : "Importing...");
+        importExcelButton.setText(enabled ? "Excel Services" : disabledText);
         importExcelButton.setCursor(Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
     }
     private void showReportDialog() {

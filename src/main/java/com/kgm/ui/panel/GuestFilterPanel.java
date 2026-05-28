@@ -37,8 +37,8 @@ public class GuestFilterPanel extends JPanel {
         styleSearchButton(searchButton);
 
         searchField.addActionListener(e -> onSearch.run());
-        searchField.setToolTipText("Search by guest name or CNIC");
-        searchField.getAccessibleContext().setAccessibleName("Search by guest name or CNIC");
+        searchField.setToolTipText("Search by guest name, CNIC, or passport");
+        searchField.getAccessibleContext().setAccessibleName("Search by guest name, CNIC, or passport");
         searchButton.addActionListener(e -> onSearch.run());
         statusFilter.addActionListener(e -> {
             updateClearButtonState();
@@ -116,7 +116,7 @@ public class GuestFilterPanel extends JPanel {
         block.setOpaque(false);
         block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
 
-        JLabel label = HomeViewHelper.label("Search Name or CNIC");
+        JLabel label = HomeViewHelper.label("Search Name / CNIC / Passport");
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel row = new JPanel();

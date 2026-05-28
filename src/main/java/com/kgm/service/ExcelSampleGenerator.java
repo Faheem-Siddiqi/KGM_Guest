@@ -44,7 +44,7 @@ import java.util.Set;
 public class ExcelSampleGenerator {
 
     private static final String GUEST_NAME = "Guest Name";
-    private static final String CNIC = "CNIC";
+    private static final String CNIC = "CNIC / Passport";
     private static final String NATIONALITY = "Nationality";
     private static final String GUEST_CATEGORY = "Guest Category";
     private static final String COMPANY_NAME = "Company Name";
@@ -61,6 +61,21 @@ public class ExcelSampleGenerator {
     private static final String REMARKS = "Remarks";
     private static final String[] VISIT_TYPES = {"Official Visit", "Personal Visit"};
     private static final int TEMPLATE_DROPDOWN_LAST_ROW = 1000;
+    private static final int MIN_SAMPLE_ROWS = 4;
+    private static final String IDENTIFIER_RULE_MESSAGE = "Pakistani/Pakistan guests: enter CNIC as exactly 13 digits with no dashes, for example 3520212345678. Other guests: enter passport using 4 to 30 letters/digits with at least one letter, for example PX1234567 or AB-123 456.";
+    private static final String IDENTIFIER_IMPORT_MODE_MESSAGE = "New/standard import applies Add Guest rules: CNIC / Passport is required, overlapping stays for the same identifier are blocked, and capacity/room status are checked. Legacy/historical import allows blank or repeated old identifier values, for example 9999999999999, but any provided value must still be a valid CNIC or passport.";
+    private static final String IDENTIFIER_INVALID_EXAMPLES_MESSAGE = "Do not enter CNIC with dashes, passport numbers with slashes or underscores, repeated separators such as AB--12345, or passport values with only numbers.";
+    private static final String IDENTIFIER_STORAGE_RULE = "For new/standard import, CNIC / Passport matching ignores spaces, hyphens, and letter case. The stored identifier is compacted before saving.";
+    private static final String STANDARD_REQUIRED_RULE = "Required values: Guest Name, CNIC / Passport, Nationality, Guest Category, Address, Company Name, Visit Type, Requested By, Requested Department, Approved By, Accommodated By, Arrival Date Time, Departure Date Time, Accommodation Category, and Room. Remarks is optional.";
+    private static final String LEGACY_REQUIRED_RULE = "Required values: Company Name, Visit Type, Arrival Date Time, Departure Date Time, Accommodation Category, and Room. Other blank guest fields are stored as N/A for historical records.";
+    private static final String STANDARD_STAY_RULE = "Blocks the import when the same CNIC / Passport already has any booking or stay overlapping the selected arrival/departure period. One guest can only be allotted one room at a time.";
+    private static final String LEGACY_STAY_RULE = "Overlap, capacity, and room-status checks are intentionally bypassed for historical records.";
+    private static final String DATE_RULE = "Arrival and Departure must be valid date/time values. Departure must be after Arrival. Recommended format: yyyy-MM-dd HH:mm.";
+    private static final String VISIT_TYPE_RULE = "Visit Type must be exactly Official Visit or Personal Visit.";
+    private static final String STANDARD_ROOM_RULE = "Accommodation Category and Room must match the current Valid Values list. New/standard import requires a ready room with available capacity for the selected dates.";
+    private static final String LEGACY_ROOM_RULE = "Accommodation Category and Room must already exist in the database, but the room does not need to be ready and capacity is not checked.";
+    private static final String LEGACY_DUPLICATE_RULE = "Legacy duplicate check against existing DB records uses Guest Name + exact Arrival Date Time + exact Departure Date Time + Guest Category. CNIC / Passport does not need to be unique for legacy imports.";
+    private static final String LEGACY_WORKBOOK_DUPLICATE_RULE = "Within the same legacy workbook, an exact duplicate row is skipped when all guest, request, stay, room, CNIC / Passport, and remarks values match a row already imported from that workbook.";
 
     private static final List<String> TEMPLATE_HEADERS = List.of(
             GUEST_NAME,
@@ -113,6 +128,13 @@ public class ExcelSampleGenerator {
                 Download the sample file and review the Valid Values sheet. It is generated from the current database and includes active accommodation categories, all active rooms, room status, available beds, and all active guest categories.
 
                 Visit Type is required and must be Official Visit or Personal Visit. Company Name is required.
+
+                CNIC / Passport is strict:
+                - Pakistani/Pakistan guests use a 13-digit CNIC without dashes, for example 3520212345678.
+                - Other nationalities use passport values with letters/digits only, for example PX1234567 or AB-123 456.
+                - New/standard import applies Add Guest overlap, capacity, and room status rules.
+                - Legacy/historical import may repeat old placeholder CNIC / Passport values such as 9999999999999, but any provided value must still match the CNIC/passport format.
+                - Legacy duplicate check uses Guest Name + exact Arrival Date Time + exact Departure Date Time + Guest Category, plus an exact-row duplicate check inside the same workbook.
 
                 This import is only for guest data. It checks existing accommodation categories and rooms from DB; it does not create, edit, or rename accommodation records.
                 """.formatted(templateHeaderLine());
@@ -188,6 +210,7 @@ public class ExcelSampleGenerator {
                 for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
                     sheet.autoSizeColumn(index);
                 }
+                addIdentifierPrompt(sheet);
                 addVisitTypeDropdown(sheet);
 
                 writeValidValuesSheet(workbook, headerStyle, editableStyle, accommodationCategories, accommodations, guestCategories);
@@ -246,35 +269,48 @@ public class ExcelSampleGenerator {
     }
 
     private static List<String[]> sampleRows(List<SampleAccommodation> accommodations, List<String> guestCategories) {
+        List<SampleAccommodation> sampleAccommodations = accommodations.isEmpty()
+                ? fallbackAccommodations()
+                : accommodations;
         List<String> sampleGuestCategories = guestCategories.isEmpty() ? fallbackGuestCategories() : guestCategories;
         List<String[]> rows = new ArrayList<>();
         int rowIndex = 0;
-        for (SampleAccommodation accommodation : accommodations) {
+        for (SampleAccommodation accommodation : sampleAccommodations) {
             for (String guestCategory : sampleGuestCategories) {
-                LocalDateTime arrival = LocalDate.now().plusDays(rowIndex + 1L).atTime(9 + rowIndex % 8, 0);
-                LocalDateTime departure = arrival.plusDays(1);
-                rows.add(new String[]{
-                        sampleGuestName(rowIndex),
-                        sampleCnic(rowIndex),
-                        "Pakistani",
-                        guestCategory,
-                        "Sample address " + (rowIndex + 1),
-                        sampleCompany(rowIndex),
-                        rowIndex % 2 == 0 ? "Official Visit" : "Personal Visit",
-                        "Sample Requester",
-                        sampleDepartment(rowIndex),
-                        "Sample Approver",
-                        "Admin Office",
-                        arrival.format(DATE_TIME_FORMAT),
-                        departure.format(DATE_TIME_FORMAT),
-                        accommodation.category(),
-                        accommodation.room(),
-                        sampleRemark(accommodation)
-                });
+                rows.add(sampleRow(rowIndex, accommodation, guestCategory));
                 rowIndex++;
             }
         }
+        while (rows.size() < MIN_SAMPLE_ROWS) {
+            SampleAccommodation accommodation = sampleAccommodations.get(rowIndex % sampleAccommodations.size());
+            String guestCategory = sampleGuestCategories.get(rowIndex % sampleGuestCategories.size());
+            rows.add(sampleRow(rowIndex, accommodation, guestCategory));
+            rowIndex++;
+        }
         return rows;
+    }
+
+    private static String[] sampleRow(int rowIndex, SampleAccommodation accommodation, String guestCategory) {
+        LocalDateTime arrival = LocalDate.now().plusDays(rowIndex + 1L).atTime(9 + rowIndex % 8, 0);
+        LocalDateTime departure = arrival.plusDays(1);
+        return new String[]{
+                sampleGuestName(rowIndex),
+                sampleIdentifier(rowIndex),
+                sampleNationality(rowIndex),
+                guestCategory,
+                "Sample address " + (rowIndex + 1),
+                sampleCompany(rowIndex),
+                rowIndex % 2 == 0 ? "Official Visit" : "Personal Visit",
+                "Sample Requester",
+                sampleDepartment(rowIndex),
+                "Sample Approver",
+                "Admin Office",
+                arrival.format(DATE_TIME_FORMAT),
+                departure.format(DATE_TIME_FORMAT),
+                accommodation.category(),
+                accommodation.room(),
+                sampleRemark(accommodation)
+        };
     }
 
     private static final String[] VALID_DEPARTMENTS = {
@@ -294,6 +330,12 @@ public class ExcelSampleGenerator {
         // Create a plain style for data rows (no formatting)
         CellStyle plainStyle = workbook.createCellStyle();
         plainStyle.setLocked(false);
+        CellStyle ruleStyle = workbook.createCellStyle();
+        ruleStyle.cloneStyleFrom(plainStyle);
+        ruleStyle.setWrapText(true);
+        CellStyle ruleHeaderStyle = workbook.createCellStyle();
+        ruleHeaderStyle.cloneStyleFrom(headerStyle);
+        ruleHeaderStyle.setWrapText(true);
         
         String[] headers = {
                 "Guest Category",
@@ -353,6 +395,8 @@ public class ExcelSampleGenerator {
             visitTypeIndex = writeNextVisitType(row, visitTypeIndex, plainStyle);
         }
 
+        rowIndex = writeImportRulesSection(values, rowIndex, headerStyle, ruleHeaderStyle, ruleStyle);
+
         // Add blank row for separation
         values.createRow(rowIndex++);
         
@@ -398,6 +442,125 @@ public class ExcelSampleGenerator {
         for (int index = 0; index < headers.length; index++) {
             values.autoSizeColumn(index);
         }
+        values.setColumnWidth(0, Math.max(values.getColumnWidth(0), 34 * 256));
+        values.setColumnWidth(1, Math.max(values.getColumnWidth(1), 70 * 256));
+        values.setColumnWidth(2, Math.max(values.getColumnWidth(2), 70 * 256));
+        values.createFreezePane(0, 1);
+    }
+
+    private static int writeImportRulesSection(
+            Sheet values,
+            int rowIndex,
+            CellStyle titleStyle,
+            CellStyle ruleHeaderStyle,
+            CellStyle ruleStyle
+    ) {
+        values.createRow(rowIndex++);
+
+        Row title = values.createRow(rowIndex++);
+        textCell(title, 0, "Import Rules and Checks", titleStyle);
+
+        Row columns = values.createRow(rowIndex++);
+        textCell(columns, 0, "Rule Area", ruleHeaderStyle);
+        textCell(columns, 1, "Import New / Standard Data", ruleHeaderStyle);
+        textCell(columns, 2, "Import Legacy / Historical Data", ruleHeaderStyle);
+
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Required values",
+                STANDARD_REQUIRED_RULE,
+                LEGACY_REQUIRED_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "CNIC / Passport format",
+                IDENTIFIER_RULE_MESSAGE + " " + IDENTIFIER_INVALID_EXAMPLES_MESSAGE,
+                "Blank CNIC / Passport is allowed for historical rows. If a value is provided, it must still follow the same CNIC/passport format rules.",
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Identifier matching",
+                IDENTIFIER_STORAGE_RULE,
+                "Legacy import allows repeated CNIC / Passport values. CNIC / Passport is not used for legacy uniqueness.",
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Stay dates",
+                DATE_RULE,
+                DATE_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Visit type",
+                VISIT_TYPE_RULE,
+                VISIT_TYPE_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Accommodation and room",
+                STANDARD_ROOM_RULE,
+                LEGACY_ROOM_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Overlap and capacity",
+                STANDARD_STAY_RULE,
+                LEGACY_STAY_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Duplicate checks",
+                "Standard import uses the live Add Guest checks. A guest with the same CNIC / Passport cannot be imported for overlapping dates.",
+                LEGACY_DUPLICATE_RULE,
+                ruleStyle
+        );
+        rowIndex = writeRuleRow(
+                values,
+                rowIndex,
+                "Same-workbook duplicate rows",
+                "Rows must pass standard validation independently.",
+                LEGACY_WORKBOOK_DUPLICATE_RULE,
+                ruleStyle
+        );
+        return writeRuleRow(
+                values,
+                rowIndex,
+                "Examples",
+                "Pakistani/Pakistan CNIC: 3520212345678. Non-Pakistani passport: PX1234567 or AB-123 456.",
+                "Repeated legacy placeholder example: 9999999999999.",
+                ruleStyle
+        );
+    }
+
+    private static int writeRuleRow(
+            Sheet sheet,
+            int rowIndex,
+            String area,
+            String standardRule,
+            String legacyRule,
+            CellStyle style
+    ) {
+        Row row = sheet.createRow(rowIndex++);
+        row.setHeightInPoints(56);
+        textCell(row, 0, area, style);
+        textCell(row, 1, standardRule, style);
+        textCell(row, 2, legacyRule, style);
+        return rowIndex;
     }
 
     private static void addVisitTypeDropdown(Sheet sheet) {
@@ -419,6 +582,27 @@ public class ExcelSampleGenerator {
         validation.createErrorBox("Invalid Visit Type", "Choose Official Visit or Personal Visit.");
         validation.setShowPromptBox(true);
         validation.createPromptBox("Visit Type", "Choose Official Visit or Personal Visit.");
+        sheet.addValidationData(validation);
+    }
+
+    private static void addIdentifierPrompt(Sheet sheet) {
+        int identifierColumn = TEMPLATE_HEADERS.indexOf(CNIC);
+        if (identifierColumn < 0) {
+            return;
+        }
+
+        DataValidationHelper helper = sheet.getDataValidationHelper();
+        DataValidationConstraint constraint = helper.createCustomConstraint("TRUE()");
+        CellRangeAddressList range = new CellRangeAddressList(
+                1,
+                TEMPLATE_DROPDOWN_LAST_ROW,
+                identifierColumn,
+                identifierColumn
+        );
+        DataValidation validation = helper.createValidation(constraint, range);
+        validation.setShowErrorBox(false);
+        validation.setShowPromptBox(true);
+        validation.createPromptBox("CNIC / Passport", IDENTIFIER_RULE_MESSAGE);
         sheet.addValidationData(validation);
     }
 
@@ -496,6 +680,21 @@ public class ExcelSampleGenerator {
 
     private static String sampleCnic(int index) {
         return String.format("35202%08d", index + 1);
+    }
+
+    private static String samplePassport(int index) {
+        return String.format("PX%07d", index + 1);
+    }
+
+    private static String sampleIdentifier(int index) {
+        return index % 2 == 0 ? sampleCnic(index) : samplePassport(index);
+    }
+
+    private static String sampleNationality(int index) {
+        String[] nationalities = {
+                "Pakistani", "Turkish", "Pakistani", "Chinese", "Pakistani", "Afghan"
+        };
+        return nationalities[index % nationalities.length];
     }
 
     private static String sampleDepartment(int index) {

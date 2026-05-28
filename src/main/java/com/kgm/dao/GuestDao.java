@@ -14,9 +14,10 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class GuestDao {
-    private static final String OVERLAPPING_STAY_MESSAGE = "This CNIC already has an overlapping guest stay. A guest cannot be assigned to two rooms, accommodations, or categories at the same time.";
+    private static final String OVERLAPPING_STAY_MESSAGE = "This guest already has a booking or stay during the selected period. One guest can only be allotted one room at a time";
     private static final String NO_SEATS_AVAILABLE_MESSAGE = "No seats available in this room for the selected dates. The room has reached its capacity for this period.";
     private static final String SPECIAL_ZERO_CAPACITY_ROOM = "Rear Wing";
 
@@ -39,6 +40,10 @@ public class GuestDao {
         validateStayDates(guest.getArrivalAt(), guest.getDepartureAt());
         if (!legacyHistorical && hasOverlappingStayByCnic(guest.getCnic(), guest.getArrivalAt(), guest.getDepartureAt())) {
             throw new SQLException(OVERLAPPING_STAY_MESSAGE);
+        }
+        String storedIdentifier = legacyHistorical ? guest.getCnic() : normalizedIdentifier(guest.getCnic());
+        if (!legacyHistorical) {
+            guest.setCnic(storedIdentifier);
         }
 
         long guestCategoryId = findOrCreateGuestCategory(guest.getGuestCategory());
@@ -87,7 +92,7 @@ public class GuestDao {
 
                 try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                     statement.setString(1, guest.getGuestName());
-                    statement.setString(2, guest.getCnic());
+                    statement.setString(2, storedIdentifier);
                     statement.setString(3, guest.getNationality());
                     statement.setLong(4, guestCategoryId);
                     statement.setString(5, text(guest.getCompanyName()));
@@ -372,14 +377,14 @@ public class GuestDao {
     }
 
     public boolean existsByCnicOnArrivalDate(String cnic, Date arrivalAt) throws SQLException {
-        String normalizedCnic = digitsOnly(cnic);
-        if (normalizedCnic.isEmpty() || arrivalAt == null) {
+        String normalizedIdentifier = normalizedIdentifier(cnic);
+        if (normalizedIdentifier.isEmpty() || arrivalAt == null) {
             return false;
         }
         String sql = """
                 SELECT 1
                 FROM guests
-                WHERE REPLACE(REPLACE(TRIM(cnic), '-', ''), ' ', '') = ?
+                WHERE UPPER(REPLACE(REPLACE(TRIM(cnic), '-', ''), ' ', '')) = ?
                   AND arrival_at >= ?
                   AND arrival_at < ?
                 LIMIT 1
@@ -388,7 +393,7 @@ public class GuestDao {
         Date nextDay = nextDay(arrivalAt);
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, normalizedCnic);
+            statement.setString(1, normalizedIdentifier);
             statement.setTimestamp(2, timestamp(startOfDay));
             statement.setTimestamp(3, timestamp(nextDay));
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -447,36 +452,36 @@ public class GuestDao {
     }
 
     public boolean hasOverlappingStayByCnic(String cnic, Date arrivalAt, Date departureAt) throws SQLException {
-        String normalizedCnic = digitsOnly(cnic);
-        if (normalizedCnic.isEmpty() || arrivalAt == null || departureAt == null) {
+        String normalizedIdentifier = normalizedIdentifier(cnic);
+        if (normalizedIdentifier.isEmpty() || arrivalAt == null || departureAt == null) {
             return false;
         }
 
         try (Connection connection = DatabaseConnection.getConnection()) {
-            return hasOverlappingStayByCnic(connection, normalizedCnic, arrivalAt, departureAt, null);
+            return hasOverlappingStayByCnic(connection, normalizedIdentifier, arrivalAt, departureAt, null);
         }
     }
 
     private boolean hasOverlappingStayByCnic(
             Connection connection,
-            String normalizedCnic,
+            String normalizedIdentifier,
             Date arrivalAt,
             Date departureAt,
             Long excludedGuestId
     ) throws SQLException {
-        if (normalizedCnic == null || normalizedCnic.isBlank() || arrivalAt == null || departureAt == null) {
+        if (normalizedIdentifier == null || normalizedIdentifier.isBlank() || arrivalAt == null || departureAt == null) {
             return false;
         }
 
-        if (hasOverlappingStayByExactCnic(connection, normalizedCnic, arrivalAt, departureAt, excludedGuestId)) {
+        if (hasOverlappingStayByExactCnic(connection, normalizedIdentifier, arrivalAt, departureAt, excludedGuestId)) {
             return true;
         }
-        return hasOverlappingStayByNormalizedCnic(connection, normalizedCnic, arrivalAt, departureAt, excludedGuestId);
+        return hasOverlappingStayByNormalizedCnic(connection, normalizedIdentifier, arrivalAt, departureAt, excludedGuestId);
     }
 
     private boolean hasOverlappingStayByExactCnic(
             Connection connection,
-            String normalizedCnic,
+            String normalizedIdentifier,
             Date arrivalAt,
             Date departureAt,
             Long excludedGuestId
@@ -484,14 +489,14 @@ public class GuestDao {
         String sql = """
                 SELECT 1
                 FROM guests
-                WHERE cnic = ?
+                WHERE UPPER(TRIM(cnic)) = ?
                   AND arrival_at < ?
                   AND departure_at > ?
                   %s
                 LIMIT 1
                 """.formatted(excludedGuestId == null ? "" : "AND id <> ?");
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, normalizedCnic);
+            statement.setString(1, normalizedIdentifier);
             statement.setTimestamp(2, timestamp(departureAt));
             statement.setTimestamp(3, timestamp(arrivalAt));
             if (excludedGuestId != null) {
@@ -505,7 +510,7 @@ public class GuestDao {
 
     private boolean hasOverlappingStayByNormalizedCnic(
             Connection connection,
-            String normalizedCnic,
+            String normalizedIdentifier,
             Date arrivalAt,
             Date departureAt,
             Long excludedGuestId
@@ -515,14 +520,14 @@ public class GuestDao {
                 FROM guests
                 WHERE arrival_at < ?
                   AND departure_at > ?
-                  AND REPLACE(REPLACE(TRIM(cnic), '-', ''), ' ', '') = ?
+                  AND UPPER(REPLACE(REPLACE(TRIM(cnic), '-', ''), ' ', '')) = ?
                   %s
                 LIMIT 1
                 """.formatted(excludedGuestId == null ? "" : "AND id <> ?");
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setTimestamp(1, timestamp(departureAt));
             statement.setTimestamp(2, timestamp(arrivalAt));
-            statement.setString(3, normalizedCnic);
+            statement.setString(3, normalizedIdentifier);
             if (excludedGuestId != null) {
                 statement.setLong(4, excludedGuestId);
             }
@@ -653,7 +658,7 @@ public class GuestDao {
                 }
 
                 validateStayDates(arrivalAt, departureAt);
-                if (hasOverlappingStayByCnic(connection, digitsOnly(cnic), arrivalAt, departureAt, guestId)) {
+                if (hasOverlappingStayByCnic(connection, normalizedIdentifier(cnic), arrivalAt, departureAt, guestId)) {
                     throw new SQLException(OVERLAPPING_STAY_MESSAGE);
                 }
 
@@ -868,8 +873,13 @@ public class GuestDao {
         return roomName != null && SPECIAL_ZERO_CAPACITY_ROOM.equalsIgnoreCase(roomName.trim());
     }
 
-    private String digitsOnly(String value) {
-        return value == null ? "" : value.replaceAll("\\D", "");
+    private String normalizedIdentifier(String value) {
+        return value == null
+                ? ""
+                : value.trim()
+                .replace("-", "")
+                .replace(" ", "")
+                .toUpperCase(Locale.ROOT);
     }
 
     private String text(String value) {

@@ -46,7 +46,7 @@ import java.util.Set;
  */
 public class ExcelImportService {
     private static final String GUEST_NAME = "Guest Name";
-    private static final String CNIC = "CNIC";
+    private static final String CNIC = "CNIC / Passport";
     private static final String NATIONALITY = "Nationality";
     private static final String GUEST_CATEGORY = "Guest Category";
     private static final String COMPANY_NAME = "Company Name";
@@ -64,6 +64,7 @@ public class ExcelImportService {
     private static final String ROOM_PREFIX = "Room-";
     private static final String ROOMS_PREFIX = "Rooms-";
     private static final String SPECIAL_ROOM_NAME = "Rear Wing";
+    private static final String IDENTIFIER_RULE_MESSAGE = "Guest CNIC / Passport must be either a 13-digit CNIC without dashes or a passport using 4 to 30 letters/digits, including at least one letter. Spaces and hyphens are allowed only as separators.";
 
     private static final List<String> STANDARD_REQUIRED_HEADERS = List.of(
             GUEST_NAME,
@@ -280,6 +281,7 @@ public class ExcelImportService {
             throws SQLException, RowImportException {
         GuestValidationService.ValidationResult validationResult;
         if (importType == ImportType.LEGACY) {
+            validateProvidedLegacyIdentifier(guest);
             guestValidationService.prepareLegacyGuest(guest);
             validationResult = guestValidationService.validateLegacyImportGuest(guest);
         } else {
@@ -287,11 +289,6 @@ public class ExcelImportService {
         }
         if (GuestValidationService.hasIssues(validationResult)) {
             throw new RowImportException(GuestValidationService.rowMessage(validationResult));
-        }
-        if (importType == ImportType.STANDARD
-                && guestDao.existsByCnicOnArrivalDate(guest.getCnic(), guest.getArrivalAt())) {
-            throw new RowImportException("Guest CNIC already exists for this arrival date: "
-                    + guest.getCnic());
         }
         if (importType == ImportType.LEGACY
                 && guestDao.existsLegacyGuest(
@@ -303,6 +300,16 @@ public class ExcelImportService {
             throw new RowImportException(
                     "Guest already exists for this guest name, arrival date, departure date, and guest category."
             );
+        }
+    }
+
+    private void validateProvidedLegacyIdentifier(Guest guest) throws RowImportException {
+        String identifier = guest == null || guest.getCnic() == null ? "" : guest.getCnic().trim();
+        if (identifier.isEmpty()) {
+            return;
+        }
+        if (!GuestIdentifierRules.isCnicWithoutDashes(identifier) && !GuestIdentifierRules.isPassport(identifier)) {
+            throw new RowImportException(IDENTIFIER_RULE_MESSAGE);
         }
     }
 
@@ -356,7 +363,7 @@ public class ExcelImportService {
             FormulaEvaluator evaluator
     ) throws RowImportException {
         String guestName = optionalText(row, headers, GUEST_NAME, formatter, evaluator);
-        String cnic = cnicValue(rowCell(row, headers, CNIC), formatter, evaluator);
+        String cnic = identifierValue(rowCell(row, headers, CNIC), formatter, evaluator);
         String nationality = optionalText(row, headers, NATIONALITY, formatter, evaluator);
         String guestCategory = optionalText(row, headers, GUEST_CATEGORY, formatter, evaluator);
         String companyName = optionalText(row, headers, COMPANY_NAME, formatter, evaluator);
@@ -588,7 +595,7 @@ public class ExcelImportService {
         return formatter.formatCellValue(cell, evaluator).trim();
     }
 
-    private String cnicValue(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
+    private String identifierValue(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
         if (cell == null || cell.getCellType() == CellType.BLANK) {
             return "";
         }
@@ -604,10 +611,10 @@ public class ExcelImportService {
                 return numericIdentifier(value.getNumberValue());
             }
             if (value.getCellType() == CellType.STRING) {
-                return digitsOnly(value.getStringValue());
+                return value.getStringValue() == null ? "" : value.getStringValue().trim();
             }
         }
-        return digitsOnly(cellText(cell, formatter, evaluator));
+        return cellText(cell, formatter, evaluator);
     }
 
     private String numericIdentifier(double value) {
@@ -630,7 +637,7 @@ public class ExcelImportService {
     private static Map<String, String> aliases() {
         Map<String, String> aliases = new LinkedHashMap<>();
         addAliases(aliases, GUEST_NAME, "Guest Name", "Name", "Guest");
-        addAliases(aliases, CNIC, "CNIC", "Guest CNIC", "NIC");
+        addAliases(aliases, CNIC, "CNIC / Passport", "CNIC/Passport", "Guest CNIC / Passport", "Guest CNIC/Passport", "CNIC", "Guest CNIC", "NIC", "Passport", "Guest Passport");
         addAliases(aliases, NATIONALITY, "Nationality", "Guest Nationality");
         addAliases(aliases, GUEST_CATEGORY, "Guest Category", "Category");
         addAliases(aliases, COMPANY_NAME, "Company Name", "Company", "Organization", "Organisation");
@@ -672,10 +679,6 @@ public class ExcelImportService {
 
     private static String normalizeLookupValue(String value) {
         return value == null ? "" : value.toLowerCase().replaceAll("[^a-z0-9]", "");
-    }
-
-    private String digitsOnly(String value) {
-        return value == null ? "" : value.replaceAll("\\D", "");
     }
 
     private String roomNameValue(String value) {

@@ -172,10 +172,51 @@ function Copy-DirectoryFresh {
         [string]$Destination
     )
 
-    if (Test-Path -LiteralPath $Destination) {
-        Remove-Item -LiteralPath $Destination -Recurse -Force
+    Invoke-WithRetry -Description "Replacing folder $Destination" -ScriptBlock {
+        if (Test-Path -LiteralPath $Destination) {
+            Remove-Item -LiteralPath $Destination -Recurse -Force
+        }
+        Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
     }
-    Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+}
+
+function Invoke-WithRetry {
+    param(
+        [string]$Description,
+        [scriptblock]$ScriptBlock,
+        [int]$Attempts = 6,
+        [int]$DelaySeconds = 3
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            & $ScriptBlock
+            return
+        } catch {
+            $message = $_.Exception.Message
+            $isLastAttempt = $attempt -eq $Attempts
+            if ($message -match "being used by another process|Access is denied|cannot access the file") {
+                if ($isLastAttempt) {
+                    throw "$Description failed because a file is locked. Close KGM.exe and any window using D:\KGM-App, then run the script again. Original error: $message"
+                }
+                Write-Warning "$Description is locked. Close KGM.exe if it is open. Retrying in $DelaySeconds seconds... ($attempt/$Attempts)"
+                Start-Sleep -Seconds $DelaySeconds
+                continue
+            }
+            throw
+        }
+    }
+}
+
+function Copy-FileWithRetry {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+
+    Invoke-WithRetry -Description "Replacing file $Destination" -ScriptBlock {
+        Copy-Item -LiteralPath $Source -Destination $Destination -Force
+    }
 }
 
 function ConvertTo-ArgumentString {
@@ -372,7 +413,8 @@ function Clear-TargetFolder {
 
     $workspaceRoot = [System.IO.Path]::GetFullPath((Get-Location).Path)
     $resolvedTarget = [System.IO.Path]::GetFullPath($TargetPath)
-    if ($resolvedTarget -eq $workspaceRoot -or -not $resolvedTarget.StartsWith($workspaceRoot + [System.IO.Path]::DirectorySeparatorChar)) {
+    $workspacePrefix = $workspaceRoot + [System.IO.Path]::DirectorySeparatorChar
+    if ($resolvedTarget.Equals($workspaceRoot, [System.StringComparison]::OrdinalIgnoreCase) -or -not $resolvedTarget.StartsWith($workspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to clean target outside workspace: $resolvedTarget"
     }
 
@@ -520,7 +562,7 @@ try {
     Backup-AppFiles -OutputPath $resolvedOutput -Label "update"
 
     Write-Step -Message "Replacing generated app files only" -Percent 94
-    Copy-Item -LiteralPath (Join-Path $packageApp "KGM.exe") -Destination (Join-Path $resolvedOutput "KGM.exe") -Force
+    Copy-FileWithRetry -Source (Join-Path $packageApp "KGM.exe") -Destination (Join-Path $resolvedOutput "KGM.exe")
     Copy-DirectoryFresh -Source (Join-Path $packageApp "app") -Destination (Join-Path $resolvedOutput "app")
     Copy-DirectoryFresh -Source (Join-Path $packageApp "runtime") -Destination (Join-Path $resolvedOutput "runtime")
 

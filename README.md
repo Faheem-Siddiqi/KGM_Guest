@@ -30,6 +30,7 @@ Build plugins:
 | --- | --- | --- |
 | `maven-compiler-plugin` | `3.13.0` | Compiles with Java release `21`. |
 | `maven-surefire-plugin` | `3.2.5` | Runs JUnit tests. |
+| `maven-shade-plugin` | `3.5.3` | Builds the runnable jar used by the Windows app package. |
 
 ## First-Time Setup
 
@@ -40,9 +41,39 @@ git clone <repository-url>
 cd KGM_Guest
 ```
 
-2. Install and start MySQL Server.
+2. After fetching the project from Git, use this setup path for the Windows app package when needed.
 
-3. Create a MySQL user. The app can create the database automatically if the user has database creation permission.
+Complete the MySQL and `.env` steps below first, then run this from the project root:
+
+```powershell
+.\build-exe.ps1 -OutputDir "D:\KGM-App"
+```
+
+This creates:
+
+```text
+D:\KGM-App\
+├─ KGM.exe
+├─ app\
+├─ runtime\
+├─ images\
+├─ employees\
+├─ config\.env
+├─ logs\
+└─ backups\
+```
+
+For later updates after code changes are pulled from Git:
+
+```powershell
+.\update-exe.ps1 -OutputDir "D:\KGM-App"
+```
+
+The update command replaces only `KGM.exe`, `app\`, and `runtime\`. It keeps `config\.env`, `images\`, `employees\`, `logs\`, and `backups\` untouched.
+
+3. Install and start MySQL Server.
+
+4. Create a MySQL user. The app can create the database automatically if the user has database creation permission.
 
 ```sql
 CREATE USER IF NOT EXISTS 'kgm_user'@'localhost' IDENTIFIED BY 'change_me';
@@ -59,7 +90,7 @@ GRANT ALL PRIVILEGES ON `kgm_guest`.* TO 'kgm_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-4. Configure the database connection and app login.
+5. Configure the database connection and app login.
 
 Copy the sample env file and edit values for that PC:
 
@@ -82,6 +113,8 @@ KGM_LOGIN_PASSWORD=change_this_password
 
 `.env` is ignored by git, so real local credentials do not get committed. `.env.sample` is safe to commit and should contain placeholders only.
 
+When using `build-exe.ps1`, the script copies this root `.env` into the app output as `config\.env`.
+
 You can also use environment variables:
 
 ```powershell
@@ -98,15 +131,15 @@ You can also pass JVM properties instead:
 -Dkgm.db.host=127.0.0.1 -Dkgm.db.port=3306 -Dkgm.db.name=kgm_guest -Dkgm.db.user=kgm_user -Dkgm.db.password=change_me
 ```
 
-Priority order is JVM properties, OS environment variables, `.env`, then safe defaults from code.
+Priority order is JVM properties, OS environment variables, `.env` / `config\.env`, then safe defaults from code.
 
-5. Compile and run tests.
+6. Compile and run tests.
 
 ```powershell
 mvn test
 ```
 
-6. Run the application.
+7. Run the application.
 
 From an IDE, run:
 
@@ -147,6 +180,74 @@ mvn test
 mvn -q -DskipTests compile dependency:copy-dependencies
 java -cp "target/classes;target/dependency/*" com.kgm.Main
 ```
+
+## Windows App Package Commands
+
+Create the app package:
+
+```powershell
+.\build-exe.ps1 -OutputDir "D:\KGM-App"
+```
+
+Optional clean build:
+
+```powershell
+.\build-exe.ps1 -OutputDir "D:\KGM-App" -CleanTarget
+```
+
+Update an existing app package:
+
+```powershell
+.\update-exe.ps1 -OutputDir "D:\KGM-App"
+```
+
+Optional clean update:
+
+```powershell
+.\update-exe.ps1 -OutputDir "D:\KGM-App" -CleanTarget
+```
+
+Best rule: update app files only, never user data folders.
+
+Both scripts show live progress with `Write-Progress` and percentage messages in the terminal.
+
+Build/update behavior:
+
+- Checks Git, Maven, Java, `jpackage`, and WiX presence.
+- Requires Java 21 or newer.
+- Checks `.env`.
+- Checks MySQL with a 3000ms TCP timeout and continues with a warning if MySQL is not reachable.
+- Skips `target\` cleanup by default to avoid terminating the VS Code PowerShell terminal. Use `-CleanTarget` only when a clean target folder is specifically needed.
+- Runs `mvn package` with a 15 minute timeout.
+- Copies only `target\my-java-app-1.0.0.jar` into a fresh temporary `jpackage` input folder; it never packages from `target\classes`.
+- Runs `jpackage` with a 10 minute timeout to create `KGM.exe`.
+- Runs `git pull` during update with a 3 minute timeout.
+- If a command fails or times out, the script explains the likely reason, such as locked files, Maven dependency download failure, Git authentication, or jpackage/JDK packaging issues.
+- Backs up old `KGM.exe`, `app\`, and `runtime\`.
+- Replaces only generated app files.
+- Never deletes `config\.env`, `employees\`, `images\uploads\`, `logs\`, or `backups\`.
+
+Script helper functions:
+
+| Function | Purpose |
+| --- | --- |
+| `Write-Step` | Shows the current step with `Write-Progress` and a terminal percentage. |
+| `Complete-Progress` | Clears the PowerShell progress bar at the end or on failure. |
+| `Resolve-ProjectRoot` | Finds the folder where the script is located. |
+| `Require-Command` | Checks that a required command exists on `PATH`. |
+| `Check-RequiredTools` | Checks Git, Maven, Java, and `jpackage`. |
+| `Check-Wix` | Checks WiX tools and warns if missing. |
+| `Require-Java21` | Confirms the installed Java version is 21 or newer. |
+| `Get-EnvFileValue` | Reads a value such as `KGM_DB_HOST` or `KGM_DB_PORT` from `.env`. |
+| `Test-MySqlPort` | Checks the MySQL port with `TcpClient` and a 3000ms timeout. |
+| `Check-MySqlReachable` | Reads DB host/port from `.env` and calls `Test-MySqlPort`. |
+| `ConvertTo-ArgumentString` | Quotes command arguments safely for external tools. |
+| `Invoke-ExternalCommand` | Runs external tools with live output and a timeout so long steps do not hang forever. |
+| `Get-TerminationReason` | Explains why a process failed or was terminated, based on timeout, exit code, and captured output. |
+| `Clear-TargetFolder` | Tries to remove `target\` in a short background job and continues if it is locked. It does not stop VS Code, Java, or app processes. |
+| `Copy-DirectoryFresh` | Replaces generated folders such as `app\` and `runtime\`. |
+| `Copy-DirectoryIfMissing` | Copies data folders only when missing, so user files are preserved. |
+| `Backup-AppFiles` | Backs up old `KGM.exe`, `app\`, and `runtime\` before replacement. |
 
 ## Main Workflows
 
@@ -292,7 +393,7 @@ Sample workbook rules:
 | `src/main/java/com/kgm/Main.java` | Application entry point; initializes DB and opens `LoginView`. |
 | `src/main/java/com/kgm/config/DatabaseConfig.java` | Reads DB host, port, name, user, and password from JVM properties/env/defaults. |
 | `src/main/java/com/kgm/config/DatabaseConnection.java` | Opens server/database JDBC connections and loads MySQL driver. |
-| `src/main/java/com/kgm/config/EnvironmentConfig.java` | Shared config loader for JVM properties, OS environment variables, and root `.env`. |
+| `src/main/java/com/kgm/config/EnvironmentConfig.java` | Shared config loader for JVM properties, OS environment variables, root `.env`, and packaged `config\.env`. |
 | `.env.sample` | Safe copy template for local ignored `.env` database and login values. |
 | `src/main/java/com/kgm/database/DatabaseInitializer.java` | Creates DB/schema, migrations, indexes, constraints, and cleanup. |
 | `src/main/resources/db/schema.sql` | MySQL schema for users, categories, accommodations, amenities, and guests. |

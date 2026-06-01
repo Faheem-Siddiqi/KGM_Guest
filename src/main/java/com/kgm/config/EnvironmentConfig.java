@@ -56,6 +56,10 @@ public final class EnvironmentConfig {
     private static Path findEnvFile() {
         Path directory = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath();
         while (directory != null) {
+            Path configCandidate = directory.resolve("config").resolve(ENV_FILE_NAME);
+            if (Files.isRegularFile(configCandidate)) {
+                return configCandidate;
+            }
             Path candidate = directory.resolve(ENV_FILE_NAME);
             if (Files.isRegularFile(candidate)) {
                 return candidate;

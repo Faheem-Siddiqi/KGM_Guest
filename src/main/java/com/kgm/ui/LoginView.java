@@ -73,7 +73,7 @@ private static final String LOGIN_IMAGE_CREDIT = "Made with ♥ by Faheem Siddiq
         form.setPreferredSize(new Dimension(FORM_WIDTH, 344));
         form.setMaximumSize(new Dimension(FORM_WIDTH, 344));
 
-        JLabel eyebrow = new JLabel("KGM GUEST PORTAL");
+        JLabel eyebrow = new JLabel("KGM GUEST PORTAL: update ");
         eyebrow.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         eyebrow.setForeground(PRIMARY);
         eyebrow.setAlignmentX(Component.LEFT_ALIGNMENT);

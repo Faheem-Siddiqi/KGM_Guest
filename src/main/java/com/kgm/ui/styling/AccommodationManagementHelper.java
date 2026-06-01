@@ -15,6 +15,8 @@ public final class AccommodationManagementHelper {
     public static final int CONTENT_WIDTH = 860;
     private static final int FIELD_WIDTH = 300;
     private static final int FIELD_MIN_WIDTH = 220;
+    private static final int PAGE_SECTION_GAP = 18;
+    private static final int HEADER_TO_BREADCRUMB_GAP = 8;
     public static final Color PAGE_BACKGROUND = HomeViewHelper.PAGE_BACKGROUND;
     public static final Color CARD_BACKGROUND = Color.WHITE;
     public static final Color TEXT_PRIMARY = HomeViewHelper.TEXT_PRIMARY;
@@ -186,10 +188,18 @@ public final class AccommodationManagementHelper {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
         gbc.gridy = y;
-        gbc.insets = new Insets(0, 0, 18, 0);
+        gbc.insets = new Insets(0, 0, PAGE_SECTION_GAP, 0);
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.NORTH;
         gbc.weightx = 1.0;
+        return gbc;
+    }
+
+    public static GridBagConstraints headerPageConstraints(int y) {
+        GridBagConstraints gbc = pageConstraints(y);
+        if (y == 0) {
+            gbc.insets = new Insets(0, 0, HEADER_TO_BREADCRUMB_GAP, 0);
+        }
         return gbc;
     }
 

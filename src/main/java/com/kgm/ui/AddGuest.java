@@ -65,7 +65,7 @@ public class AddGuest extends JFrame {
         DatabaseInitializer.init();
         final JScrollPane[] scrollRef = new JScrollPane[1];
         JPanel page = AddGuestHelper.pagePanel();
-        page.add(AddGuestHelper.screenHeader(onBack), AddGuestHelper.pageConstraints(0));
+        page.add(AddGuestHelper.screenHeader(onBack), AddGuestHelper.headerPageConstraints(0));
 
         JTextField guestNameField = new JTextField("");
         JTextField guestCnicField = new JTextField("");
@@ -221,7 +221,7 @@ public class AddGuest extends JFrame {
                         () -> scrollToSection(scrollRef[0], requestCard),
                         () -> scrollToSection(scrollRef[0], stayCard)
                 }
-        ), AddGuestHelper.pageConstraints(1));
+        ), AddGuestHelper.headerPageConstraints(1));
         page.add(basicCard, AddGuestHelper.pageConstraints(2));
         page.add(requestCard, AddGuestHelper.pageConstraints(3));
         page.add(stayCard, AddGuestHelper.pageConstraints(4));

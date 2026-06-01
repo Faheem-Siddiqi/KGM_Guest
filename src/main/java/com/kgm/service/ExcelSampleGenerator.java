@@ -32,9 +32,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -71,7 +74,7 @@ public class ExcelSampleGenerator {
     private static final String LEGACY_REQUIRED_RULE = "Required values: Company Name, Visit Type, Arrival Date Time, Departure Date Time, Accommodation Category, and Room. Other blank guest fields are stored as N/A for historical records.";
     private static final String STANDARD_STAY_RULE = "Blocks the import when the same CNIC / Passport already has any booking or stay overlapping the selected arrival/departure period. One guest can only be allotted one room at a time.";
     private static final String LEGACY_STAY_RULE = "Overlap, capacity, and room-status checks are intentionally bypassed for historical records.";
-    private static final String DATE_RULE = "Arrival and Departure must be valid date/time values. Departure must be after Arrival. Recommended format: yyyy-MM-dd HH:mm. Date-only values are read at midnight.";
+    private static final String DATE_RULE = "Arrival and Departure are required. In the sample sheet, type exactly yyyy-MM-dd HH:mm, for example 2026-05-30 10:00. The validation alert blocks other typed formats. Departure must be after Arrival during import.";
     private static final String VISIT_TYPE_RULE = "Visit Type must be exactly Official Visit or Personal Visit.";
     private static final String STANDARD_ROOM_RULE = "Accommodation Category and Room must match the current Valid Values list. New/standard import requires a ready room with available capacity for the selected dates.";
     private static final String LEGACY_ROOM_RULE = "Accommodation Category and Room must already exist in the database, but the room does not need to be ready and capacity is not checked.";
@@ -81,11 +84,19 @@ public class ExcelSampleGenerator {
     private static final String LEGACY_HEADER_RULE = "Legacy workbooks may use the same sample headers. Only the legacy required values are mandatory.";
     private static final String STANDARD_DEFAULT_RULE = "Remarks defaults to N/A when blank. Identifiers are compacted before saving after validation.";
     private static final String LEGACY_DEFAULT_RULE = "Blank optional guest fields are stored as N/A and remarks include Old record - validation bypassed.";
-    private static final String ACCEPTED_DATE_FORMATS_RULE = "Accepted text date/time formats: yyyy-MM-dd HH:mm or H:mm, yyyy/MM/dd HH:mm or H:mm, dd-MM-yyyy HH:mm or H:mm, dd/MM/yyyy HH:mm or H:mm, M/d/yyyy HH:mm or H:mm, and M/d/yy HH:mm or H:mm. Date-only variants of these formats and native Excel date cells are also accepted.";
+    private static final String ACCEPTED_DATE_FORMATS_RULE = "For compatibility, the importer can still parse old workbooks using yyyy-MM-dd HH:mm or H:mm, yyyy/MM/dd HH:mm or H:mm, dd-MM-yyyy HH:mm or H:mm, dd/MM/yyyy HH:mm or H:mm, M/d/yyyy HH:mm or H:mm, and M/d/yy HH:mm or H:mm. The sample template validation intentionally guides new entries to yyyy-MM-dd HH:mm only.";
     private static final String IMPORT_SCOPE_RULE = "The sample uses current DB accommodation categories, rooms, and guest categories. Import checks those records only; it does not create, edit, or rename accommodation records.";
     private static final String ROOM_NAME_RULE = "Use the room name from the Valid Values table. The importer can add the Room prefix when needed, but exact DB names are safest.";
     private static final String WORKBOOK_ROW_RULE = "The importer reads the first worksheet only. Row 1 must contain headers, guest records start on Row 2, blank rows are ignored, and rows with validation errors are skipped with a reason while other valid rows continue.";
     private static final int VALID_VALUES_LAST_COLUMN = 7;
+    private static final int VALIDATION_SOURCE_FIRST_ROW = 1;
+    private static final int VALIDATION_SOURCE_GUEST_CATEGORY_COLUMN = 9;
+    private static final int VALIDATION_SOURCE_DEPARTMENT_COLUMN = 10;
+    private static final int VALIDATION_SOURCE_ACCOMMODATION_CATEGORY_COLUMN = 11;
+    private static final int VALIDATION_SOURCE_ROOM_MAP_CATEGORY_COLUMN = 12;
+    private static final int VALIDATION_SOURCE_ROOM_MAP_NAME_COLUMN = 13;
+    private static final int VALIDATION_SOURCE_ROOM_LIST_START_COLUMN = 14;
+    private static final String EMPTY_ROOM_RANGE_NAME = "KGM_EMPTY_ROOM_LIST";
 
     private static final List<String> TEMPLATE_HEADERS = List.of(
             GUEST_NAME,
@@ -202,6 +213,11 @@ public class ExcelSampleGenerator {
                 // Plain style for data rows - no formatting
                 CellStyle plainStyle = workbook.createCellStyle();
                 plainStyle.setLocked(false);
+                CellStyle dateTimeTextStyle = workbook.createCellStyle();
+                dateTimeTextStyle.cloneStyleFrom(plainStyle);
+                dateTimeTextStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
+                sheet.setDefaultColumnStyle(TEMPLATE_HEADERS.indexOf(ARRIVAL_DATE_TIME), dateTimeTextStyle);
+                sheet.setDefaultColumnStyle(TEMPLATE_HEADERS.indexOf(DEPARTURE_DATE_TIME), dateTimeTextStyle);
 
                 Row headerRow = sheet.createRow(0);
                 for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
@@ -215,17 +231,23 @@ public class ExcelSampleGenerator {
                     Row row = sheet.createRow(rowIndex + 1);
                     String[] values = rows.get(rowIndex);
                     for (int cellIndex = 0; cellIndex < values.length; cellIndex++) {
-                        textCell(row, cellIndex, values[cellIndex], plainStyle);
+                        textCell(row, cellIndex, values[cellIndex], importCellStyle(cellIndex, plainStyle, dateTimeTextStyle));
                     }
                 }
 
                 for (int index = 0; index < TEMPLATE_HEADERS.size(); index++) {
                     sheet.autoSizeColumn(index);
                 }
-                addIdentifierPrompt(sheet);
-                addVisitTypeDropdown(sheet);
 
-                writeValidValuesSheet(workbook, headerStyle, editableStyle, accommodationCategories, accommodations, guestCategories);
+                ValidationSourceRanges validationSources = writeValidValuesSheet(
+                        workbook,
+                        headerStyle,
+                        editableStyle,
+                        accommodationCategories,
+                        accommodations,
+                        guestCategories
+                );
+                addSampleDataValidations(sheet, validationSources);
                 workbook.write(output);
                 output.flush();
             }
@@ -329,7 +351,7 @@ public class ExcelSampleGenerator {
         "HR", "Admin", "Finance", "Spinning", "Power House", "IT", "Security", "Others (speficy)"
     };
 
-    private static void writeValidValuesSheet(
+    private static ValidationSourceRanges writeValidValuesSheet(
             Workbook workbook,
             CellStyle headerStyle,
             CellStyle editableStyle,
@@ -427,8 +449,17 @@ public class ExcelSampleGenerator {
         rowIndex = writeImportRulesSection(values, rowIndex, sectionStyle, ruleHeaderStyle, ruleStyle);
         rowIndex = writeIdentifierExamplesSection(values, rowIndex, sectionStyle, ruleHeaderStyle, ruleStyle);
         writeDateFormatSection(values, rowIndex, sectionStyle, ruleHeaderStyle, ruleStyle);
+        ValidationSourceRanges validationSources = writeValidationSources(
+                workbook,
+                values,
+                plainStyle,
+                accommodationCategories,
+                accommodations,
+                guestCategories
+        );
         setValidValuesColumnWidths(values);
         values.createFreezePane(0, validValuesHeaderRow + 1);
+        return validationSources;
     }
 
     private static int writeGuideHeader(Sheet sheet, int rowIndex, CellStyle titleStyle, CellStyle noteStyle) {
@@ -521,7 +552,7 @@ public class ExcelSampleGenerator {
                 sheet,
                 rowIndex,
                 "Import behavior",
-                "Date-only values are imported at 00:00. Blank or unparseable arrival/departure values are rejected.",
+                "Old workbooks with date-only values can still import at 00:00. In this sample template, use yyyy-MM-dd HH:mm so Excel validation accepts the row.",
                 rowStyle
         );
     }
@@ -590,6 +621,224 @@ public class ExcelSampleGenerator {
         for (int index = 0; index < widths.length; index++) {
             sheet.setColumnWidth(index, widths[index] * 256);
         }
+    }
+
+    private static ValidationSourceRanges writeValidationSources(
+            Workbook workbook,
+            Sheet sheet,
+            CellStyle style,
+            List<String> accommodationCategories,
+            List<SampleAccommodation> accommodations,
+            List<String> guestCategories
+    ) {
+        List<String> guestCategoryValues = uniqueValues(guestCategories);
+        if (guestCategoryValues.isEmpty()) {
+            guestCategoryValues = fallbackGuestCategories();
+        }
+
+        List<String> accommodationCategoryValues = uniqueValues(accommodationCategories);
+        for (SampleAccommodation accommodation : accommodations) {
+            addUnique(accommodationCategoryValues, accommodation.category());
+        }
+        if (accommodationCategoryValues.isEmpty()) {
+            accommodationCategoryValues = fallbackAccommodationCategories();
+        }
+
+        String guestCategoryFormula = writeSourceList(
+                sheet,
+                VALIDATION_SOURCE_GUEST_CATEGORY_COLUMN,
+                "Guest Category List",
+                guestCategoryValues,
+                style
+        );
+        String departmentFormula = writeSourceList(
+                sheet,
+                VALIDATION_SOURCE_DEPARTMENT_COLUMN,
+                "Requested Department List",
+                List.of(VALID_DEPARTMENTS),
+                style
+        );
+        String accommodationCategoryFormula = writeSourceList(
+                sheet,
+                VALIDATION_SOURCE_ACCOMMODATION_CATEGORY_COLUMN,
+                "Accommodation Category List",
+                accommodationCategoryValues,
+                style
+        );
+        String roomMapFormula = writeRoomValidationSources(
+                workbook,
+                sheet,
+                style,
+                accommodationCategoryValues,
+                accommodations
+        );
+        hideValidationSourceColumns(sheet);
+        return new ValidationSourceRanges(
+                guestCategoryFormula,
+                departmentFormula,
+                accommodationCategoryFormula,
+                roomMapFormula
+        );
+    }
+
+    private static String writeRoomValidationSources(
+            Workbook workbook,
+            Sheet sheet,
+            CellStyle style,
+            List<String> accommodationCategories,
+            List<SampleAccommodation> accommodations
+    ) {
+        Map<String, List<String>> roomsByCategory = new LinkedHashMap<>();
+        for (String category : accommodationCategories) {
+            roomsByCategory.put(category, new ArrayList<>());
+        }
+        for (SampleAccommodation accommodation : accommodations) {
+            List<String> rooms = roomsByCategory.computeIfAbsent(accommodation.category(), ignored -> new ArrayList<>());
+            addUnique(rooms, accommodation.room());
+        }
+
+        textCell(rowAt(sheet, 0), VALIDATION_SOURCE_ROOM_MAP_CATEGORY_COLUMN, "Room Map Category", style);
+        textCell(rowAt(sheet, 0), VALIDATION_SOURCE_ROOM_MAP_NAME_COLUMN, "Room Map Range", style);
+        textCell(rowAt(sheet, 0), VALIDATION_SOURCE_ROOM_LIST_START_COLUMN, "Empty Room List", style);
+        textCell(rowAt(sheet, VALIDATION_SOURCE_FIRST_ROW), VALIDATION_SOURCE_ROOM_LIST_START_COLUMN, "", style);
+        createWorkbookName(
+                workbook,
+                EMPTY_ROOM_RANGE_NAME,
+                sourceRangeFormula(sheet, VALIDATION_SOURCE_ROOM_LIST_START_COLUMN, VALIDATION_SOURCE_FIRST_ROW, 1)
+        );
+
+        int mapRow = VALIDATION_SOURCE_FIRST_ROW;
+        int roomColumn = VALIDATION_SOURCE_ROOM_LIST_START_COLUMN + 1;
+        Set<String> usedNames = new HashSet<>();
+        for (Map.Entry<String, List<String>> entry : roomsByCategory.entrySet()) {
+            String rangeName = uniqueRoomRangeName(entry.getKey(), usedNames);
+            List<String> rooms = entry.getValue().isEmpty() ? List.of("") : entry.getValue();
+            textCell(rowAt(sheet, mapRow), VALIDATION_SOURCE_ROOM_MAP_CATEGORY_COLUMN, entry.getKey(), style);
+            textCell(rowAt(sheet, mapRow), VALIDATION_SOURCE_ROOM_MAP_NAME_COLUMN, rangeName, style);
+            writeSourceList(sheet, roomColumn, rangeName, rooms, style);
+            createWorkbookName(
+                    workbook,
+                    rangeName,
+                    sourceRangeFormula(sheet, roomColumn, VALIDATION_SOURCE_FIRST_ROW, rooms.size())
+            );
+            mapRow++;
+            roomColumn++;
+        }
+
+        return sourceRangeFormula(
+                sheet,
+                VALIDATION_SOURCE_ROOM_MAP_CATEGORY_COLUMN,
+                VALIDATION_SOURCE_FIRST_ROW,
+                Math.max(1, roomsByCategory.size()),
+                VALIDATION_SOURCE_ROOM_MAP_NAME_COLUMN
+        );
+    }
+
+    private static String writeSourceList(
+            Sheet sheet,
+            int column,
+            String header,
+            List<String> values,
+            CellStyle style
+    ) {
+        textCell(rowAt(sheet, 0), column, header, style);
+        List<String> safeValues = values == null || values.isEmpty() ? List.of("") : values;
+        for (int index = 0; index < safeValues.size(); index++) {
+            textCell(rowAt(sheet, VALIDATION_SOURCE_FIRST_ROW + index), column, safeValues.get(index), style);
+        }
+        return sourceRangeFormula(sheet, column, VALIDATION_SOURCE_FIRST_ROW, safeValues.size());
+    }
+
+    private static void hideValidationSourceColumns(Sheet sheet) {
+        int lastHiddenColumn = Math.max(
+                VALIDATION_SOURCE_ROOM_LIST_START_COLUMN + 1,
+                sheet.getRow(0).getLastCellNum()
+        );
+        for (int column = VALIDATION_SOURCE_GUEST_CATEGORY_COLUMN; column <= lastHiddenColumn; column++) {
+            sheet.setColumnHidden(column, true);
+        }
+    }
+
+    private static Row rowAt(Sheet sheet, int rowIndex) {
+        Row row = sheet.getRow(rowIndex);
+        return row == null ? sheet.createRow(rowIndex) : row;
+    }
+
+    private static List<String> uniqueValues(List<String> values) {
+        List<String> unique = new ArrayList<>();
+        if (values == null) {
+            return unique;
+        }
+        for (String value : values) {
+            addUnique(unique, value);
+        }
+        return unique;
+    }
+
+    private static void addUnique(List<String> values, String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        for (String existing : values) {
+            if (existing.equalsIgnoreCase(text)) {
+                return;
+            }
+        }
+        values.add(text);
+    }
+
+    private static String uniqueRoomRangeName(String category, Set<String> usedNames) {
+        String text = category == null ? "" : category.toUpperCase(Locale.ROOT).trim();
+        String name = "KGM_ROOM_" + text.replaceAll("[^A-Z0-9_]", "_").replaceAll("_+", "_");
+        if (name.endsWith("_")) {
+            name = name.substring(0, name.length() - 1);
+        }
+        if (name.length() > 220) {
+            name = name.substring(0, 220);
+        }
+        if ("KGM_ROOM".equals(name)) {
+            name = "KGM_ROOM_CATEGORY";
+        }
+
+        String uniqueName = name;
+        int suffix = 2;
+        while (usedNames.contains(uniqueName)) {
+            uniqueName = name + "_" + suffix++;
+        }
+        usedNames.add(uniqueName);
+        return uniqueName;
+    }
+
+    private static void createWorkbookName(Workbook workbook, String name, String formula) {
+        org.apache.poi.ss.usermodel.Name workbookName = workbook.createName();
+        workbookName.setNameName(name);
+        workbookName.setRefersToFormula(formula);
+    }
+
+    private static String sourceRangeFormula(Sheet sheet, int column, int firstRow, int rowCount) {
+        return sourceRangeFormula(sheet, column, firstRow, rowCount, column);
+    }
+
+    private static String sourceRangeFormula(
+            Sheet sheet,
+            int firstColumn,
+            int firstRow,
+            int rowCount,
+            int lastColumn
+    ) {
+        int lastRow = firstRow + Math.max(1, rowCount) - 1;
+        return quoteSheetName(sheet.getSheetName())
+                + "!" + absoluteCell(firstColumn, firstRow)
+                + ":" + absoluteCell(lastColumn, lastRow);
+    }
+
+    private static String quoteSheetName(String sheetName) {
+        return "'" + sheetName.replace("'", "''") + "'";
+    }
+
+    private static String absoluteCell(int column, int row) {
+        return "$" + columnName(column) + "$" + (row + 1);
     }
 
     private static int writeImportRulesSection(
@@ -739,47 +988,250 @@ public class ExcelSampleGenerator {
         return rowIndex;
     }
 
+    private static void addSampleDataValidations(Sheet sheet, ValidationSourceRanges validationSources) {
+        addIdentifierValidation(sheet);
+        addFormulaListValidation(
+                sheet,
+                GUEST_CATEGORY,
+                validationSources.guestCategoryFormula(),
+                "Guest Category",
+                "Choose a guest category from the current database values.",
+                "Invalid Guest Category",
+                "Select a guest category from the dropdown list."
+        );
+        addVisitTypeDropdown(sheet);
+        addFlexibleFormulaListValidation(
+                sheet,
+                REQUESTED_DEPARTMENT,
+                validationSources.departmentFormula(),
+                "Requested Department",
+                "Choose a department from the list or type a new department value if it is not listed."
+        );
+        addDateTimeValidation(sheet, ARRIVAL_DATE_TIME);
+        addDateTimeValidation(sheet, DEPARTURE_DATE_TIME);
+        addFormulaListValidation(
+                sheet,
+                ACCOMMODATION_CATEGORY,
+                validationSources.accommodationCategoryFormula(),
+                "Accommodation Category",
+                "Choose an accommodation category from the current database values.",
+                "Invalid Accommodation Category",
+                "Select an accommodation category from the dropdown list."
+        );
+        addRoomDropdown(sheet, validationSources);
+    }
+
     private static void addVisitTypeDropdown(Sheet sheet) {
-        int visitTypeColumn = TEMPLATE_HEADERS.indexOf(VISIT_TYPE);
-        if (visitTypeColumn < 0) {
+        addExplicitListValidation(
+                sheet,
+                VISIT_TYPE,
+                VISIT_TYPES,
+                "Visit Type",
+                "Choose Official Visit or Personal Visit.",
+                "Invalid Visit Type",
+                "Choose Official Visit or Personal Visit."
+        );
+    }
+
+    private static void addIdentifierValidation(Sheet sheet) {
+        int column = TEMPLATE_HEADERS.indexOf(CNIC);
+        if (column < 0) {
+            return;
+        }
+
+        addCustomValidation(
+                sheet,
+                column,
+                identifierValidationFormula(columnName(column) + "2"),
+                "CNIC / Passport",
+                "CNIC: exactly 13 digits with no dashes. Passport: 4 to 30 letters/digits, at least one letter, spaces/hyphens only as separators.",
+                "Invalid CNIC / Passport",
+                "Enter either a 13-digit CNIC without dashes or a passport such as PX1234567 or AB-123 456."
+        );
+    }
+
+    private static void addDateTimeValidation(Sheet sheet, String header) {
+        int column = TEMPLATE_HEADERS.indexOf(header);
+        if (column < 0) {
+            return;
+        }
+
+        addCustomValidation(
+                sheet,
+                column,
+                exactDateTimeFormula(columnName(column) + "2"),
+                header,
+                "Type date/time exactly as yyyy-MM-dd HH:mm, for example 2026-05-30 10:00.",
+                "Invalid Date Time",
+                "Use exact format yyyy-MM-dd HH:mm, for example 2026-05-30 10:00."
+        );
+    }
+
+    private static void addRoomDropdown(Sheet sheet, ValidationSourceRanges validationSources) {
+        int roomColumn = TEMPLATE_HEADERS.indexOf(ROOM);
+        int categoryColumn = TEMPLATE_HEADERS.indexOf(ACCOMMODATION_CATEGORY);
+        if (roomColumn < 0 || categoryColumn < 0) {
+            return;
+        }
+
+        String categoryCell = "$" + columnName(categoryColumn) + "2";
+        String formula = "INDIRECT(IFERROR(VLOOKUP(" + categoryCell + ","
+                + validationSources.roomMapFormula() + ",2,FALSE),\"" + EMPTY_ROOM_RANGE_NAME + "\"))";
+        addFormulaListValidation(
+                sheet,
+                ROOM,
+                formula,
+                "Room",
+                "Choose a room for the selected accommodation category.",
+                "Invalid Room",
+                "Select a room from the dropdown list for the selected accommodation category."
+        );
+    }
+
+    private static void addFormulaListValidation(
+            Sheet sheet,
+            String header,
+            String formula,
+            String promptTitle,
+            String promptText,
+            String errorTitle,
+            String errorText
+    ) {
+        int column = TEMPLATE_HEADERS.indexOf(header);
+        if (column < 0) {
             return;
         }
 
         DataValidationHelper helper = sheet.getDataValidationHelper();
-        DataValidationConstraint constraint = helper.createExplicitListConstraint(VISIT_TYPES);
-        CellRangeAddressList range = new CellRangeAddressList(
-                1,
-                TEMPLATE_DROPDOWN_LAST_ROW,
-                visitTypeColumn,
-                visitTypeColumn
-        );
-        DataValidation validation = helper.createValidation(constraint, range);
-        validation.setShowErrorBox(true);
-        validation.createErrorBox("Invalid Visit Type", "Choose Official Visit or Personal Visit.");
-        validation.setShowPromptBox(true);
-        validation.createPromptBox("Visit Type", "Choose Official Visit or Personal Visit.");
+        DataValidationConstraint constraint = helper.createFormulaListConstraint(formula);
+        DataValidation validation = helper.createValidation(constraint, validationRange(column));
+        enableInCellDropdown(validation);
+        configureValidation(validation, promptTitle, promptText, errorTitle, errorText);
         sheet.addValidationData(validation);
     }
 
-    private static void addIdentifierPrompt(Sheet sheet) {
-        int identifierColumn = TEMPLATE_HEADERS.indexOf(CNIC);
-        if (identifierColumn < 0) {
+    private static void addFlexibleFormulaListValidation(
+            Sheet sheet,
+            String header,
+            String formula,
+            String promptTitle,
+            String promptText
+    ) {
+        int column = TEMPLATE_HEADERS.indexOf(header);
+        if (column < 0) {
             return;
         }
 
         DataValidationHelper helper = sheet.getDataValidationHelper();
-        DataValidationConstraint constraint = helper.createCustomConstraint("TRUE()");
-        CellRangeAddressList range = new CellRangeAddressList(
-                1,
-                TEMPLATE_DROPDOWN_LAST_ROW,
-                identifierColumn,
-                identifierColumn
-        );
-        DataValidation validation = helper.createValidation(constraint, range);
-        validation.setShowErrorBox(false);
+        DataValidationConstraint constraint = helper.createFormulaListConstraint(formula);
+        DataValidation validation = helper.createValidation(constraint, validationRange(column));
+        enableInCellDropdown(validation);
+        validation.setEmptyCellAllowed(false);
         validation.setShowPromptBox(true);
-        validation.createPromptBox("CNIC / Passport", IDENTIFIER_RULE_MESSAGE);
+        validation.createPromptBox(promptTitle, promptText);
+        validation.setShowErrorBox(false);
         sheet.addValidationData(validation);
+    }
+
+    private static void addExplicitListValidation(
+            Sheet sheet,
+            String header,
+            String[] values,
+            String promptTitle,
+            String promptText,
+            String errorTitle,
+            String errorText
+    ) {
+        int column = TEMPLATE_HEADERS.indexOf(header);
+        if (column < 0) {
+            return;
+        }
+
+        DataValidationHelper helper = sheet.getDataValidationHelper();
+        DataValidationConstraint constraint = helper.createExplicitListConstraint(values);
+        DataValidation validation = helper.createValidation(constraint, validationRange(column));
+        enableInCellDropdown(validation);
+        configureValidation(validation, promptTitle, promptText, errorTitle, errorText);
+        sheet.addValidationData(validation);
+    }
+
+    private static void enableInCellDropdown(DataValidation validation) {
+        // XSSF stores Excel's in-cell dropdown checkbox with inverted OOXML semantics.
+        validation.setSuppressDropDownArrow(true);
+    }
+
+    private static void addCustomValidation(
+            Sheet sheet,
+            int column,
+            String formula,
+            String promptTitle,
+            String promptText,
+            String errorTitle,
+            String errorText
+    ) {
+        DataValidationHelper helper = sheet.getDataValidationHelper();
+        DataValidationConstraint constraint = helper.createCustomConstraint(formula);
+        DataValidation validation = helper.createValidation(constraint, validationRange(column));
+        configureValidation(validation, promptTitle, promptText, errorTitle, errorText);
+        sheet.addValidationData(validation);
+    }
+
+    private static CellRangeAddressList validationRange(int column) {
+        return new CellRangeAddressList(1, TEMPLATE_DROPDOWN_LAST_ROW, column, column);
+    }
+
+    private static void configureValidation(
+            DataValidation validation,
+            String promptTitle,
+            String promptText,
+            String errorTitle,
+            String errorText
+    ) {
+        validation.setEmptyCellAllowed(false);
+        validation.setShowPromptBox(true);
+        validation.createPromptBox(promptTitle, promptText);
+        validation.setShowErrorBox(true);
+        validation.setErrorStyle(DataValidation.ErrorStyle.STOP);
+        validation.createErrorBox(errorTitle, errorText);
+    }
+
+    private static String identifierValidationFormula(String cellRef) {
+        String compact = "SUBSTITUTE(SUBSTITUTE(" + cellRef + ",\" \",\"\"),\"-\",\"\")";
+        String characterRows = "ROW(INDIRECT(\"1:\"&LEN(" + cellRef + ")))";
+        String cnic = "IFERROR(AND(LEN(" + cellRef + ")=13,"
+                + "SUMPRODUCT(--ISNUMBER(--MID(" + cellRef + "," + characterRows + ",1)))=13),FALSE)";
+        String allowedPassportCharacters = "SUMPRODUCT(--ISNUMBER(FIND(MID(UPPER(" + cellRef + "),"
+                + characterRows + ",1),\"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -\")))=LEN(" + cellRef + ")";
+        String passportHasLetter = "SUMPRODUCT(--ISNUMBER(FIND(MID(UPPER(" + cellRef + "),"
+                + characterRows + ",1),\"ABCDEFGHIJKLMNOPQRSTUVWXYZ\")))>0";
+        String passport = "IFERROR(AND(LEN(" + compact + ")>=4,LEN(" + compact + ")<=30,"
+                + allowedPassportCharacters + ","
+                + passportHasLetter + ","
+                + "LEFT(" + cellRef + ",1)<>\" \",LEFT(" + cellRef + ",1)<>\"-\","
+                + "RIGHT(" + cellRef + ",1)<>\" \",RIGHT(" + cellRef + ",1)<>\"-\","
+                + "ISERROR(SEARCH(\"--\"," + cellRef + ")),"
+                + "ISERROR(SEARCH(\"  \"," + cellRef + ")),"
+                + "ISERROR(SEARCH(\"- \"," + cellRef + ")),"
+                + "ISERROR(SEARCH(\" -\"," + cellRef + "))),FALSE)";
+        return "IFERROR(OR(" + cnic + "," + passport + "),FALSE)";
+    }
+
+    private static String exactDateTimeFormula(String cellRef) {
+        return "IFERROR(AND("
+                + "LEN(" + cellRef + ")=16,"
+                + "MID(" + cellRef + ",5,1)=\"-\","
+                + "MID(" + cellRef + ",8,1)=\"-\","
+                + "MID(" + cellRef + ",11,1)=\" \","
+                + "MID(" + cellRef + ",14,1)=\":\","
+                + "ISNUMBER(--LEFT(" + cellRef + ",4)),"
+                + "ISNUMBER(--MID(" + cellRef + ",6,2)),"
+                + "ISNUMBER(--MID(" + cellRef + ",9,2)),"
+                + "ISNUMBER(--MID(" + cellRef + ",12,2)),"
+                + "ISNUMBER(--RIGHT(" + cellRef + ",2)),"
+                + "TEXT(DATE(--LEFT(" + cellRef + ",4),--MID(" + cellRef + ",6,2),--MID(" + cellRef + ",9,2)),\"yyyy-mm-dd\")=LEFT(" + cellRef + ",10),"
+                + "--MID(" + cellRef + ",12,2)<24,"
+                + "--RIGHT(" + cellRef + ",2)<60"
+                + "),FALSE)";
     }
 
     private static int writeNextVisitType(Row row, int visitTypeIndex, CellStyle style) {
@@ -829,6 +1281,14 @@ public class ExcelSampleGenerator {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private static CellStyle importCellStyle(int columnIndex, CellStyle plainStyle, CellStyle dateTimeTextStyle) {
+        String header = TEMPLATE_HEADERS.get(columnIndex);
+        if (ARRIVAL_DATE_TIME.equals(header) || DEPARTURE_DATE_TIME.equals(header)) {
+            return dateTimeTextStyle;
+        }
+        return plainStyle;
     }
 
     private static void validateGeneratedWorkbook(Path file) throws IOException {
@@ -885,6 +1345,25 @@ public class ExcelSampleGenerator {
                 "Kohinoor Textile Mills", "Vendor Partner", "Consultant Group", "Family Visitor"
         };
         return companies[index % companies.length];
+    }
+
+    private static String columnName(int columnIndex) {
+        StringBuilder name = new StringBuilder();
+        int value = columnIndex + 1;
+        while (value > 0) {
+            int remainder = (value - 1) % 26;
+            name.insert(0, (char) ('A' + remainder));
+            value = (value - 1) / 26;
+        }
+        return name.toString();
+    }
+
+    private record ValidationSourceRanges(
+            String guestCategoryFormula,
+            String departmentFormula,
+            String accommodationCategoryFormula,
+            String roomMapFormula
+    ) {
     }
 
     /**

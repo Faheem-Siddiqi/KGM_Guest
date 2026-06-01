@@ -2,10 +2,12 @@ package com.kgm.service;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -13,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,6 +68,8 @@ class ExcelSampleGeneratorTest {
             try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
                 Sheet sheet = workbook.getSheet("Valid Values");
                 assertNotNull(sheet);
+                Sheet importSheet = workbook.getSheet("Guest Import");
+                assertNotNull(importSheet);
 
                 String sheetText = sheetText(sheet);
                 assertTrue(sheetText.contains("Import Guide and Rules"));
@@ -77,10 +82,60 @@ class ExcelSampleGeneratorTest {
                 assertTrue(sheetText.contains("The importer reads the first worksheet only"));
                 assertTrue(sheetText.contains("Legacy duplicate check against existing DB records uses Guest Name + exact Arrival Date Time + exact Departure Date Time + Guest Category"));
                 assertTrue(sheetText.contains("CNIC / Passport does not need to be unique for legacy imports"));
+
+                assertTrue(hasValidationForHeader(importSheet, "CNIC / Passport"));
+                assertTrue(hasValidationForHeader(importSheet, "Guest Category"));
+                assertTrue(hasValidationForHeader(importSheet, "Visit Type"));
+                assertTrue(hasValidationForHeader(importSheet, "Requested Department"));
+                assertTrue(hasValidationForHeader(importSheet, "Arrival Date Time"));
+                assertTrue(hasValidationForHeader(importSheet, "Departure Date Time"));
+                assertTrue(hasValidationForHeader(importSheet, "Accommodation Category"));
+                assertTrue(hasValidationForHeader(importSheet, "Room"));
+
+                assertStrictDropdown(importSheet, "Guest Category");
+                assertStrictDropdown(importSheet, "Visit Type");
+                assertStrictDropdown(importSheet, "Accommodation Category");
+                assertStrictDropdown(importSheet, "Room");
+
+                DataValidation departmentValidation = validationForHeader(importSheet, "Requested Department");
+                assertNotNull(departmentValidation);
+                assertExcelInCellDropdownEnabled(departmentValidation);
+                assertFalse(departmentValidation.getShowErrorBox());
             }
         } finally {
             Files.deleteIfExists(file);
         }
+    }
+
+    private static void assertStrictDropdown(Sheet sheet, String header) {
+        DataValidation validation = validationForHeader(sheet, header);
+        assertNotNull(validation);
+        assertExcelInCellDropdownEnabled(validation);
+        assertTrue(validation.getShowErrorBox());
+    }
+
+    private static void assertExcelInCellDropdownEnabled(DataValidation validation) {
+        assertTrue(validation.getSuppressDropDownArrow());
+    }
+
+    private static boolean hasValidationForHeader(Sheet sheet, String header) {
+        return validationForHeader(sheet, header) != null;
+    }
+
+    private static DataValidation validationForHeader(Sheet sheet, String header) {
+        int column = ExcelSampleGenerator.templateHeaders().indexOf(header);
+        if (column < 0) {
+            return null;
+        }
+
+        for (DataValidation validation : sheet.getDataValidations()) {
+            for (CellRangeAddress range : validation.getRegions().getCellRangeAddresses()) {
+                if (range.getFirstColumn() <= column && range.getLastColumn() >= column) {
+                    return validation;
+                }
+            }
+        }
+        return null;
     }
 
     private static String sheetText(Sheet sheet) {

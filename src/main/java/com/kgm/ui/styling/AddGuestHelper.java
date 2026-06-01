@@ -17,6 +17,8 @@ public final class AddGuestHelper {
     private static final int CONTENT_WIDTH = 860;
     private static final int FIELD_WIDTH = 300;
     private static final int FIELD_MIN_WIDTH = 220;
+    private static final int PAGE_SECTION_GAP = 18;
+    private static final int HEADER_TO_BREADCRUMB_GAP = 8;
     private static final Color DROPDOWN_BACKGROUND = new Color(247, 250, 255);
     private static final Color DROPDOWN_SELECTION = HomeViewHelper.ROW_SELECTION;
     private static final String REQUIRED_MARKER_COLOR = "#d92d20";
@@ -68,10 +70,20 @@ public final class AddGuestHelper {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
         gbc.gridy = y;
-        gbc.insets = new Insets(0, 0, 18, 0);
+        gbc.insets = new Insets(0, 0, PAGE_SECTION_GAP, 0);
         gbc.fill = GridBagConstraints.NONE;
         gbc.anchor = GridBagConstraints.NORTH;
         gbc.weightx = 0.0;
+        return gbc;
+    }
+
+    public static GridBagConstraints headerPageConstraints(int y) {
+        GridBagConstraints gbc = pageConstraints(y);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        if (y == 0) {
+            gbc.insets = new Insets(0, 0, HEADER_TO_BREADCRUMB_GAP, 0);
+        }
         return gbc;
     }
 

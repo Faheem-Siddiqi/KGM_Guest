@@ -50,7 +50,7 @@ public class AccommodationManagementPanel extends JPanel {
             accommodationTablePanel.setCategories(categories);
         });
 
-        GridBagConstraints headerGbc = AccommodationManagementHelper.pageConstraints(0);
+        GridBagConstraints headerGbc = AccommodationManagementHelper.headerPageConstraints(0);
         page.add(AccommodationManagementHelper.screenHeader(onBack), headerGbc);
 
         GridBagConstraints breadcrumbGbc = AccommodationManagementHelper.pageConstraints(1);

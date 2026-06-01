@@ -4,14 +4,28 @@ Java 21 Swing desktop application for guest registration, room allotment, accomm
 
 ## Requirements
 
-Install these tools before running the app:
+Install these tools before running or packaging the app:
 
 | Requirement | Version | Notes |
 | --- | --- | --- |
-| JDK | 21 | The Maven compiler uses Java release `21`. |
-| Maven | 3.9 or newer | Used to download dependencies, compile, and run tests. |
+| Git | 2.x or newer | Required to clone the project and used by `update-exe.ps1` for `git pull`. |
+| JDK | 21 | Required. The Maven compiler uses Java release `21`, and `jpackage` comes from this JDK. |
+| Maven | 3.9 or newer | Required. Used to download dependencies, compile, test, and create the shaded jar. |
 | MySQL Server | 8.0 or newer | The app creates and migrates the `kgm_guest` schema on startup. |
-| Desktop OS | Windows 10/11, macOS, or Linux desktop | Required because this is a Swing UI application. |
+| PowerShell | Windows PowerShell 5.1 or newer | Required for `build-exe.ps1` and `update-exe.ps1`. |
+| WiX Toolset | 3.x or 4.x | Optional for the current app-image flow. The scripts detect it and warn if missing; it is only needed for MSI installer packaging. |
+| Desktop OS | Windows 10/11 for exe packaging; macOS/Linux can run from source | Required because this is a Swing UI application. |
+
+Useful version commands:
+
+```powershell
+git --version
+java --version
+mvn --version
+jpackage --version
+candle -?      # WiX 3.x, if installed
+wix --version  # WiX 4.x, if installed
+```
 
 Maven downloads these libraries from `pom.xml`; do not copy jars manually:
 
@@ -34,42 +48,16 @@ Build plugins:
 
 ## First-Time Setup
 
-1. Clone the project and enter the repository.
+1. Install required tools.
+
+At minimum for Windows app packaging, install Git, JDK 21, Maven 3.9+, MySQL 8+, and PowerShell 5.1+. WiX is optional unless you later decide to create an MSI installer.
+
+2. Clone the project and enter the repository.
 
 ```powershell
 git clone <repository-url>
 cd KGM_Guest
 ```
-
-2. After fetching the project from Git, use this setup path for the Windows app package when needed.
-
-Complete the MySQL and `.env` steps below first, then run this from the project root:
-
-```powershell
-.\build-exe.ps1 -OutputDir "D:\KGM-App"
-```
-
-This creates:
-
-```text
-D:\KGM-App\
-├─ KGM.exe
-├─ app\
-├─ runtime\
-├─ images\
-├─ employees\
-├─ config\.env
-├─ logs\
-└─ backups\
-```
-
-For later updates after code changes are pulled from Git:
-
-```powershell
-.\update-exe.ps1 -OutputDir "D:\KGM-App"
-```
-
-The update command replaces only `KGM.exe`, `app\`, and `runtime\`. It keeps `config\.env`, `images\`, `employees\`, `logs\`, and `backups\` untouched.
 
 3. Install and start MySQL Server.
 
@@ -139,7 +127,45 @@ Priority order is JVM properties, OS environment variables, `.env` / `config\.en
 mvn test
 ```
 
-7. Run the application.
+7. Build the Windows app package.
+
+Run this from the project root:
+
+```powershell
+.\build-exe.ps1 -OutputDir "D:\KGM-App"
+```
+
+This creates:
+
+```text
+D:\KGM-App\
+├─ KGM.exe
+├─ app\
+├─ runtime\
+├─ images\
+├─ employees\
+├─ config\.env
+├─ logs\
+└─ backups\
+```
+
+8. Run the packaged app.
+
+```powershell
+D:\KGM-App\KGM.exe
+```
+
+9. Update an existing packaged app after code changes are pushed to Git.
+
+Close `D:\KGM-App\KGM.exe` first, then run:
+
+```powershell
+.\update-exe.ps1 -OutputDir "D:\KGM-App"
+```
+
+The update command runs `git pull`, rebuilds the jar, creates a new app image, backs up old generated files, and replaces only `KGM.exe`, `app\`, and `runtime\`. It keeps `config\.env`, `images\`, `employees\`, `logs\`, and `backups\` untouched.
+
+10. Run the application from source during development.
 
 From an IDE, run:
 
@@ -211,6 +237,13 @@ Best rule: update app files only, never user data folders.
 
 Both scripts show live progress with `Write-Progress` and percentage messages in the terminal.
 
+Dynamic tool check behavior:
+
+- `build-exe.ps1` and `update-exe.ps1` use a data-driven `$requiredTools` list inside `Check-RequiredTools`.
+- Each required command is checked with `Get-Command`, so the scripts find tools from the user's `PATH` instead of hardcoded install folders.
+- To require another tool in the future, add one entry to `$requiredTools`; the same check loop will include it automatically for first-time build and update flows.
+- WiX is checked separately because it is optional for app-image builds but useful for future installer work.
+
 Build/update behavior:
 
 - Checks Git, Maven, Java, `jpackage`, and WiX presence.
@@ -245,6 +278,8 @@ Script helper functions:
 | `Invoke-ExternalCommand` | Runs external tools with live output and a timeout so long steps do not hang forever. |
 | `Get-TerminationReason` | Explains why a process failed or was terminated, based on timeout, exit code, and captured output. |
 | `Clear-TargetFolder` | Tries to remove `target\` in a short background job and continues if it is locked. It does not stop VS Code, Java, or app processes. |
+| `Invoke-WithRetry` | Retries file/folder replacement when Windows temporarily locks generated app files. |
+| `Copy-FileWithRetry` | Replaces `KGM.exe` with retry and a clear close-the-app message if locked. |
 | `Copy-DirectoryFresh` | Replaces generated folders such as `app\` and `runtime\`. |
 | `Copy-DirectoryIfMissing` | Copies data folders only when missing, so user files are preserved. |
 | `Backup-AppFiles` | Backs up old `KGM.exe`, `app\`, and `runtime\` before replacement. |

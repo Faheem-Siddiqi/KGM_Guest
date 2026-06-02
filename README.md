@@ -46,6 +46,23 @@ Build plugins:
 | `maven-surefire-plugin` | `3.2.5` | Runs JUnit tests. |
 | `maven-shade-plugin` | `3.5.3` | Builds the runnable jar used by the Windows app package. |
 
+## After Pulling Latest Code
+
+Run these commands from the project root after `git pull`. Maven downloads all libraries from `pom.xml` automatically; do not copy jar files manually.
+
+```powershell
+git pull
+mvn package
+java -jar target\my-java-app-1.0.0.jar
+```
+
+For development, you can also run from source:
+
+```powershell
+mvn -q -DskipTests compile dependency:copy-dependencies
+java -cp "target/classes;target/dependency/*" com.kgm.Main
+```
+
 ## First-Time Setup
 
 1. Install required tools.

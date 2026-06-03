@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.ui.styling.AccommodationManagementHelper;
+import com.kgm.ui.styling.ModernScrollBarUI;
 import com.kgm.ui.styling.RoomDetailHelper;
 
 import javax.swing.*;
@@ -9,6 +10,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
@@ -28,6 +30,15 @@ public class UniversalTablePanel extends JPanel {
     // UPDATE PAGINATION 
     private static final int PAGE_SIZE = 12;
     private static final int MIN_VIEWPORT_HEIGHT = 118;
+    private static final Color TABLE_BACKGROUND = Color.WHITE;
+    private static final Color TABLE_HEADER_BACKGROUND = new Color(248, 250, 252);
+    private static final Color TABLE_TEXT = new Color(15, 23, 42);
+    private static final Color TABLE_MUTED_TEXT = new Color(71, 85, 105);
+    private static final Color TABLE_BORDER = new Color(226, 232, 240);
+    private static final Color TABLE_DIVIDER = new Color(241, 245, 249);
+    private static final Color TABLE_SELECTION = new Color(239, 246, 255);
+    private static final Font TABLE_FONT = new Font("Segoe UI", Font.PLAIN, 13);
+    private static final Font TABLE_HEADER_FONT = new Font("Segoe UI Semibold", Font.PLAIN, 12);
 
     private final JTable table;
     private final DefaultTableModel model;
@@ -74,6 +85,7 @@ public class UniversalTablePanel extends JPanel {
         content.setOpaque(false);
 
         AccommodationManagementHelper.styleTable(table);
+        applyModernTableStyle();
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.getTableHeader().addMouseWheelListener(this::forwardMouseWheel);
 
@@ -151,13 +163,11 @@ public class UniversalTablePanel extends JPanel {
                 label.setText(text);
                 label.setHorizontalAlignment(SwingConstants.CENTER);
                 label.setForeground(AccommodationManagementHelper.PRIMARY);
-                label.setBackground(isSelected ? AccommodationManagementHelper.ROW_SELECTION : Color.WHITE);
+                label.setBackground(cellBackground(isSelected));
                 label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
                 label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                label.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
-                        BorderFactory.createEmptyBorder(0, 14, 0, 14)
-                ));
+                label.setBorder(tableCellBorder(0, 14, 0, 14));
+                label.setOpaque(true);
                 return label;
             }
         };
@@ -177,10 +187,11 @@ public class UniversalTablePanel extends JPanel {
             ) {
                 JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
                 label.setHorizontalAlignment(alignment);
-                label.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
-                        BorderFactory.createEmptyBorder(0, 14, 0, 14)
-                ));
+                label.setBackground(cellBackground(isSelected));
+                label.setForeground(TABLE_TEXT);
+                label.setFont(TABLE_FONT);
+                label.setBorder(tableCellBorder(0, 14, 0, 14));
+                label.setOpaque(true);
                 return label;
             }
         };
@@ -217,6 +228,9 @@ public class UniversalTablePanel extends JPanel {
                 JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
                 String text = value == null ? "" : String.valueOf(value);
                 RoomDetailHelper.styleTableLink(label, table, isSelected, row == hoveredLinkRow, text);
+                label.setBackground(cellBackground(isSelected));
+                label.setBorder(tableCellBorder(0, 16, 0, 14));
+                label.setOpaque(true);
                 return label;
             }
         };
@@ -280,12 +294,9 @@ public class UniversalTablePanel extends JPanel {
                     }
                 }
                 
-                panel.setBackground(isSelected ? AccommodationManagementHelper.ROW_SELECTION : Color.WHITE);
+                panel.setBackground(cellBackground(isSelected));
                 // Top margin set to 12px for vertical centering with visual balance
-                panel.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
-                        BorderFactory.createEmptyBorder(12, 16, 0, 14) // Top: 12px, Left: 16px, Bottom: 0, Right: 14px
-                ));
+                panel.setBorder(tableCellBorder(12, 16, 0, 14));
                 return panel;
             }
         };
@@ -421,7 +432,7 @@ public class UniversalTablePanel extends JPanel {
 
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBorder(new RoundedTableBorder());
-        scrollPane.getViewport().setBackground(Color.WHITE);
+        scrollPane.getViewport().setBackground(TABLE_BACKGROUND);
         scrollPane.getViewport().setBorder(null);
         scrollPane.setWheelScrollingEnabled(false);
         scrollPane.addMouseWheelListener(this::forwardMouseWheel);
@@ -434,6 +445,7 @@ public class UniversalTablePanel extends JPanel {
         scrollPane.setPreferredSize(table.getPreferredScrollableViewportSize());
         scrollPane.getHorizontalScrollBar().setUnitIncrement(16);
         scrollPane.getHorizontalScrollBar().setBlockIncrement(96);
+        ModernScrollBarUI.applyHorizontal(scrollPane);
 
         container.add(scrollPane, BorderLayout.CENTER);
         if (paginationEnabled) {
@@ -543,7 +555,7 @@ public class UniversalTablePanel extends JPanel {
         if (hugRows) {
             int headerHeight = table.getTableHeader().getPreferredSize().height;
             int horizontalScrollbarHeight = preferredTableWidth() > availableTableWidth()
-                    ? UIManager.getInt("ScrollBar.width")
+                    ? ModernScrollBarUI.THICKNESS
                     : 0;
             int contentHeight = headerHeight + table.getRowHeight() * Math.max(1, model.getRowCount()) + horizontalScrollbarHeight;
             int height = Math.max(MIN_VIEWPORT_HEIGHT, contentHeight);
@@ -692,6 +704,74 @@ public class UniversalTablePanel extends JPanel {
         button.setBorderPainted(false);
     }
 
+    private void applyModernTableStyle() {
+        table.setBackground(TABLE_BACKGROUND);
+        table.setFont(TABLE_FONT);
+        table.setSelectionBackground(TABLE_SELECTION);
+        table.setSelectionForeground(TABLE_TEXT);
+        table.setGridColor(TABLE_DIVIDER);
+
+        JTableHeader header = table.getTableHeader();
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 40));
+        header.setFont(TABLE_HEADER_FONT);
+        header.setForeground(TABLE_MUTED_TEXT);
+        header.setBackground(TABLE_HEADER_BACKGROUND);
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, TABLE_BORDER));
+        header.setDefaultRenderer(new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                label.setHorizontalAlignment(SwingConstants.CENTER);
+                label.setBackground(TABLE_HEADER_BACKGROUND);
+                label.setForeground(TABLE_MUTED_TEXT);
+                label.setFont(TABLE_HEADER_FONT);
+                label.setBorder(new CompoundBorder(
+                        BorderFactory.createMatteBorder(0, 0, 1, 0, TABLE_BORDER),
+                        new EmptyBorder(0, 16, 0, 14)
+                ));
+                label.setOpaque(true);
+                return label;
+            }
+        });
+
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+                label.setHorizontalAlignment(SwingConstants.LEFT);
+                label.setBackground(cellBackground(isSelected));
+                label.setForeground(TABLE_TEXT);
+                label.setFont(TABLE_FONT);
+                label.setBorder(tableCellBorder(0, 16, 0, 14));
+                label.setOpaque(true);
+                return label;
+            }
+        });
+    }
+
+    private static Color cellBackground(boolean selected) {
+        return selected ? TABLE_SELECTION : TABLE_BACKGROUND;
+    }
+
+    private static CompoundBorder tableCellBorder(int top, int left, int bottom, int right) {
+        return new CompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, TABLE_DIVIDER),
+                new EmptyBorder(top, left, bottom, right)
+        );
+    }
+
     private Color statusColor(String status) {
         if (status.equalsIgnoreCase("Currently Staying")) {
             return new Color(38, 128, 64);
@@ -709,8 +789,8 @@ public class UniversalTablePanel extends JPanel {
         public void paintBorder(Component component, Graphics g, int x, int y, int width, int height) {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(AccommodationManagementHelper.BORDER);
-            g2.drawRoundRect(x, y, width - 1, height - 1, 4, 4);
+            g2.setColor(TABLE_BORDER);
+            g2.drawRoundRect(x, y, width - 1, height - 1, 8, 8);
         }
 
         public Insets getBorderInsets(Component component) {
@@ -730,23 +810,20 @@ public class UniversalTablePanel extends JPanel {
                 int column
         ) {
             text = value == null ? "" : String.valueOf(value);
-            applyPlainTableStyle(table);
+            applyPlainTableStyle(table, isSelected);
             setText(text);
             setToolTipText(text.isBlank() ? null : text);
             return this;
         }
 
-        private void applyPlainTableStyle(JTable table) {
+        private void applyPlainTableStyle(JTable table, boolean selected) {
             setOpaque(true);
-            setBackground(Color.WHITE);
-            setForeground(AccommodationManagementHelper.TEXT_PRIMARY);
+            setBackground(cellBackground(selected));
+            setForeground(TABLE_TEXT);
             setFont(table.getFont().deriveFont(Font.PLAIN));
             setEnabled(table.isEnabled());
             setComponentOrientation(table.getComponentOrientation());
-            setBorder(new CompoundBorder(
-                    BorderFactory.createMatteBorder(0, 0, 1, 1, new Color(232, 236, 240)),
-                    new EmptyBorder(0, 16, 0, 14)
-            ));
+            setBorder(tableCellBorder(0, 16, 0, 14));
             setHorizontalAlignment(SwingConstants.LEFT);
             setVerticalAlignment(SwingConstants.CENTER);
         }

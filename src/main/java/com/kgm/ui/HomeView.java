@@ -25,6 +25,7 @@ import com.kgm.ui.panel.RoomDetailPagePanel;
 import com.kgm.ui.panel.UniversalGraphPanel;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
+import com.kgm.ui.styling.ModernScrollBarUI;
 import com.kgm.ui.util.FileDialogHandler;
 
 import javax.swing.*;
@@ -1077,6 +1078,7 @@ public class HomeView extends JFrame {
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.getHorizontalScrollBar().setUnitIncrement(16);
         scroll.getHorizontalScrollBar().setBlockIncrement(96);
+        ModernScrollBarUI.applyHorizontal(scroll);
         scroll.addMouseWheelListener(event -> forwardGraphMouseWheel(event, scroll));
         scroll.getViewport().addMouseWheelListener(event -> forwardGraphMouseWheel(event, scroll));
         installGraphWheelForwarding(graph, scroll);

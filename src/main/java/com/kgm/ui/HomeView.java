@@ -219,7 +219,7 @@ public class HomeView extends JFrame {
         new SwingWorker<DashboardData, Void>() {
             @Override
             protected DashboardData doInBackground() throws Exception {
-                List<DashboardDao.CategoryKpiStats> categoryStats = dashboardDao.loadCategoryKpiStats(true);
+                List<DashboardDao.CategoryKpiStats> categoryStats = dashboardDao.loadCategoryKpiStats(false);
                 String[] categories = visibleHouseCapacityCategories(dashboardDao.loadAccommodationCategories());
                 DashboardDao.OccupancyChartData occupancyData = loadHouseCapacityOccupancyChart(
                         defaultOccupancyCategory(categories)
@@ -371,7 +371,7 @@ public class HomeView extends JFrame {
         );
         dashboardStatsWorker = new SwingWorker<>() {
             protected List<DashboardDao.CategoryKpiStats> doInBackground() throws Exception {
-                return dashboardDao.loadCategoryKpiStats(true);
+                return dashboardDao.loadCategoryKpiStats(false);
             }
             protected void done() {
                 try {

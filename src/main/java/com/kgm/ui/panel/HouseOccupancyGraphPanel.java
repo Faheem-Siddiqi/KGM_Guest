@@ -30,9 +30,9 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
      * Increase value = more space after tabs before graph starts.
      * Decrease value = graph starts closer to tabs.
      */
-    private static final int HEADER_LEFT = 26;
-    private static final int CATEGORY_TABS_Y = 66;
-    private static final int CATEGORY_TABS_BOTTOM_MARGIN = 32;
+    private static final int HEADER_LEFT = 24;
+    private static final int CATEGORY_TABS_Y = 62;
+    private static final int CATEGORY_TABS_BOTTOM_MARGIN = 24;
 
     private final DashboardDao dashboardDao;
     private final CategoryTabsPanel categoryTabs = new CategoryTabsPanel();
@@ -196,9 +196,9 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
          * Height of each tab row.
          * Increase only if text feels clipped or click area feels small.
          */
-        private static final int HORIZONTAL_GAP = 18;
+        private static final int HORIZONTAL_GAP = 8;
         private static final int VERTICAL_GAP = 8;
-        private static final int ROW_HEIGHT = 34;
+        private static final int ROW_HEIGHT = 32;
 
         private final List<CategoryTabButton> buttons = new ArrayList<>();
         private int rowCount = 1;
@@ -295,7 +295,7 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
              * Controls space below tab text and underline.
              */
             setMargin(new Insets(0, 0, 0, 0));
-            setBorder(BorderFactory.createEmptyBorder(8, 4, 10, 10));
+            setBorder(BorderFactory.createEmptyBorder(7, 12, 8, 12));
         }
 
         private boolean hasValue(String otherValue) {
@@ -310,35 +310,24 @@ public class HouseOccupancyGraphPanel extends UniversalGraphPanel {
 
         @Override
         protected void paintComponent(Graphics graphics) {
-            super.paintComponent(graphics);
-
-            if (!active) {
-                return;
-            }
-
             Graphics2D g2 = (Graphics2D) graphics.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            FontMetrics metrics = g2.getFontMetrics(getFont());
-
-            int underlineWidth = Math.max(
-                    24,
-                    Math.min(getWidth() - 14, metrics.stringWidth(getText()) + 8)
-            );
-
-            int underlineX = (getWidth() - underlineWidth) / 2;
-
-            g2.setColor(HomeViewHelper.PRIMARY);
+            g2.setColor(active ? new Color(239, 246, 255) : Color.WHITE);
             g2.fillRoundRect(
-                    underlineX,
-                    getHeight() - 5,
-                    underlineWidth,
-                    3,
-                    3,
-                    3
+                    0,
+                    0,
+                    getWidth() - 1,
+                    getHeight() - 1,
+                    8,
+                    8
             );
 
+            g2.setColor(active ? new Color(191, 219, 254) : new Color(226, 232, 240));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
             g2.dispose();
+
+            super.paintComponent(graphics);
         }
     }
 }

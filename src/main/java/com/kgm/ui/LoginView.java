@@ -27,7 +27,7 @@ private static final String LOGIN_IMAGE_CREDIT = "Made with ♥ by Faheem Siddiq
     private static final int BUTTON_HEIGHT = 44;
     private static final int LOGO_MARGIN = 24;
     // Change this width if the login logo needs to be resized later.
-    private static final int LOGO_WIDTH = 70;
+    private static final int LOGO_WIDTH = 50;
     private static final Color PAGE_BACKGROUND = Color.WHITE;
     private static final Color TEXT_PRIMARY = HomeViewHelper.TEXT_PRIMARY;
   private static final Color HEADING_GREY = HomeViewHelper.TEXT_PRIMARY;

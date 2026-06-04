@@ -14,6 +14,14 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.Date;
 
 public class ReportPeriodDialog extends JDialog {
+    private static final Color BACKGROUND = new Color(248, 250, 252);
+    private static final Color CARD_BACKGROUND = Color.WHITE;
+    private static final Color SELECTED_SURFACE = new Color(239, 246, 255);
+    private static final Color SELECTED_BORDER = new Color(147, 197, 253);
+    private static final Color BORDER = new Color(226, 232, 240);
+    private static final Color SUBTLE_TEXT = new Color(100, 116, 139);
+    private static final int RADIUS = 10;
+
     private final JToggleButton weeklyButton = periodButton("Weekly");
     private final JToggleButton monthlyButton = periodButton("Monthly");
     private final JToggleButton fortnightButton = periodButton("Fortnight");
@@ -31,7 +39,7 @@ public class ReportPeriodDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setContentPane(content());
         pack();
-        setMinimumSize(new Dimension(620, 500));
+        setMinimumSize(new Dimension(660, 560));
         setResizable(true);
         setLocationRelativeTo(owner);
         weeklyButton.setSelected(true);
@@ -50,7 +58,8 @@ public class ReportPeriodDialog extends JDialog {
 
     private JPanel content() {
         JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(Color.WHITE);
+        root.setBackground(BACKGROUND);
+        root.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         root.add(dialogHeader(), BorderLayout.NORTH);
         root.add(dialogBody(), BorderLayout.CENTER);
         root.add(dialogFooter(), BorderLayout.SOUTH);
@@ -59,31 +68,38 @@ public class ReportPeriodDialog extends JDialog {
 
     private JPanel dialogHeader() {
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(HomeViewHelper.PRIMARY);
-        header.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
+        header.setBackground(CARD_BACKGROUND);
+        header.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER),
+                BorderFactory.createEmptyBorder(20, 24, 18, 24)
+        ));
 
-        JPanel text = new JPanel();
+        JPanel text = new JPanel(new BorderLayout());
         text.setOpaque(false);
-        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+
+        JPanel copy = new JPanel();
+        copy.setOpaque(false);
+        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
         JLabel title = new JLabel("Download Guest Report");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        title.setForeground(Color.WHITE);
+        title.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 20));
+        title.setForeground(HomeViewHelper.TEXT_PRIMARY);
         JLabel subtitle = new JLabel("Select a report period and export PDF, Excel, or both.");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        subtitle.setForeground(new Color(226, 239, 249));
-        text.add(title);
-        text.add(Box.createVerticalStrut(4));
-        text.add(subtitle);
+        subtitle.setForeground(SUBTLE_TEXT);
+        copy.add(title);
+        copy.add(Box.createVerticalStrut(4));
+        copy.add(subtitle);
 
+        text.add(copy, BorderLayout.CENTER);
         header.add(text, BorderLayout.WEST);
         return header;
     }
 
     private JComponent dialogBody() {
         JPanel body = new JPanel();
-        body.setBackground(new Color(247, 249, 251));
+        body.setBackground(BACKGROUND);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBorder(BorderFactory.createEmptyBorder(20, 22, 18, 22));
+        body.setBorder(BorderFactory.createEmptyBorder(20, 24, 18, 24));
 
         body.add(sectionCard("Report Period", periodPanel()));
         body.add(Box.createVerticalStrut(14));
@@ -91,24 +107,21 @@ public class ReportPeriodDialog extends JDialog {
 
         JScrollPane scroll = new JScrollPane(body);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(new Color(247, 249, 251));
+        scroll.getViewport().setBackground(BACKGROUND);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         return scroll;
     }
 
     private JPanel sectionCard(String title, JComponent content) {
-        JPanel card = new JPanel(new BorderLayout(0, 10));
-        card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(HomeViewHelper.BORDER),
-                BorderFactory.createEmptyBorder(14, 16, 16, 16)
-        ));
+        JPanel card = new RoundedPanel(CARD_BACKGROUND, BORDER, RADIUS);
+        card.setLayout(new BorderLayout(0, 12));
+        card.setBorder(BorderFactory.createEmptyBorder(16, 18, 18, 18));
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         JLabel label = fieldLabel(title);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
         card.add(label, BorderLayout.NORTH);
         card.add(content, BorderLayout.CENTER);
         return card;
@@ -131,7 +144,7 @@ public class ReportPeriodDialog extends JDialog {
         group.add(fortnightButton);
         group.add(customButton);
 
-        JPanel options = new JPanel(new GridLayout(2, 2, 10, 10));
+        JPanel options = new JPanel(new GridLayout(2, 2, 12, 12));
         options.setOpaque(false);
         options.setAlignmentX(Component.LEFT_ALIGNMENT);
         options.add(weeklyButton);
@@ -172,21 +185,21 @@ public class ReportPeriodDialog extends JDialog {
     }
 
     private JPanel formatCard(JCheckBox checkBox, String description) {
-        JPanel card = new JPanel(new BorderLayout(8, 2));
-        card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(HomeViewHelper.BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)
-        ));
+        JPanel card = new RoundedPanel(CARD_BACKGROUND, BORDER, RADIUS);
+        card.setLayout(new BorderLayout(8, 4));
+        card.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.add(checkBox, BorderLayout.NORTH);
 
         JLabel help = new JLabel(description);
         help.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        help.setForeground(HomeViewHelper.TEXT_SECONDARY);
+        help.setForeground(SUBTLE_TEXT);
         card.add(help, BorderLayout.CENTER);
         card.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (event.getSource() == checkBox) {
+                    return;
+                }
                 checkBox.setSelected(!checkBox.isSelected());
                 updateGenerateButtonState();
             }
@@ -215,31 +228,40 @@ public class ReportPeriodDialog extends JDialog {
         field.setLayout(new BoxLayout(field, BoxLayout.Y_AXIS));
         JLabel label = fieldLabel(labelText);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        picker.setPreferredSize(new Dimension(230, 34));
-        picker.setMinimumSize(new Dimension(210, 34));
-        picker.setMaximumSize(new Dimension(230, 34));
+        picker.setPreferredSize(new Dimension(240, 38));
+        picker.setMinimumSize(new Dimension(210, 38));
+        picker.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         picker.setAlignmentX(Component.LEFT_ALIGNMENT);
         field.add(label);
-        field.add(Box.createVerticalStrut(6));
+        field.add(Box.createVerticalStrut(7));
         field.add(picker);
         return field;
     }
 
     private JPanel dialogFooter() {
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        footer.setBackground(new Color(247, 249, 251));
-        footer.setBorder(BorderFactory.createEmptyBorder(14, 22, 14, 22));
+        footer.setBackground(CARD_BACKGROUND);
+        footer.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER),
+                BorderFactory.createEmptyBorder(14, 24, 14, 24)
+        ));
 
         JButton cancel = secondaryButton("Cancel");
         cancel.addActionListener(event -> dispose());
         generateButton.addActionListener(event -> selectRange());
         footer.add(cancel);
         footer.add(generateButton);
+        getRootPane().setDefaultButton(generateButton);
         return footer;
     }
 
     private void updateCustomFields() {
         boolean custom = customButton.isSelected();
+        GuestReportService.ReportRange presetRange = selectedPresetRange();
+        if (presetRange != null) {
+            startDate.setDate(date(presetRange.startDate()));
+            endDate.setDate(date(presetRange.endDate()));
+        }
         startDate.setEnabled(custom);
         endDate.setEnabled(custom);
         refreshPeriodButtonStyles();
@@ -255,22 +277,9 @@ public class ReportPeriodDialog extends JDialog {
             );
             return;
         }
-        LocalDate today = LocalDate.now();
-        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        if (weeklyButton.isSelected()) {
-            selectedRange = new GuestReportService.ReportRange(
-                    "Weekly",
-                    weekStart,
-                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
-            );
-        } else if (monthlyButton.isSelected()) {
-            selectedRange = new GuestReportService.ReportRange(
-                    "Monthly",
-                    today.withDayOfMonth(1),
-                    today.with(TemporalAdjusters.lastDayOfMonth())
-            );
-        } else if (fortnightButton.isSelected()) {
-            selectedRange = new GuestReportService.ReportRange("Fortnight", weekStart, weekStart.plusDays(13));
+        GuestReportService.ReportRange presetRange = selectedPresetRange();
+        if (presetRange != null) {
+            selectedRange = presetRange;
         } else {
             LocalDate start = inputDate(startDate);
             LocalDate end = inputDate(endDate);
@@ -293,6 +302,29 @@ public class ReportPeriodDialog extends JDialog {
                 null
         );
         dispose();
+    }
+
+    private GuestReportService.ReportRange selectedPresetRange() {
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        if (weeklyButton.isSelected()) {
+            return new GuestReportService.ReportRange(
+                    "Weekly",
+                    weekStart,
+                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+            );
+        }
+        if (monthlyButton.isSelected()) {
+            return new GuestReportService.ReportRange(
+                    "Monthly",
+                    today.withDayOfMonth(1),
+                    today.with(TemporalAdjusters.lastDayOfMonth())
+            );
+        }
+        if (fortnightButton.isSelected()) {
+            return new GuestReportService.ReportRange("Fortnight", weekStart, weekStart.plusDays(13));
+        }
+        return null;
     }
 
     private void updateGenerateButtonState() {
@@ -323,7 +355,7 @@ public class ReportPeriodDialog extends JDialog {
     private static JLabel fieldLabel(String text) {
         JLabel label = new JLabel(text);
         label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        label.setForeground(new Color(70, 82, 96));
+        label.setForeground(HomeViewHelper.TEXT_PRIMARY);
         return label;
     }
 
@@ -336,59 +368,143 @@ public class ReportPeriodDialog extends JDialog {
 
     private static void stylePeriodButton(JToggleButton button) {
         boolean selected = button.isSelected();
-        button.setBackground(selected ? new Color(232, 245, 240) : Color.WHITE);
         button.setForeground(selected ? HomeViewHelper.PRIMARY : HomeViewHelper.TEXT_PRIMARY);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(selected ? HomeViewHelper.PRIMARY : HomeViewHelper.BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)
-        ));
+        button.repaint();
     }
 
     private static void styleFormatCard(JPanel card, boolean selected) {
-        card.setBackground(selected ? new Color(232, 245, 240) : Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(selected ? HomeViewHelper.PRIMARY : HomeViewHelper.BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)
-        ));
+        card.putClientProperty("selected", selected);
+        card.repaint();
     }
 
     private static JToggleButton periodButton(String text) {
-        JToggleButton button = new JToggleButton(text);
+        JToggleButton button = new PeriodToggleButton(text);
         button.setPreferredSize(new Dimension(210, 58));
         button.setFocusPainted(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
         button.setForeground(HomeViewHelper.TEXT_PRIMARY);
-        button.setBackground(Color.WHITE);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(HomeViewHelper.BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)
-        ));
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setOpaque(false);
+        button.setHorizontalAlignment(SwingConstants.LEFT);
+        button.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
         return button;
     }
 
     private static JButton primaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setPreferredSize(new Dimension(148, 34));
-        button.setBackground(HomeViewHelper.PRIMARY);
+        JButton button = new RoundedButton(text, HomeViewHelper.PRIMARY, HomeViewHelper.PRIMARY_DARK, Color.WHITE);
+        button.setPreferredSize(new Dimension(158, 38));
         button.setForeground(Color.WHITE);
         button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         button.setFocusPainted(false);
         button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return button;
     }
 
     private static JButton secondaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setPreferredSize(new Dimension(94, 34));
-        button.setBackground(Color.WHITE);
+        JButton button = new RoundedButton(text, Color.WHITE, BORDER, HomeViewHelper.TEXT_SECONDARY);
+        button.setPreferredSize(new Dimension(96, 38));
         button.setForeground(HomeViewHelper.TEXT_SECONDARY);
         button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         button.setFocusPainted(false);
-        button.setBorder(BorderFactory.createLineBorder(HomeViewHelper.BORDER));
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return button;
+    }
+
+    private static class RoundedPanel extends JPanel {
+        private final Color background;
+        private final Color border;
+        private final int radius;
+
+        private RoundedPanel(Color background, Color border, int radius) {
+            this.background = background;
+            this.border = border;
+            this.radius = radius;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean selected = Boolean.TRUE.equals(getClientProperty("selected"));
+            Color fill = selected ? SELECTED_SURFACE : background;
+            Color stroke = selected ? SELECTED_BORDER : border;
+
+            g2.setColor(new Color(15, 23, 42, selected ? 10 : 6));
+            g2.fillRoundRect(1, 2, getWidth() - 3, getHeight() - 4, radius, radius);
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 3, radius, radius);
+            g2.setColor(stroke);
+            g2.drawRoundRect(0, 0, getWidth() - 2, getHeight() - 3, radius, radius);
+
+            if (selected) {
+                g2.setColor(HomeViewHelper.PRIMARY);
+                g2.fillRoundRect(0, 0, 4, getHeight() - 3, 4, 4);
+            }
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
+    }
+
+    private static class PeriodToggleButton extends JToggleButton {
+        private PeriodToggleButton(String text) {
+            super(text);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean selected = isSelected();
+            g2.setColor(selected ? SELECTED_SURFACE : Color.WHITE);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, RADIUS, RADIUS);
+            g2.setColor(selected ? SELECTED_BORDER : BORDER);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, RADIUS, RADIUS);
+
+            if (selected) {
+                g2.setColor(HomeViewHelper.PRIMARY);
+                g2.fillRoundRect(0, 0, 4, getHeight(), 4, 4);
+            }
+
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
+    }
+
+    private static class RoundedButton extends JButton {
+        private final Color fill;
+        private final Color stroke;
+        private final Color text;
+
+        private RoundedButton(String label, Color fill, Color stroke, Color text) {
+            super(label);
+            this.fill = fill;
+            this.stroke = stroke;
+            this.text = text;
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g2.setColor(stroke);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g2.dispose();
+            setForeground(text);
+            super.paintComponent(graphics);
+        }
     }
 
     private static Date date(LocalDate date) {

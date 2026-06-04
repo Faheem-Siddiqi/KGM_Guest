@@ -148,10 +148,10 @@ public class GuestRecordPanel extends JPanel {
     }
 
     private JLabel reportLabel() {
-        JLabel label = new JLabel("Download Report");
-        label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        JLabel label = new ReportActionLabel("Download Report");
+        label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
         label.setForeground(HomeViewHelper.PRIMARY);
-        label.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
+        label.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         label.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent event) {
@@ -160,13 +160,45 @@ public class GuestRecordPanel extends JPanel {
 
             public void mouseEntered(MouseEvent event) {
                 label.setForeground(HomeViewHelper.PRIMARY_DARK);
+                if (label instanceof ReportActionLabel actionLabel) {
+                    actionLabel.setHovered(true);
+                }
             }
 
             public void mouseExited(MouseEvent event) {
                 label.setForeground(HomeViewHelper.PRIMARY);
+                if (label instanceof ReportActionLabel actionLabel) {
+                    actionLabel.setHovered(false);
+                }
             }
         });
         return label;
+    }
+
+    private static class ReportActionLabel extends JLabel {
+        private boolean hovered;
+
+        private ReportActionLabel(String text) {
+            super(text);
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(hovered ? new Color(219, 234, 254) : new Color(239, 246, 255));
+            g2.fillRoundRect(0, 1, getWidth() - 1, getHeight() - 2, 8, 8);
+            g2.setColor(hovered ? new Color(147, 197, 253) : new Color(191, 219, 254));
+            g2.drawRoundRect(0, 1, getWidth() - 1, getHeight() - 2, 8, 8);
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
+
+        private void setHovered(boolean hovered) {
+            this.hovered = hovered;
+            repaint();
+        }
     }
 
     public void refreshFromDatabaseAsync(boolean showSuccess) {

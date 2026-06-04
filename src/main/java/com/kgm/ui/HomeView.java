@@ -45,7 +45,8 @@ public class HomeView extends JFrame {
     private static final int ADD_GUEST_TAB = 1;
     private static final int KPI_BOTTOM_MARGIN = 18;
     private static final int DASHBOARD_REFRESH_DELAY_MS = 5000;
-    private static final int GRAPH_SCROLL_HEIGHT = 430;
+    private static final int GRAPH_SCROLL_HEIGHT = 410;
+    private static final int GRAPH_CARD_RADIUS = 8;
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
     private static final String ACCOMMODATION_LIST_SCREEN = "accommodationList";
@@ -264,32 +265,39 @@ public class HomeView extends JFrame {
     }
     
     private JPanel createPlaceholderGraphPanel() {
-        JPanel placeholder = new JPanel(new BorderLayout());
-        placeholder.setOpaque(false);
-        placeholder.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
-        placeholder.putClientProperty("placeholder_graph", true);
-        JLabel loadingLabel = new JLabel("Loading graphs...", SwingConstants.CENTER);
-        loadingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        loadingLabel.setForeground(HomeViewHelper.TEXT_SECONDARY);
-        placeholder.add(loadingLabel, BorderLayout.CENTER);
-        return placeholder;
+        JPanel graphs = graphCardsRow();
+        graphs.putClientProperty("placeholder_graph", true);
+        graphs.add(placeholderGraphCard());
+        graphs.add(placeholderGraphCard());
+        return graphs;
     }
     
     private JPanel createGraphPanelWithData(DashboardDao.OccupancyChartData occupancyData, 
                                             String[] categories, 
                                             DashboardDao.DepartmentChartData departmentData) {
-        JPanel graphs = new JPanel();
-        graphs.setLayout(new BoxLayout(graphs, BoxLayout.Y_AXIS));
-        graphs.setOpaque(false);
-        graphs.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT * 2 + 16));
-        JComponent houseGraph = graphScroll(new HouseOccupancyGraphPanel(houseCapacityDashboardDao, occupancyData, categories));
-        JComponent departmentGraph = graphScroll(new DepartmentAnalysisGraphPanel(departmentData));
-        houseGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
-        departmentGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel graphs = graphCardsRow();
+        JComponent houseGraph = graphCard(new HouseOccupancyGraphPanel(houseCapacityDashboardDao, occupancyData, categories));
+        JComponent departmentGraph = graphCard(new DepartmentAnalysisGraphPanel(departmentData));
         graphs.add(houseGraph);
-        graphs.add(Box.createVerticalStrut(16));
         graphs.add(departmentGraph);
         return graphs;
+    }
+
+    private JPanel graphCardsRow() {
+        JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 0));
+        graphs.setOpaque(false);
+        graphs.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
+        graphs.setMinimumSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
+        return graphs;
+    }
+
+    private JComponent placeholderGraphCard() {
+        JPanel card = graphCardShell();
+        JLabel loadingLabel = new JLabel("Loading graphs...", SwingConstants.CENTER);
+        loadingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        loadingLabel.setForeground(HomeViewHelper.TEXT_SECONDARY);
+        card.add(loadingLabel, BorderLayout.CENTER);
+        return card;
     }
     
     // Data container for async loading
@@ -481,22 +489,12 @@ public class HomeView extends JFrame {
         guestRecordPanel.reset();
     }
     private JPanel createGraphPanel() {
-        JPanel graphs = new JPanel();
-        graphs.setLayout(new BoxLayout(graphs, BoxLayout.Y_AXIS));
-        graphs.setOpaque(false);
         String[] accommodationCategories = loadAccommodationCategories();
-        JComponent houseGraph = graphScroll(new HouseOccupancyGraphPanel(
-                houseCapacityDashboardDao,
+        return createGraphPanelWithData(
                 loadOccupancyChart(defaultOccupancyCategory(accommodationCategories)),
-                accommodationCategories
-        ));
-        JComponent departmentGraph = graphScroll(new DepartmentAnalysisGraphPanel(loadDepartmentChart()));
-        houseGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
-        departmentGraph.setAlignmentX(Component.LEFT_ALIGNMENT);
-        graphs.add(houseGraph);
-        graphs.add(Box.createVerticalStrut(16));
-        graphs.add(departmentGraph);
-        return graphs;
+                accommodationCategories,
+                loadDepartmentChart()
+        );
     }
     private JPanel createImportActionsRow() {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
@@ -1066,19 +1064,33 @@ public class HomeView extends JFrame {
             );
         }
     }
-    private JComponent graphScroll(UniversalGraphPanel graph) {
+    private JComponent graphCard(UniversalGraphPanel graph) {
+        JPanel card = graphCardShell();
+        card.add(graphScroll(graph), BorderLayout.CENTER);
+        return card;
+    }
+    private JPanel graphCardShell() {
+        JPanel card = new GraphCardPanel();
+        card.setLayout(new BorderLayout());
+        card.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
+        card.setMinimumSize(new Dimension(280, GRAPH_SCROLL_HEIGHT));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, GRAPH_SCROLL_HEIGHT));
+        return card;
+    }
+    private JScrollPane graphScroll(UniversalGraphPanel graph) {
         JScrollPane scroll = new JScrollPane(graph);
         scroll.setBorder(null);
-        scroll.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
-        scroll.setMinimumSize(new Dimension(320, GRAPH_SCROLL_HEIGHT));
-        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, GRAPH_SCROLL_HEIGHT));
-        scroll.getViewport().setBackground(Color.WHITE);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
         scroll.setWheelScrollingEnabled(false);
-        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.getVerticalScrollBar().setBlockIncrement(96);
         scroll.getHorizontalScrollBar().setUnitIncrement(16);
         scroll.getHorizontalScrollBar().setBlockIncrement(96);
         ModernScrollBarUI.applyHorizontal(scroll);
+        ModernScrollBarUI.applyTo(scroll.getVerticalScrollBar());
         scroll.addMouseWheelListener(event -> forwardGraphMouseWheel(event, scroll));
         scroll.getViewport().addMouseWheelListener(event -> forwardGraphMouseWheel(event, scroll));
         installGraphWheelForwarding(graph, scroll);
@@ -1094,6 +1106,9 @@ public class HomeView extends JFrame {
     }
     private void forwardGraphMouseWheel(MouseWheelEvent event, JScrollPane graphScroll) {
         if (event.isShiftDown() && scrollGraphHorizontally(event, graphScroll)) {
+            return;
+        }
+        if (!event.isShiftDown() && scrollGraphVertically(event, graphScroll)) {
             return;
         }
         JScrollPane pageScroll = findPageScrollPane(graphScroll);
@@ -1124,9 +1139,14 @@ public class HomeView extends JFrame {
         if (horizontalBar == null || !horizontalBar.isVisible()) {
             return false;
         }
-        scrollBar(horizontalBar, event);
-        event.consume();
-        return true;
+        return scrollGraphBar(horizontalBar, event);
+    }
+    private boolean scrollGraphVertically(MouseWheelEvent event, JScrollPane graphScroll) {
+        JScrollBar verticalBar = graphScroll.getVerticalScrollBar();
+        if (verticalBar == null || !verticalBar.isVisible()) {
+            return false;
+        }
+        return scrollGraphBar(verticalBar, event);
     }
     private JScrollPane findPageScrollPane(Component component) {
         Container parent = component.getParent();
@@ -1138,14 +1158,39 @@ public class HomeView extends JFrame {
         }
         return null;
     }
-    private void scrollBar(JScrollBar scrollBar, MouseWheelEvent event) {
+    private boolean scrollGraphBar(JScrollBar scrollBar, MouseWheelEvent event) {
         int direction = event.getWheelRotation() < 0 ? -1 : 1;
         int amount = event.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL
                 ? event.getUnitsToScroll() * scrollBar.getUnitIncrement(direction)
                 : event.getWheelRotation() * scrollBar.getBlockIncrement(direction);
         int max = scrollBar.getMaximum() - scrollBar.getVisibleAmount();
         int value = Math.max(scrollBar.getMinimum(), Math.min(max, scrollBar.getValue() + amount));
+        if (value == scrollBar.getValue()) {
+            return false;
+        }
         scrollBar.setValue(value);
+        event.consume();
+        return true;
+    }
+    private static class GraphCardPanel extends JPanel {
+        private GraphCardPanel() {
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(15, 23, 42, 8));
+            g2.fillRoundRect(1, 3, Math.max(0, getWidth() - 3), Math.max(0, getHeight() - 5), GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(0, 0, Math.max(0, getWidth() - 2), Math.max(0, getHeight() - 3), GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
+            g2.setColor(HomeViewHelper.BORDER);
+            g2.drawRoundRect(0, 0, Math.max(0, getWidth() - 2), Math.max(0, getHeight() - 3), GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
     }
     private DashboardDao.DashboardStats loadDashboardStats() {
         try {

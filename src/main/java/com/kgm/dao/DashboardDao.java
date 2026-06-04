@@ -14,6 +14,7 @@ import java.util.List;
 public class DashboardDao {
     private static final int MINUTES_PER_DAY = 24 * 60;
     private static final int TOP_DEPARTMENT_LIMIT = 5;
+    private static final int TOP_COMPANY_LIMIT = 5;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a");
 
     public DashboardStats loadStats() throws SQLException {
@@ -289,6 +290,63 @@ public class DashboardDao {
         return new DepartmentChartData(toStringArray(labels), toIntArray(values), totalGuestRequests);
     }
 
+    public BreakdownChartData loadVisitTypeChart() throws SQLException {
+        String sql = """
+                SELECT
+                    COALESCE(NULLIF(TRIM(g.visit_type), ''), 'Not Specified') AS visit_type_name,
+                    COUNT(g.id) AS guests
+                FROM guests g
+                GROUP BY COALESCE(NULLIF(TRIM(g.visit_type), ''), 'Not Specified')
+                ORDER BY guests DESC, visit_type_name
+                """;
+
+        List<String> labels = new ArrayList<>();
+        List<Integer> values = new ArrayList<>();
+        int totalGuestRequests;
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            totalGuestRequests = countGuestRequests(connection);
+            try (PreparedStatement statement = connection.prepareStatement(sql);
+                 ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    labels.add(labelText(resultSet.getString("visit_type_name")));
+                    values.add(resultSet.getInt("guests"));
+                }
+            }
+        }
+        return new BreakdownChartData(toStringArray(labels), toIntArray(values), totalGuestRequests);
+    }
+
+    public BreakdownChartData loadTopCompanyChart() throws SQLException {
+        String sql = """
+                SELECT
+                    TRIM(g.company_name) AS organization_name,
+                    COUNT(g.id) AS guests
+                FROM guests g
+                WHERE NULLIF(TRIM(g.company_name), '') IS NOT NULL
+                  AND UPPER(TRIM(g.company_name)) <> 'UNK'
+                GROUP BY TRIM(g.company_name)
+                ORDER BY guests DESC, organization_name
+                LIMIT ?
+                """;
+
+        List<String> labels = new ArrayList<>();
+        List<Integer> values = new ArrayList<>();
+        int totalGuestRequests;
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            totalGuestRequests = countGuestRequests(connection);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, TOP_COMPANY_LIMIT);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    while (resultSet.next()) {
+                        labels.add(labelText(resultSet.getString("organization_name")));
+                        values.add(resultSet.getInt("guests"));
+                    }
+                }
+            }
+        }
+        return new BreakdownChartData(toStringArray(labels), toIntArray(values), totalGuestRequests);
+    }
+
     private int countGuestRequests(Connection connection) throws SQLException {
         String sql = "SELECT COUNT(*) AS total_requests FROM guests";
         try (PreparedStatement statement = connection.prepareStatement(sql);
@@ -356,6 +414,29 @@ public class DashboardDao {
     public record DepartmentChartData(String[] labels, int[] guests, int totalGuestRequests) {
         public DepartmentChartData(String[] labels, int[] guests) {
             this(labels, guests, sum(guests));
+        }
+
+        private static int sum(int[] values) {
+            int total = 0;
+            if (values == null) {
+                return total;
+            }
+            for (int value : values) {
+                total += Math.max(0, value);
+            }
+            return total;
+        }
+    }
+
+    public record BreakdownChartData(String[] labels, int[] values, int totalGuestRequests) {
+        public BreakdownChartData {
+            labels = labels == null ? new String[0] : labels.clone();
+            values = values == null ? new int[0] : values.clone();
+            totalGuestRequests = Math.max(0, totalGuestRequests);
+        }
+
+        public BreakdownChartData(String[] labels, int[] values) {
+            this(labels, values, sum(values));
         }
 
         private static int sum(int[] values) {

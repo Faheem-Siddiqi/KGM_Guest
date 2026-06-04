@@ -12,6 +12,7 @@ import com.kgm.ui.dialog.ReportProgressDialog;
 import com.kgm.ui.panel.AccommodationListViewPanel;
 import com.kgm.ui.panel.AccommodationManagementPanel;
 import com.kgm.ui.panel.AccommodationRecord;
+import com.kgm.ui.panel.CompanyAnalysisGraphPanel;
 import com.kgm.ui.panel.DepartmentAnalysisGraphPanel;
 import com.kgm.ui.panel.GuestFilterPanel;
 import com.kgm.ui.panel.GuestDetailsPanel;
@@ -23,6 +24,7 @@ import com.kgm.ui.panel.HouseOccupancyGraphPanel;
 import com.kgm.ui.panel.KPICategoryPanel;
 import com.kgm.ui.panel.RoomDetailPagePanel;
 import com.kgm.ui.panel.UniversalGraphPanel;
+import com.kgm.ui.panel.VisitTypePieChartPanel;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 import com.kgm.ui.styling.ModernScrollBarUI;
@@ -76,6 +78,8 @@ public class HomeView extends JFrame {
     private JButton importExcelButton;
     private Timer dashboardStatsTimer;
     private SwingWorker<List<DashboardDao.CategoryKpiStats>, Void> dashboardStatsWorker;
+    private Integer activeChartFilterField;
+    private String activeChartFilterValue;
     public HomeView() {
         DatabaseInitializer.init();
         setTitle("Guest Management Dashboard");
@@ -171,11 +175,12 @@ public class HomeView extends JFrame {
         }
         dashboardPage.removeAll();
         
-        // Create filter panel and import actions first (no data loading needed)
+        // Create filter and header actions first (no data loading needed)
         guestFilterPanel = new GuestFilterPanel(
                 this::performSearch,
                 this::clearSearch
         );
+        importExcelButton = createExcelServicesButton();
         
         // Create placeholder KPI panel with loading state
         GridBagConstraints gbc = HomeViewHelper.pageConstraints(0);
@@ -185,21 +190,18 @@ public class HomeView extends JFrame {
         dashboardPage.add(homeKpiPanel, gbc);
         
         gbc = HomeViewHelper.pageConstraints(1);
-        dashboardPage.add(createImportActionsRow(), gbc);
-        
-        gbc = HomeViewHelper.pageConstraints(2);
         dashboardPage.add(guestFilterPanel, gbc);
         
         // Create placeholder guest record panel (will be populated asynchronously)
-        guestRecordPanel = new GuestRecordPanel(this::showGuestDetails, this::showReportDialog);
-        gbc = HomeViewHelper.pageConstraints(3);
+        guestRecordPanel = new GuestRecordPanel(this::showGuestDetails, this::showReportDialog, importExcelButton);
+        gbc = HomeViewHelper.pageConstraints(2);
         dashboardPage.add(guestRecordPanel, gbc);
         
         // Create placeholder graph panel (will be populated asynchronously)
-        gbc = HomeViewHelper.pageConstraints(4);
+        gbc = HomeViewHelper.pageConstraints(3);
         dashboardPage.add(createPlaceholderGraphPanel(), gbc);
         
-        gbc = HomeViewHelper.pageConstraints(5);
+        gbc = HomeViewHelper.pageConstraints(4);
         gbc.weighty = 1.0;
         dashboardPage.add(Box.createVerticalGlue(), gbc);
         dashboardPage.revalidate();
@@ -225,7 +227,9 @@ public class HomeView extends JFrame {
                         defaultOccupancyCategory(categories)
                 );
                 DashboardDao.DepartmentChartData departmentData = dashboardDao.loadDepartmentChart();
-                return new DashboardData(categoryStats, occupancyData, categories, departmentData);
+                DashboardDao.BreakdownChartData visitTypeData = dashboardDao.loadVisitTypeChart();
+                DashboardDao.BreakdownChartData companyData = dashboardDao.loadTopCompanyChart();
+                return new DashboardData(categoryStats, occupancyData, categories, departmentData, visitTypeData, companyData);
             }
             
             @Override
@@ -237,7 +241,13 @@ public class HomeView extends JFrame {
                             homeKpiPanel.updateCategoryStats(data.categoryStats());
                         }
 
-                        JPanel graphs = createGraphPanelWithData(data.occupancyData(), data.categories(), data.departmentData());
+                        JPanel graphs = createGraphPanelWithData(
+                                data.occupancyData(),
+                                data.categories(),
+                                data.departmentData(),
+                                data.visitTypeData(),
+                                data.companyData()
+                        );
                         Component[] components = dashboardPage.getComponents();
                         for (int i = 0; i < components.length; i++) {
                             if (components[i] instanceof JPanel && ((JPanel) components[i]).getClientProperty("placeholder_graph") != null) {
@@ -265,8 +275,10 @@ public class HomeView extends JFrame {
     }
     
     private JPanel createPlaceholderGraphPanel() {
-        JPanel graphs = graphCardsRow();
+        JPanel graphs = graphCardsGrid();
         graphs.putClientProperty("placeholder_graph", true);
+        graphs.add(placeholderGraphCard());
+        graphs.add(placeholderGraphCard());
         graphs.add(placeholderGraphCard());
         graphs.add(placeholderGraphCard());
         return graphs;
@@ -274,20 +286,37 @@ public class HomeView extends JFrame {
     
     private JPanel createGraphPanelWithData(DashboardDao.OccupancyChartData occupancyData, 
                                             String[] categories, 
-                                            DashboardDao.DepartmentChartData departmentData) {
-        JPanel graphs = graphCardsRow();
+                                            DashboardDao.DepartmentChartData departmentData,
+                                            DashboardDao.BreakdownChartData visitTypeData,
+                                            DashboardDao.BreakdownChartData companyData) {
+        JPanel graphs = graphCardsGrid();
         JComponent houseGraph = graphCard(new HouseOccupancyGraphPanel(houseCapacityDashboardDao, occupancyData, categories));
-        JComponent departmentGraph = graphCard(new DepartmentAnalysisGraphPanel(departmentData));
+        DepartmentAnalysisGraphPanel departmentPanel = new DepartmentAnalysisGraphPanel(departmentData);
+        departmentPanel.setCategorySelectionListener(category ->
+                applyChartGuestFilter("Department", GuestRecordPanel.DEPARTMENT, category));
+        VisitTypePieChartPanel visitTypePanel = new VisitTypePieChartPanel(visitTypeData);
+        visitTypePanel.setSliceSelectionListener(visitType ->
+                applyChartGuestFilter("Visit Type", GuestRecordPanel.VISIT_TYPE, visitType));
+        CompanyAnalysisGraphPanel companyPanel = new CompanyAnalysisGraphPanel(companyData);
+        companyPanel.setCategorySelectionListener(company ->
+                applyChartGuestFilter("Organization", GuestRecordPanel.COMPANY_NAME, company));
+
+        JComponent departmentGraph = graphCard(departmentPanel);
+        JComponent visitTypeGraph = graphCard(visitTypePanel);
+        JComponent companyGraph = graphCard(companyPanel);
         graphs.add(houseGraph);
         graphs.add(departmentGraph);
+        graphs.add(visitTypeGraph);
+        graphs.add(companyGraph);
         return graphs;
     }
 
-    private JPanel graphCardsRow() {
-        JPanel graphs = new JPanel(new GridLayout(1, 2, 16, 0));
+    private JPanel graphCardsGrid() {
+        JPanel graphs = new JPanel(new GridLayout(0, 2, 16, 16));
         graphs.setOpaque(false);
-        graphs.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
-        graphs.setMinimumSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
+        int gridHeight = GRAPH_SCROLL_HEIGHT * 2 + 16;
+        graphs.setPreferredSize(new Dimension(0, gridHeight));
+        graphs.setMinimumSize(new Dimension(0, gridHeight));
         return graphs;
     }
 
@@ -305,7 +334,9 @@ public class HomeView extends JFrame {
             List<DashboardDao.CategoryKpiStats> categoryStats,
             DashboardDao.OccupancyChartData occupancyData,
             String[] categories,
-            DashboardDao.DepartmentChartData departmentData
+            DashboardDao.DepartmentChartData departmentData,
+            DashboardDao.BreakdownChartData visitTypeData,
+            DashboardDao.BreakdownChartData companyData
     ) {}
     private void showGuestDetails(Object[] guestRecord) {
         if (dashboardScreens == null) {
@@ -475,10 +506,20 @@ public class HomeView extends JFrame {
         if (guestFilterPanel == null || guestRecordPanel == null) {
             return;
         }
+        if (activeChartFilterField == null || activeChartFilterValue == null || activeChartFilterValue.isBlank()) {
+            guestRecordPanel.search(
+                    guestFilterPanel.getSearchText(),
+                    guestFilterPanel.getStatusText(),
+                    guestFilterPanel.getDateRange()
+            );
+            return;
+        }
         guestRecordPanel.search(
                 guestFilterPanel.getSearchText(),
                 guestFilterPanel.getStatusText(),
-                guestFilterPanel.getDateRange()
+                guestFilterPanel.getDateRange(),
+                activeChartFilterField,
+                activeChartFilterValue
         );
     }
     private void clearSearch() {
@@ -486,30 +527,69 @@ public class HomeView extends JFrame {
             return;
         }
         guestFilterPanel.clearSearch();
-        guestRecordPanel.reset();
+        performSearch();
+    }
+    private void applyChartGuestFilter(String filterName, int fieldIndex, String value) {
+        if (guestFilterPanel == null || guestRecordPanel == null) {
+            return;
+        }
+        String cleanValue = value == null ? "" : value.trim();
+        if (cleanValue.isEmpty()) {
+            return;
+        }
+        activeChartFilterField = fieldIndex;
+        activeChartFilterValue = cleanValue;
+        guestFilterPanel.showChartFilterClearAction(filterName + " - " + cleanValue, this::clearChartGuestFilter);
+        performSearch();
+        scrollToGuestRecords();
+    }
+    private void clearChartGuestFilter() {
+        activeChartFilterField = null;
+        activeChartFilterValue = null;
+        if (guestFilterPanel != null) {
+            guestFilterPanel.clearChartFilterClearAction();
+        }
+        performSearch();
+        scrollToGuestRecords();
+    }
+    private void scrollToGuestRecords() {
+        if (dashboardPage == null || guestRecordPanel == null) {
+            return;
+        }
+        SwingUtilities.invokeLater(() -> {
+            if (guestRecordPanel.getParent() == null) {
+                return;
+            }
+            Rectangle target = SwingUtilities.convertRectangle(
+                    guestRecordPanel.getParent(),
+                    guestRecordPanel.getBounds(),
+                    dashboardPage
+            );
+            dashboardPage.scrollRectToVisible(target);
+        });
     }
     private JPanel createGraphPanel() {
         String[] accommodationCategories = loadAccommodationCategories();
         return createGraphPanelWithData(
                 loadOccupancyChart(defaultOccupancyCategory(accommodationCategories)),
                 accommodationCategories,
-                loadDepartmentChart()
+                loadDepartmentChart(),
+                loadVisitTypeChart(),
+                loadTopCompanyChart()
         );
     }
-    private JPanel createImportActionsRow() {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        row.setOpaque(false);
-        importExcelButton = new JButton("Excel Services");
-        importExcelButton.setPreferredSize(new Dimension(136, 32));
-        importExcelButton.setBackground(new Color(28, 137, 85));
-        importExcelButton.setForeground(Color.WHITE);
-        importExcelButton.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
-        importExcelButton.setFocusPainted(false);
-        importExcelButton.setBorderPainted(false);
-        importExcelButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        importExcelButton.addActionListener(event -> showExcelImportOptions());
-        row.add(importExcelButton);
-        return row;
+    private JButton createExcelServicesButton() {
+        JButton button = new HeaderActionButton("Excel Services", HomeViewHelper.TEAL, HomeViewHelper.TEAL_DARK);
+        button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
+        button.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.addActionListener(event -> showExcelImportOptions());
+        return button;
     }
     private void showExcelImportOptions() {
         int selected = DialogHelper.option(
@@ -1064,7 +1144,7 @@ public class HomeView extends JFrame {
             );
         }
     }
-    private JComponent graphCard(UniversalGraphPanel graph) {
+    private JComponent graphCard(JComponent graph) {
         JPanel card = graphCardShell();
         card.add(graphScroll(graph), BorderLayout.CENTER);
         return card;
@@ -1077,7 +1157,7 @@ public class HomeView extends JFrame {
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, GRAPH_SCROLL_HEIGHT));
         return card;
     }
-    private JScrollPane graphScroll(UniversalGraphPanel graph) {
+    private JScrollPane graphScroll(JComponent graph) {
         JScrollPane scroll = new JScrollPane(graph);
         scroll.setBorder(null);
         scroll.setOpaque(false);
@@ -1172,6 +1252,35 @@ public class HomeView extends JFrame {
         event.consume();
         return true;
     }
+
+    private static class HeaderActionButton extends JButton {
+        private final Color normal;
+        private final Color hover;
+
+        private HeaderActionButton(String text, Color normal, Color hover) {
+            super(text);
+            this.normal = normal;
+            this.hover = hover;
+            setRolloverEnabled(true);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            ButtonModel model = getModel();
+            Color fill = isEnabled()
+                    ? (model.isPressed() ? hover.darker() : model.isRollover() ? hover : normal)
+                    : new Color(148, 163, 184);
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 1, Math.max(0, getWidth() - 1), Math.max(0, getHeight() - 2), 8, 8);
+            g2.setColor(new Color(15, 23, 42, isEnabled() ? 20 : 12));
+            g2.drawRoundRect(0, 1, Math.max(0, getWidth() - 1), Math.max(0, getHeight() - 2), 8, 8);
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
+    }
+
     private static class GraphCardPanel extends JPanel {
         private GraphCardPanel() {
             setOpaque(false);
@@ -1273,6 +1382,20 @@ public class HomeView extends JFrame {
             return dashboardDao.loadDepartmentChart();
         } catch (SQLException exception) {
             return new DashboardDao.DepartmentChartData(new String[0], new int[0]);
+        }
+    }
+    private DashboardDao.BreakdownChartData loadVisitTypeChart() {
+        try {
+            return dashboardDao.loadVisitTypeChart();
+        } catch (SQLException exception) {
+            return new DashboardDao.BreakdownChartData(new String[0], new int[0]);
+        }
+    }
+    private DashboardDao.BreakdownChartData loadTopCompanyChart() {
+        try {
+            return dashboardDao.loadTopCompanyChart();
+        } catch (SQLException exception) {
+            return new DashboardDao.BreakdownChartData(new String[0], new int[0]);
         }
     }
     public static void main(String[] args) {

@@ -58,6 +58,7 @@ public class GuestRecordPanel extends JPanel {
     private Timer refreshAnimation;
     private SwingWorker<List<Object[]>, Void> refreshWorker;
     private final Runnable onReportRequest;
+    private final JComponent secondaryHeaderAction;
     private final Long accommodationId;
     private final Runnable onDataChanged;
 
@@ -67,15 +68,23 @@ public class GuestRecordPanel extends JPanel {
     );
 
     public GuestRecordPanel(Consumer<Object[]> onViewGuest) {
-        this(onViewGuest, null, null, null);
+        this(onViewGuest, null, null, null, null);
     }
 
     public GuestRecordPanel(Consumer<Object[]> onViewGuest, Runnable onReportRequest) {
-        this(onViewGuest, onReportRequest, null, null);
+        this(onViewGuest, onReportRequest, null, null, null);
+    }
+
+    public GuestRecordPanel(
+            Consumer<Object[]> onViewGuest,
+            Runnable onReportRequest,
+            JComponent secondaryHeaderAction
+    ) {
+        this(onViewGuest, onReportRequest, secondaryHeaderAction, null, null);
     }
 
     public GuestRecordPanel(Consumer<Object[]> onViewGuest, Runnable onReportRequest, Long accommodationId) {
-        this(onViewGuest, onReportRequest, accommodationId, null);
+        this(onViewGuest, onReportRequest, null, accommodationId, null);
     }
 
     public GuestRecordPanel(
@@ -84,8 +93,19 @@ public class GuestRecordPanel extends JPanel {
             Long accommodationId,
             Runnable onDataChanged
     ) {
+        this(onViewGuest, onReportRequest, null, accommodationId, onDataChanged);
+    }
+
+    private GuestRecordPanel(
+            Consumer<Object[]> onViewGuest,
+            Runnable onReportRequest,
+            JComponent secondaryHeaderAction,
+            Long accommodationId,
+            Runnable onDataChanged
+    ) {
         this.onViewGuest = onViewGuest;
         this.onReportRequest = onReportRequest;
+        this.secondaryHeaderAction = secondaryHeaderAction;
         this.accommodationId = accommodationId;
         this.onDataChanged = onDataChanged;
         setLayout(new BorderLayout());
@@ -140,6 +160,9 @@ public class GuestRecordPanel extends JPanel {
     private JPanel headerActions() {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         actions.setOpaque(false);
+        if (secondaryHeaderAction != null) {
+            actions.add(secondaryHeaderAction);
+        }
         if (onReportRequest != null) {
             actions.add(reportLabel());
         }
@@ -299,16 +322,28 @@ public class GuestRecordPanel extends JPanel {
     }
 
     public void search(String query, String status, UniversalDateRangePicker.DateRange dateRange) {
+        search(query, status, dateRange, null, null);
+    }
+
+    public void search(
+            String query,
+            String status,
+            UniversalDateRangePicker.DateRange dateRange,
+            Integer exactFieldIndex,
+            String exactFieldValue
+    ) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
         String normalizedStatus = status == null ? "All Status" : status.trim();
         UniversalDateRangePicker.DateRange normalizedDateRange = dateRange == null
                 ? UniversalDateRangePicker.DateRange.empty()
                 : dateRange.normalized();
+        String normalizedFieldValue = exactFieldValue == null ? "" : exactFieldValue.trim();
 
         boolean hasStatus = !normalizedStatus.equalsIgnoreCase("All Status");
         boolean hasDate = !normalizedDateRange.isEmpty();
+        boolean hasExactField = exactFieldIndex != null && !normalizedFieldValue.isEmpty();
 
-        if (normalizedQuery.isEmpty() && !hasStatus && !hasDate) {
+        if (normalizedQuery.isEmpty() && !hasStatus && !hasDate && !hasExactField) {
             reset();
             return;
         }
@@ -317,7 +352,8 @@ public class GuestRecordPanel extends JPanel {
         for (Object[] record : allData) {
             if (recordMatches(record, normalizedQuery)
                     && statusMatches(record, normalizedStatus)
-                    && dateMatches(record, normalizedDateRange)) {
+                    && dateMatches(record, normalizedDateRange)
+                    && exactFieldMatches(record, exactFieldIndex, normalizedFieldValue)) {
                 filteredRecords.add(record);
             }
         }
@@ -383,6 +419,31 @@ public class GuestRecordPanel extends JPanel {
         }
 
         return statusText(record).equalsIgnoreCase(status);
+    }
+
+    private boolean exactFieldMatches(Object[] record, Integer fieldIndex, String expectedValue) {
+        if (fieldIndex == null || expectedValue == null || expectedValue.isBlank()) {
+            return true;
+        }
+        if (fieldIndex < 0 || fieldIndex >= record.length) {
+            return false;
+        }
+        return normalizedFieldValue(record[fieldIndex], fieldIndex)
+                .equalsIgnoreCase(normalizedFieldValue(expectedValue, fieldIndex));
+    }
+
+    private String normalizedFieldValue(Object value, int fieldIndex) {
+        String text = value == null ? "" : String.valueOf(value).trim();
+        if (text.isEmpty() || "null".equalsIgnoreCase(text)) {
+            if (fieldIndex == DEPARTMENT) {
+                return "Unknown";
+            }
+            if (fieldIndex == VISIT_TYPE) {
+                return "Not Specified";
+            }
+            return "";
+        }
+        return text;
     }
 
     private boolean dateMatches(Object[] record, UniversalDateRangePicker.DateRange dateRange) {

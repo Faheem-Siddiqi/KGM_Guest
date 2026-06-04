@@ -29,12 +29,13 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     private String[] categories;
     private Series[] series;
     private HoverBar hoveredBar;
+    private CategorySelectionListener categorySelectionListener;
 
     public UniversalGraphPanel(String title, String subtitle, String[] categories, Series... series) {
         this.title = title;
         this.subtitle = subtitle;
-        this.categories = categories.clone();
-        this.series = series.clone();
+        this.categories = categories == null ? new String[0] : categories.clone();
+        this.series = series == null ? new Series[0] : series.clone();
         setOpaque(false);
         setBackground(Color.WHITE);
         setPreferredSize(new Dimension(preferredGraphWidth(), GRAPH_HEIGHT));
@@ -43,8 +44,8 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     }
 
     public void setGraphData(String[] categories, Series... series) {
-        this.categories = categories.clone();
-        this.series = series.clone();
+        this.categories = categories == null ? new String[0] : categories.clone();
+        this.series = series == null ? new Series[0] : series.clone();
         hoveredBar = null;
         setPreferredSize(new Dimension(preferredGraphWidth(), GRAPH_HEIGHT));
         revalidate();
@@ -53,6 +54,10 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
     public boolean needsHorizontalScroll() {
         return categories.length > 5;
+    }
+
+    public void setCategorySelectionListener(CategorySelectionListener categorySelectionListener) {
+        this.categorySelectionListener = categorySelectionListener;
     }
 
     protected void paintComponent(Graphics g) {
@@ -91,6 +96,13 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
             }
         });
         addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent event) {
+                HoverBar clickedBar = hoverBarAt(event.getPoint());
+                if (clickedBar != null && categorySelectionListener != null) {
+                    categorySelectionListener.categorySelected(categoryLabel(clickedBar.categoryIndex()));
+                }
+            }
+
             public void mouseExited(MouseEvent event) {
                 hoveredBar = null;
                 repaint();
@@ -101,7 +113,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
     private void drawHeader(Graphics2D g2, int width) {
         g2.setColor(HomeViewHelper.TEXT_PRIMARY);
-        g2.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 16));
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 16));
         drawTruncatedString(g2, title, CARD_PADDING_X, 30, width - CARD_PADDING_X * 2);
 
         g2.setColor(HomeViewHelper.TEXT_SECONDARY);
@@ -212,7 +224,13 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
             String label = categories[categoryIndex];
             g2.setColor(HomeViewHelper.TEXT_SECONDARY);
-            drawCategoryLabel(g2, label, groupX + bars.groupW() / 2, layout.baseY() + LABEL_TOP_MARGIN);
+            drawCategoryLabel(
+                    g2,
+                    label,
+                    groupX + bars.groupW() / 2,
+                    layout.baseY() + LABEL_TOP_MARGIN,
+                    Math.max(52, bars.groupW() - 10)
+            );
         }
     }
 
@@ -430,20 +448,25 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
     private BarLayout barLayout(GraphLayout layout) {
         int categoryCount = Math.max(1, categories.length);
-        int maxGroupW = series.length > 1 ? MULTI_SERIES_GROUP_WIDTH : SINGLE_SERIES_GROUP_WIDTH;
+        int maxGroupW = series.length > 1 ? MULTI_SERIES_GROUP_WIDTH : singleSeriesGroupWidth();
         int chartW = categories.length == 0
                 ? layout.plotW()
                 : Math.min(layout.plotW(), Math.max(maxGroupW, categoryCount * maxGroupW));
-        int chartX = layout.plotX() + (layout.plotW() - chartW) / 2;
+        int chartX = layout.plotX() + Math.min(12, Math.max(0, layout.plotW() - chartW));
         int groupW = Math.max(1, chartW / categoryCount);
         int seriesGap = series.length > 1 ? 5 : 0;
-        int barSlotPadding = series.length > 1 ? 20 : 28;
+        int barSlotPadding = series.length > 1 ? 20 : 22;
         int rawBarW = (groupW - barSlotPadding - Math.max(0, series.length - 1) * seriesGap)
                 / Math.max(1, series.length);
         int maxBarW = series.length > 1 ? 26 : 32;
         int barW = Math.max(8, Math.min(maxBarW, rawBarW));
         int totalBarsW = series.length * barW + Math.max(0, series.length - 1) * seriesGap;
         return new BarLayout(chartX, chartW, groupW, barW, seriesGap, totalBarsW);
+    }
+
+    private int singleSeriesGroupWidth() {
+        int labelAwareWidth = longestCategoryLineLength() * 5 + 34;
+        return Math.max(72, Math.min(84, labelAwareWidth));
     }
 
     private boolean hasChartData() {
@@ -498,13 +521,13 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         g2.drawString(emptySubtitle, x + (boxWidth - subtitleMetrics.stringWidth(emptySubtitle)) / 2, y + 96);
     }
 
-    private void drawCategoryLabel(Graphics2D g2, String label, int centerX, int startY) {
+    private void drawCategoryLabel(Graphics2D g2, String label, int centerX, int startY, int maxWidth) {
         String[] lines = label.split("\\R", -1);
         Font originalFont = g2.getFont();
         g2.setFont(new Font("Segoe UI", Font.PLAIN, lines.length > 1 ? 10 : 11));
         FontMetrics labelMetrics = g2.getFontMetrics();
         for (int i = 0; i < lines.length; i++) {
-            String line = truncateToWidth(g2, lines[i], 92);
+            String line = truncateToWidth(g2, lines[i], maxWidth);
             g2.drawString(line, centerX - labelMetrics.stringWidth(line) / 2, startY + i * 13);
         }
         g2.setFont(originalFont);
@@ -616,9 +639,14 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
 
         public Series(String name, int[] values, Color start, Color end) {
             this.name = name;
-            this.values = values.clone();
+            this.values = values == null ? new int[0] : values.clone();
             this.start = start;
             this.end = end;
         }
+    }
+
+    @FunctionalInterface
+    public interface CategorySelectionListener {
+        void categorySelected(String category);
     }
 }

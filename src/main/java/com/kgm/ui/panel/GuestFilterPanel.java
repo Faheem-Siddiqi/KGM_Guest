@@ -8,30 +8,30 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 
 public class GuestFilterPanel extends JPanel {
     private static final int FILTER_FIELD_GAP = 14;
     private static final int STATUS_ARROW_AND_PADDING_WIDTH = 36;
     private static final int FILTER_FIELD_HEIGHT = 34;
+    private static final int SEARCH_FIELD_WIDTH = 320;
+    private static final int SEARCH_FIELD_MIN_WIDTH = 240;
 
-    private final JTextField searchField = new JTextField();
+    private final JTextField searchField = new PlaceholderTextField("Search by Name");
     private final JComboBox<String> statusFilter = HomeViewHelper.combo(
             "All Status", "Currently Staying", "Departed", "Upcoming"
     );
     private final UniversalDateRangePicker dateRangeFilter = new UniversalDateRangePicker();
     private final JButton clearButton = HomeViewHelper.textButton("CLEAR");
+    private final JButton chartFilterClearButton = new DangerPillButton("Clear Filter");
     private boolean suppressFilterEvents;
+    private Runnable onChartFilterClear;
 
     public GuestFilterPanel(Runnable onSearch, Runnable onClear) {
         setLayout(new BorderLayout());
         setOpaque(false);
-
-        JPanel card = HomeViewHelper.sectionCard("Guest Filters", "Search and narrow guest activity quickly.");
-        JPanel body = new JPanel();
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setOpaque(false);
+        setBorder(new EmptyBorder(0, 0, 12, 0));
 
         JButton searchButton = HomeViewHelper.textButton("SEARCH");
         styleSearchButton(searchButton);
@@ -53,6 +53,7 @@ public class GuestFilterPanel extends JPanel {
             updateClearButtonState();
         });
         styleInlineClearButton();
+        styleChartFilterClearButton();
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent event) {
                 updateClearButtonState();
@@ -67,76 +68,56 @@ public class GuestFilterPanel extends JPanel {
             }
         });
 
-        JPanel filters = responsiveFilters(createSearchFilter(searchButton), createRightAlignedFilters());
-
-        body.add(filters);
-
-        card.add(body, BorderLayout.CENTER);
-        add(card, BorderLayout.CENTER);
+        add(inlineFilters(searchButton), BorderLayout.CENTER);
         updateClearButtonState();
     }
 
-    private JPanel responsiveFilters(JComponent searchFilter, JComponent rightFilters) {
+    private JPanel inlineFilters(JButton searchButton) {
         JPanel filters = new JPanel(new GridBagLayout());
         filters.setOpaque(false);
         filters.setAlignmentX(Component.LEFT_ALIGNMENT);
-        Runnable layoutUpdater = () -> {
-            boolean stacked = filters.getWidth() > 0 && filters.getWidth() < 780;
-            filters.removeAll();
-            GridBagConstraints gbc = new GridBagConstraints();
-            gbc.insets = new Insets(0, 0, 14, stacked ? 0 : 14);
-            gbc.fill = GridBagConstraints.HORIZONTAL;
-            gbc.anchor = GridBagConstraints.NORTHWEST;
-            gbc.gridx = 0;
-            gbc.gridy = 0;
-            gbc.weightx = 1.0;
-            filters.add(searchFilter, gbc);
 
-            gbc.gridx = stacked ? 0 : 1;
-            gbc.gridy = stacked ? 1 : 0;
-            gbc.weightx = stacked ? 1.0 : 0;
-            gbc.fill = stacked ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
-            gbc.anchor = stacked ? GridBagConstraints.NORTHWEST : GridBagConstraints.NORTHEAST;
-            gbc.insets = new Insets(0, 0, 14, 0);
-            filters.add(rightFilters, gbc);
-            filters.revalidate();
-            filters.repaint();
-        };
-        filters.addComponentListener(new ComponentAdapter() {
-            public void componentResized(ComponentEvent event) {
-                layoutUpdater.run();
-            }
-        });
-        layoutUpdater.run();
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(0, 0, 0, 10);
+        filters.add(Box.createHorizontalGlue(), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        filters.add(createSearchFieldWithClearButton(), gbc);
+
+        gbc.gridx = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = new Insets(0, 0, 0, FILTER_FIELD_GAP);
+        filters.add(searchButton, gbc);
+
+        gbc.gridx = 3;
+        filters.add(styleHugStatusFilter(), gbc);
+
+        gbc.gridx = 4;
+        gbc.insets = new Insets(0, 0, 0, FILTER_FIELD_GAP);
+        filters.add(lockComponentToPreferredWidth(dateRangeFilter), gbc);
+
+        gbc.gridx = 5;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        filters.add(chartFilterClearButton, gbc);
+
         return filters;
-    }
-
-    private JPanel createSearchFilter(JButton searchButton) {
-        JPanel block = new JPanel();
-        block.setOpaque(false);
-        block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
-
-        JLabel label = HomeViewHelper.label("Search Name / CNIC / Passport");
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JPanel row = new JPanel();
-        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.add(createSearchFieldWithClearButton());
-        row.add(Box.createHorizontalStrut(10));
-        row.add(searchButton);
-
-        block.add(label);
-        block.add(Box.createVerticalStrut(6));
-        block.add(row);
-        return block;
     }
 
     private JComponent createSearchFieldWithClearButton() {
         JPanel field = new JPanel(new BorderLayout(6, 0));
         field.setOpaque(true);
-        HomeViewHelper.styleField(field, 320);
+        HomeViewHelper.styleField(field, SEARCH_FIELD_WIDTH);
+        Dimension preferred = new Dimension(SEARCH_FIELD_WIDTH, FILTER_FIELD_HEIGHT);
+        field.setPreferredSize(preferred);
+        field.setMinimumSize(new Dimension(SEARCH_FIELD_MIN_WIDTH, FILTER_FIELD_HEIGHT));
+        field.setMaximumSize(preferred);
 
         searchField.setBorder(null);
         searchField.setOpaque(false);
@@ -168,54 +149,24 @@ public class GuestFilterPanel extends JPanel {
         button.setMaximumSize(new Dimension(92, 34));
     }
 
-    private JPanel createRightAlignedFilters() {
-        JPanel filters = new JPanel();
-        filters.setLayout(new BoxLayout(filters, BoxLayout.X_AXIS));
-        filters.setOpaque(false);
-        filters.add(createStatusFilter());
-        filters.add(Box.createHorizontalStrut(FILTER_FIELD_GAP));
-        filters.add(createDateFilter());
-        return filters;
-    }
-
-    private JPanel createStatusFilter() {
-        JPanel block = new JPanel();
-        block.setOpaque(false);
-        block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
-
-        // JLabel label = HomeViewHelper.label("Status");
-        // label.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.add(styleHugStatusFilter());
-
-        block.add(createHiddenFilterLabelSpace());
-        block.add(row);
-        return block;
-    }
-
-    private JPanel createDateFilter() {
-        JPanel block = new JPanel();
-        block.setOpaque(false);
-        block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
-
-        // JLabel label = HomeViewHelper.label("Date Range");
-        // label.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.add(lockComponentToPreferredWidth(dateRangeFilter));
-
-        block.add(createHiddenFilterLabelSpace());
-        block.add(row);
-        return block;
-    }
-
-    private Component createHiddenFilterLabelSpace() {
-        return Box.createVerticalStrut(HomeViewHelper.label("Filter").getPreferredSize().height + 6);
+    private void styleChartFilterClearButton() {
+        chartFilterClearButton.setVisible(false);
+        chartFilterClearButton.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        chartFilterClearButton.setForeground(Color.WHITE);
+        chartFilterClearButton.setFocusPainted(false);
+        chartFilterClearButton.setBorderPainted(false);
+        chartFilterClearButton.setContentAreaFilled(false);
+        chartFilterClearButton.setOpaque(false);
+        chartFilterClearButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        chartFilterClearButton.setBorder(new EmptyBorder(0, 14, 0, 14));
+        chartFilterClearButton.setPreferredSize(new Dimension(164, FILTER_FIELD_HEIGHT));
+        chartFilterClearButton.setMinimumSize(new Dimension(120, FILTER_FIELD_HEIGHT));
+        chartFilterClearButton.setMaximumSize(new Dimension(340, FILTER_FIELD_HEIGHT));
+        chartFilterClearButton.addActionListener(event -> {
+            if (onChartFilterClear != null) {
+                onChartFilterClear.run();
+            }
+        });
     }
 
     private JComponent styleHugStatusFilter() {
@@ -295,6 +246,27 @@ public class GuestFilterPanel extends JPanel {
         return dateRangeFilter.getDateRange();
     }
 
+    public void showChartFilterClearAction(String filterText, Runnable onClear) {
+        String text = filterText == null || filterText.isBlank() ? "Filter" : filterText.trim();
+        String buttonText = "Clear Filter: " + text;
+        chartFilterClearButton.setText(buttonText);
+        chartFilterClearButton.setToolTipText(buttonText);
+        updateChartFilterClearButtonSize(buttonText);
+        onChartFilterClear = onClear;
+        chartFilterClearButton.setVisible(true);
+        revalidate();
+        repaint();
+    }
+
+    public void clearChartFilterClearAction() {
+        chartFilterClearButton.setVisible(false);
+        chartFilterClearButton.setText("Clear Filter");
+        chartFilterClearButton.setToolTipText(null);
+        onChartFilterClear = null;
+        revalidate();
+        repaint();
+    }
+
     public void clearSearch() {
         suppressFilterEvents = true;
         try {
@@ -317,5 +289,78 @@ public class GuestFilterPanel extends JPanel {
         boolean hasSearchText = !searchField.getText().trim().isEmpty();
         boolean hasStatusFilter = statusFilter.getSelectedIndex() > 0;
         HomeViewHelper.setTextButtonEnabled(clearButton, hasSearchText || hasStatusFilter || dateRangeFilter.hasSelection());
+    }
+
+    private void updateChartFilterClearButtonSize(String text) {
+        FontMetrics metrics = chartFilterClearButton.getFontMetrics(chartFilterClearButton.getFont());
+        int width = Math.max(164, Math.min(340, metrics.stringWidth(text) + 34));
+        Dimension size = new Dimension(width, FILTER_FIELD_HEIGHT);
+        chartFilterClearButton.setPreferredSize(size);
+        chartFilterClearButton.setMinimumSize(new Dimension(Math.min(width, 150), FILTER_FIELD_HEIGHT));
+        chartFilterClearButton.setMaximumSize(size);
+    }
+
+    private static class DangerPillButton extends JButton {
+        private static final Color RED = new Color(220, 38, 38);
+        private static final Color RED_HOVER = new Color(185, 28, 28);
+        private static final Color RED_PRESSED = new Color(153, 27, 27);
+
+        private DangerPillButton(String text) {
+            super(text);
+            setRolloverEnabled(true);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            ButtonModel model = getModel();
+            Color fill = model.isPressed() ? RED_PRESSED : model.isRollover() ? RED_HOVER : RED;
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 1, Math.max(0, getWidth() - 1), Math.max(0, getHeight() - 2), 8, 8);
+            g2.setColor(new Color(127, 29, 29, 90));
+            g2.drawRoundRect(0, 1, Math.max(0, getWidth() - 1), Math.max(0, getHeight() - 2), 8, 8);
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
+    }
+
+    private static class PlaceholderTextField extends JTextField {
+        private final String placeholder;
+
+        private PlaceholderTextField(String placeholder) {
+            this.placeholder = placeholder;
+            addFocusListener(new FocusAdapter() {
+                public void focusGained(FocusEvent event) {
+                    repaint();
+                }
+
+                public void focusLost(FocusEvent event) {
+                    repaint();
+                }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            if (isFocusOwner() || !getText().isEmpty()) {
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+            g2.setFont(getFont());
+            g2.setColor(new Color(
+                    HomeViewHelper.TEXT_SECONDARY.getRed(),
+                    HomeViewHelper.TEXT_SECONDARY.getGreen(),
+                    HomeViewHelper.TEXT_SECONDARY.getBlue(),
+                    150
+            ));
+            FontMetrics metrics = g2.getFontMetrics();
+            Insets insets = getInsets();
+            int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+            g2.drawString(placeholder, insets.left, y);
+            g2.dispose();
+        }
     }
 }

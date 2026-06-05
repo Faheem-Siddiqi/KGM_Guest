@@ -11,6 +11,7 @@ import java.util.List;
 
 public class UniversalGraphPanel extends JPanel implements Scrollable {
     private static final int MIN_VISIBLE_BAR_HEIGHT = 5;
+    private static final int MIN_SKEWED_BAR_HEIGHT = 9;
     private static final int BAR_RADIUS = 2;
     private static final int GRAPH_HEIGHT = 400;
     private static final int CARD_PADDING_X = 24;
@@ -19,7 +20,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     private static final int LABEL_TOP_MARGIN = 22;
     private static final int BOTTOM_CONTENT_PADDING = 96;
     private static final double LINEAR_SCALE_EXPONENT = 1.0;
-    private static final double COMPRESSED_SCALE_EXPONENT = 0.55;
+    private static final double COMPRESSED_SCALE_EXPONENT = 0.48;
     private static final double SCALE_COMPRESSION_THRESHOLD = 6.0;
     private static final int MULTI_SERIES_GROUP_WIDTH = 82;
     private static final int SINGLE_SERIES_GROUP_WIDTH = 96;
@@ -177,7 +178,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         for (int step = 0; step <= 4; step++) {
             double normalized = step / 4.0;
             int y = layout.baseY() - (int) Math.round(layout.plotH() * normalized);
-            int value = axisValueFor(normalized, layout.max(), layout.scaleExponent());
+            int value = axisValueFor(normalized, layout);
             g2.setColor(new Color(241, 245, 249));
             g2.drawLine(layout.plotX(), y, layout.plotX() + layout.plotW(), y);
             g2.setColor(HomeViewHelper.TEXT_SECONDARY);
@@ -205,7 +206,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
                 }
 
                 int scaledBarH = scaledBarHeight(value, layout);
-                int barH = Math.min(layout.plotH(), Math.max(MIN_VISIBLE_BAR_HEIGHT, scaledBarH));
+                int barH = Math.min(layout.plotH(), scaledBarH);
                 int x = groupStart + seriesIndex * (bars.barW() + bars.seriesGap());
                 int y = layout.baseY() - barH;
 
@@ -253,7 +254,7 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
                     continue;
                 }
                 int scaledBarH = scaledBarHeight(value, layout);
-                int barH = Math.min(layout.plotH(), Math.max(MIN_VISIBLE_BAR_HEIGHT, scaledBarH));
+                int barH = Math.min(layout.plotH(), scaledBarH);
                 int x = groupStart + seriesIndex * (bars.barW() + bars.seriesGap());
                 int y = layout.baseY() - barH;
                 Rectangle bounds = new Rectangle(x - 5, y - 5, bars.barW() + 10, barH + 10);
@@ -395,12 +396,22 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
     }
 
     private GraphLayout graphLayout(int width, int height) {
+        ScaleConfig scale = scaleConfig();
         int plotX = PLOT_LEFT_PADDING;
         int plotY = plotTopInset();
         int plotW = Math.max(120, width - PLOT_LEFT_PADDING - PLOT_RIGHT_PADDING);
         int plotH = Math.max(120, height - plotY - BOTTOM_CONTENT_PADDING);
         int baseY = plotY + plotH;
-        return new GraphLayout(plotX, plotY, plotW, plotH, baseY, niceMax(), scaleExponent());
+        return new GraphLayout(
+                plotX,
+                plotY,
+                plotW,
+                plotH,
+                baseY,
+                scale.max(),
+                scale.exponent(),
+                scale.minVisibleBarHeight()
+        );
     }
 
     private int scaledBarHeight(int value, GraphLayout layout) {
@@ -409,21 +420,22 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         }
         double normalized = Math.min(1.0, value / (double) layout.max());
         double scaled = Math.pow(normalized, layout.scaleExponent());
-        return (int) Math.round(scaled * layout.plotH());
+        int scaledHeight = (int) Math.round(scaled * layout.plotH());
+        return Math.max(layout.minVisibleBarHeight(), scaledHeight);
     }
 
-    private int axisValueFor(double normalizedPosition, int max, double scaleExponent) {
+    private int axisValueFor(double normalizedPosition, GraphLayout layout) {
         if (normalizedPosition <= 0) {
             return 0;
         }
         if (normalizedPosition >= 1) {
-            return max;
+            return layout.max();
         }
-        double valueRatio = Math.pow(normalizedPosition, 1.0 / scaleExponent);
-        return (int) Math.round(max * valueRatio);
+        double valueRatio = Math.pow(normalizedPosition, 1.0 / layout.scaleExponent());
+        return (int) Math.round(layout.max() * valueRatio);
     }
 
-    private double scaleExponent() {
+    private ScaleConfig scaleConfig() {
         int minPositive = Integer.MAX_VALUE;
         int maxPositive = 0;
         for (Series item : series) {
@@ -434,16 +446,19 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
                 }
             }
         }
-        if (minPositive == Integer.MAX_VALUE || maxPositive <= minPositive) {
-            return LINEAR_SCALE_EXPONENT;
-        }
-        return maxPositive / (double) minPositive >= SCALE_COMPRESSION_THRESHOLD
-                ? COMPRESSED_SCALE_EXPONENT
-                : LINEAR_SCALE_EXPONENT;
+        int max = niceMax();
+        boolean compressed = minPositive != Integer.MAX_VALUE
+                && maxPositive > minPositive
+                && maxPositive / (double) minPositive >= SCALE_COMPRESSION_THRESHOLD;
+        return new ScaleConfig(
+                max,
+                compressed ? COMPRESSED_SCALE_EXPONENT : LINEAR_SCALE_EXPONENT,
+                compressed ? MIN_SKEWED_BAR_HEIGHT : MIN_VISIBLE_BAR_HEIGHT
+        );
     }
 
     private boolean usesCompressedScale() {
-        return scaleExponent() < LINEAR_SCALE_EXPONENT;
+        return scaleConfig().exponent() < LINEAR_SCALE_EXPONENT;
     }
 
     private BarLayout barLayout(GraphLayout layout) {
@@ -622,7 +637,19 @@ public class UniversalGraphPanel extends JPanel implements Scrollable {
         return false;
     }
 
-    private record GraphLayout(int plotX, int plotY, int plotW, int plotH, int baseY, int max, double scaleExponent) {
+    private record ScaleConfig(int max, double exponent, int minVisibleBarHeight) {
+    }
+
+    private record GraphLayout(
+            int plotX,
+            int plotY,
+            int plotW,
+            int plotH,
+            int baseY,
+            int max,
+            double scaleExponent,
+            int minVisibleBarHeight
+    ) {
     }
 
     private record BarLayout(int chartX, int chartW, int groupW, int barW, int seriesGap, int totalBarsW) {

@@ -16,8 +16,15 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
     private static final int HEADER_SUBTITLE_Y = 51;
     private static final int CHART_TOP = 86;
     private static final int LEGEND_ROW_HEIGHT = 24;
-    private static final int PIE_MAX_DIAMETER = 238;
-    private static final int PIE_MIN_DIAMETER = 180;
+    private static final int PIE_MAX_DIAMETER = 230;
+    private static final int PIE_MIN_DIAMETER = 170;
+    private static final int PIE_SLICE_ALPHA = 220;
+    private static final int PIE_SLICE_HOVER_ALPHA = 245;
+    private static final int PIE_SLICE_MUTED_ALPHA = 118;
+    private static final int PIE_LEGEND_HOVER_ALPHA = 18;
+    private static final int PIE_LEGEND_DOT_SIZE = 10;
+    private static final int PIE_LEGEND_DOT_GAP = 6;
+    private static final int PIE_LEGEND_VALUE_GAP = 8;
     private static final double SLICE_GAP_DEGREES = 0.35;
     private static final Color[] SLICE_COLORS = {
             HomeViewHelper.TEAL,
@@ -66,13 +73,14 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         PieLayout layout = pieLayout(width, height);
         drawPie(g2, layout, total);
         drawLegend(g2, layout, total);
+        drawHoverSummary(g2, width, height, total);
         g2.dispose();
     }
 
     private void installHoverCursor() {
         addMouseMotionListener(new MouseAdapter() {
             public void mouseMoved(MouseEvent event) {
-                int nextHover = sliceAt(event.getPoint());
+                int nextHover = itemAt(event.getPoint());
                 if (nextHover != hoveredIndex) {
                     hoveredIndex = nextHover;
                     repaint();
@@ -82,7 +90,7 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         });
         addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent event) {
-                int selectedIndex = sliceAt(event.getPoint());
+                int selectedIndex = itemAt(event.getPoint());
                 if (selectedIndex >= 0
                         && selectedIndex < data.labels().length
                         && sliceSelectionListener != null) {
@@ -135,15 +143,15 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
                     -visibleSweep,
                     Arc2D.PIE
             );
-            Composite originalComposite = g2.getComposite();
-            if (hoveredIndex >= 0 && index != hoveredIndex) {
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.58f));
+            boolean hovered = index == hoveredIndex;
+            if (hovered) {
+                g2.setColor(new Color(15, 23, 42, 24));
+                g2.fill(shadowSlice(slice));
             }
-            g2.setColor(colorFor(index));
+            g2.setColor(slicePaint(index, hovered));
             g2.fill(slice);
-            g2.setComposite(originalComposite);
-            g2.setColor(Color.WHITE);
-            g2.setStroke(new BasicStroke(index == hoveredIndex ? 1.35f : 0.7f));
+            g2.setColor(new Color(255, 255, 255, hovered ? 245 : 220));
+            g2.setStroke(new BasicStroke(hovered ? 1.45f : 0.75f));
             g2.draw(slice);
             startAngle -= sweep;
         }
@@ -181,7 +189,7 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
     }
 
     private void drawLegend(Graphics2D g2, PieLayout layout, int total) {
-        g2.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         FontMetrics metrics = g2.getFontMetrics();
         int rowY = layout.legendY();
         int maxTextWidth = Math.max(80, layout.legendWidth() - 126);
@@ -193,23 +201,29 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
             }
             boolean hovered = index == hoveredIndex;
             if (hovered) {
-                g2.setColor(new Color(239, 246, 255));
+                g2.setColor(withAlpha(colorFor(index), PIE_LEGEND_HOVER_ALPHA));
                 g2.fillRoundRect(layout.legendX() - 8, rowY - 14, layout.legendWidth(), 22, 8, 8);
             }
 
-            g2.setColor(colorFor(index));
-            g2.fillRoundRect(layout.legendX(), rowY - 10, 10, 10, 3, 3);
+            g2.setColor(hovered ? hoverColor(colorFor(index)) : colorFor(index));
+            g2.fillOval(layout.legendX(), rowY - 10, PIE_LEGEND_DOT_SIZE, PIE_LEGEND_DOT_SIZE);
 
+            g2.setFont(new Font("Segoe UI", hovered ? Font.BOLD : Font.PLAIN, 12));
+            metrics = g2.getFontMetrics();
             g2.setColor(HomeViewHelper.TEXT_PRIMARY);
             String label = truncated(data.labels()[index], metrics, maxTextWidth);
-            g2.drawString(label, layout.legendX() + 18, rowY);
+            g2.drawString(label, layout.legendX() + PIE_LEGEND_DOT_SIZE + PIE_LEGEND_DOT_GAP, rowY);
 
             g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
             FontMetrics valueMetrics = g2.getFontMetrics();
-            g2.setColor(HomeViewHelper.TEXT_SECONDARY);
+            g2.setColor(hovered ? HomeViewHelper.TEXT_PRIMARY : HomeViewHelper.TEXT_SECONDARY);
             String valueText = value + " - " + percentText(value, total);
-            g2.drawString(valueText, layout.legendX() + layout.legendWidth() - valueMetrics.stringWidth(valueText), rowY);
-            g2.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+            g2.drawString(
+                    valueText,
+                    layout.legendX() + layout.legendWidth() - PIE_LEGEND_VALUE_GAP - valueMetrics.stringWidth(valueText),
+                    rowY
+            );
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
             metrics = g2.getFontMetrics();
             rowY += LEGEND_ROW_HEIGHT;
         }
@@ -223,10 +237,13 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         String title = data.labels()[hoveredIndex];
         String detail = value + " guest records | " + String.format("%.1f", value * 100.0 / total) + "% of visit mix";
 
-        int boxWidth = Math.min(310, Math.max(220, width - CARD_PADDING_X * 2));
-        int boxHeight = 56;
-        int x = (width - boxWidth) / 2;
-        int y = Math.max(CHART_TOP + 12, height - boxHeight - 20);
+        int boxWidth = Math.min(320, Math.max(220, width - CARD_PADDING_X * 2));
+        int boxHeight = 58;
+        Point mouse = getMousePosition();
+        int x = mouse == null ? (width - boxWidth) / 2 : mouse.x + 16;
+        int y = mouse == null ? Math.max(CHART_TOP + 12, height - boxHeight - 20) : mouse.y - boxHeight - 14;
+        x = clamp(x, 12, Math.max(12, width - boxWidth - 12));
+        y = clamp(y, 62, Math.max(62, height - boxHeight - 12));
 
         g2.setColor(new Color(15, 23, 42, 22));
         g2.fillRoundRect(x + 2, y + 3, boxWidth, boxHeight, 12, 12);
@@ -235,7 +252,7 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         g2.setColor(new Color(226, 232, 240));
         g2.drawRoundRect(x, y, boxWidth, boxHeight, 12, 12);
 
-        g2.setColor(colorFor(hoveredIndex));
+        g2.setColor(hoverColor(colorFor(hoveredIndex)));
         g2.fillRoundRect(x + 14, y + 16, 12, 12, 4, 4);
 
         g2.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
@@ -258,6 +275,11 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         String text = "No visit type records available";
         FontMetrics metrics = g2.getFontMetrics();
         g2.drawString(text, (width - metrics.stringWidth(text)) / 2, y + 35);
+    }
+
+    private int itemAt(Point point) {
+        int sliceIndex = sliceAt(point);
+        return sliceIndex >= 0 ? sliceIndex : legendIndexAt(point);
     }
 
     private int sliceAt(Point point) {
@@ -294,6 +316,31 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         return -1;
     }
 
+    private int legendIndexAt(Point point) {
+        if (point == null || totalValue() <= 0) {
+            return -1;
+        }
+        PieLayout layout = pieLayout(getWidth(), getHeight());
+        int rowY = layout.legendY();
+        for (int index = 0; index < data.labels().length; index++) {
+            int value = index < data.values().length ? Math.max(0, data.values()[index]) : 0;
+            if (value <= 0) {
+                continue;
+            }
+            Rectangle rowBounds = new Rectangle(
+                    layout.legendX() - 8,
+                    rowY - 15,
+                    layout.legendWidth(),
+                    23
+            );
+            if (rowBounds.contains(point)) {
+                return index;
+            }
+            rowY += LEGEND_ROW_HEIGHT;
+        }
+        return -1;
+    }
+
     private Rectangle sliceBounds(Rectangle bounds, double startAngle, double sweep, boolean expanded) {
         if (!expanded) {
             return bounds;
@@ -302,6 +349,18 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         int offsetX = (int) Math.round(Math.cos(midAngle) * 8);
         int offsetY = (int) Math.round(-Math.sin(midAngle) * 8);
         return new Rectangle(bounds.x + offsetX - 3, bounds.y + offsetY - 3, bounds.width + 6, bounds.height + 6);
+    }
+
+    private Arc2D.Double shadowSlice(Arc2D.Double slice) {
+        return new Arc2D.Double(
+                slice.x + 1,
+                slice.y + 3,
+                slice.width,
+                slice.height,
+                slice.getAngleStart(),
+                slice.getAngleExtent(),
+                Arc2D.PIE
+        );
     }
 
     private PieLayout pieLayout(int width, int height) {
@@ -354,6 +413,30 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
         return SLICE_COLORS[Math.floorMod(index, SLICE_COLORS.length)];
     }
 
+    private Color slicePaint(int index, boolean hovered) {
+        Color base = hovered ? hoverColor(colorFor(index)) : colorFor(index);
+        int alpha = hovered
+                ? PIE_SLICE_HOVER_ALPHA
+                : hoveredIndex >= 0 ? PIE_SLICE_MUTED_ALPHA : PIE_SLICE_ALPHA;
+        return withAlpha(base, alpha);
+    }
+
+    private Color hoverColor(Color color) {
+        int r = Math.max(0, color.getRed() - 18);
+        int g = Math.max(0, color.getGreen() - 18);
+        int b = Math.max(0, color.getBlue() - 18);
+        return new Color(r, g, b);
+    }
+
+    private Color withAlpha(Color color, int alpha) {
+        return new Color(
+                color.getRed(),
+                color.getGreen(),
+                color.getBlue(),
+                Math.max(0, Math.min(255, alpha))
+        );
+    }
+
     private String percentText(int value, int total) {
         if (total <= 0) {
             return "0%";
@@ -364,6 +447,10 @@ public class VisitTypePieChartPanel extends JPanel implements Scrollable {
     private double normalizeAngle(double angle) {
         double normalized = angle % 360.0;
         return normalized < 0 ? normalized + 360.0 : normalized;
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private void drawTruncatedString(Graphics2D g2, String value, int x, int y, int maxWidth) {

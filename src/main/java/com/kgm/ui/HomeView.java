@@ -47,7 +47,11 @@ public class HomeView extends JFrame {
     private static final int ADD_GUEST_TAB = 1;
     private static final int KPI_BOTTOM_MARGIN = 18;
     private static final int DASHBOARD_REFRESH_DELAY_MS = 5000;
-    private static final int GRAPH_SCROLL_HEIGHT = 410;
+    private static final int GRAPH_CARD_MIN_HEIGHT = 410;
+    private static final int GRAPH_CARD_GAP = 16;
+    private static final int GRAPH_CARD_INSET = 10;
+    private static final int GRAPH_GRID_COLUMNS = 2;
+    private static final int GRAPH_CARD_MIN_WIDTH = 300;
     private static final int GRAPH_CARD_RADIUS = 8;
     private static final String DASHBOARD_SCREEN = "dashboard";
     private static final String GUEST_DETAILS_SCREEN = "guestDetails";
@@ -312,16 +316,13 @@ public class HomeView extends JFrame {
     }
 
     private JPanel graphCardsGrid() {
-        JPanel graphs = new JPanel(new GridLayout(0, 2, 16, 16));
+        JPanel graphs = new GraphCardsGridPanel();
         graphs.setOpaque(false);
-        int gridHeight = GRAPH_SCROLL_HEIGHT * 2 + 16;
-        graphs.setPreferredSize(new Dimension(0, gridHeight));
-        graphs.setMinimumSize(new Dimension(0, gridHeight));
         return graphs;
     }
 
     private JComponent placeholderGraphCard() {
-        JPanel card = graphCardShell();
+        JPanel card = graphCardShell(GRAPH_CARD_MIN_HEIGHT);
         JLabel loadingLabel = new JLabel("Loading graphs...", SwingConstants.CENTER);
         loadingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         loadingLabel.setForeground(HomeViewHelper.TEXT_SECONDARY);
@@ -1145,17 +1146,23 @@ public class HomeView extends JFrame {
         }
     }
     private JComponent graphCard(JComponent graph) {
-        JPanel card = graphCardShell();
-        card.add(graphScroll(graph), BorderLayout.CENTER);
+        JScrollPane scroll = graphScroll(graph);
+        JPanel card = graphCardShell(graphCardHeight(graph, scroll));
+        card.add(scroll, BorderLayout.CENTER);
         return card;
     }
-    private JPanel graphCardShell() {
+    private JPanel graphCardShell(int preferredHeight) {
         JPanel card = new GraphCardPanel();
         card.setLayout(new BorderLayout());
-        card.setPreferredSize(new Dimension(0, GRAPH_SCROLL_HEIGHT));
-        card.setMinimumSize(new Dimension(280, GRAPH_SCROLL_HEIGHT));
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, GRAPH_SCROLL_HEIGHT));
+        card.setPreferredSize(new Dimension(GRAPH_CARD_MIN_WIDTH, preferredHeight));
+        card.setMinimumSize(new Dimension(GRAPH_CARD_MIN_WIDTH, preferredHeight));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, preferredHeight));
         return card;
+    }
+    private int graphCardHeight(JComponent graph, JScrollPane scroll) {
+        int graphHeight = Math.max(0, graph.getPreferredSize().height);
+        int horizontalReserve = scroll.getHorizontalScrollBar().getPreferredSize().height;
+        return Math.max(GRAPH_CARD_MIN_HEIGHT, graphHeight + GRAPH_CARD_INSET * 2 + horizontalReserve);
     }
     private JScrollPane graphScroll(JComponent graph) {
         JScrollPane scroll = new JScrollPane(graph);
@@ -1163,7 +1170,7 @@ public class HomeView extends JFrame {
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.setWheelScrollingEnabled(false);
-        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getVerticalScrollBar().setBlockIncrement(96);
@@ -1284,21 +1291,100 @@ public class HomeView extends JFrame {
     private static class GraphCardPanel extends JPanel {
         private GraphCardPanel() {
             setOpaque(false);
-            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+            setBorder(BorderFactory.createEmptyBorder(
+                    GRAPH_CARD_INSET,
+                    GRAPH_CARD_INSET,
+                    GRAPH_CARD_INSET,
+                    GRAPH_CARD_INSET
+            ));
         }
 
         @Override
         protected void paintComponent(Graphics graphics) {
             Graphics2D g2 = (Graphics2D) graphics.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(new Color(15, 23, 42, 8));
-            g2.fillRoundRect(1, 3, Math.max(0, getWidth() - 3), Math.max(0, getHeight() - 5), GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
+            int width = Math.max(0, getWidth() - 1);
+            int height = Math.max(0, getHeight() - 2);
+            g2.setColor(new Color(15, 23, 42, 10));
+            g2.fillRoundRect(1, 3, Math.max(0, width - 1), height, GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
             g2.setColor(Color.WHITE);
-            g2.fillRoundRect(0, 0, Math.max(0, getWidth() - 2), Math.max(0, getHeight() - 3), GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
-            g2.setColor(HomeViewHelper.BORDER);
-            g2.drawRoundRect(0, 0, Math.max(0, getWidth() - 2), Math.max(0, getHeight() - 3), GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
+            g2.fillRoundRect(0, 0, width, height, GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
+            g2.setColor(new Color(226, 232, 240));
+            g2.drawRoundRect(0, 0, width, height, GRAPH_CARD_RADIUS, GRAPH_CARD_RADIUS);
             g2.dispose();
             super.paintComponent(graphics);
+        }
+    }
+
+    private static class GraphCardsGridPanel extends JPanel {
+        private GraphCardsGridPanel() {
+            setLayout(null);
+        }
+
+        @Override
+        public void doLayout() {
+            Insets insets = getInsets();
+            int availableWidth = Math.max(0, getWidth() - insets.left - insets.right);
+            int cardWidth = Math.max(0, (availableWidth - GRAPH_CARD_GAP) / GRAPH_GRID_COLUMNS);
+            for (int index = 0; index < getComponentCount(); index++) {
+                int row = index / GRAPH_GRID_COLUMNS;
+                int column = index % GRAPH_GRID_COLUMNS;
+                int rowY = rowY(row);
+                int rowHeight = rowHeight(row);
+                int x = insets.left + column * (cardWidth + GRAPH_CARD_GAP);
+                int y = insets.top + rowY;
+                int width = column == GRAPH_GRID_COLUMNS - 1
+                        ? Math.max(0, availableWidth - cardWidth - GRAPH_CARD_GAP)
+                        : cardWidth;
+                getComponent(index).setBounds(x, y, width, rowHeight);
+            }
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Insets insets = getInsets();
+            return new Dimension(
+                    insets.left + insets.right + GRAPH_GRID_COLUMNS * GRAPH_CARD_MIN_WIDTH + GRAPH_CARD_GAP,
+                    insets.top + insets.bottom + gridHeight()
+            );
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            Insets insets = getInsets();
+            return new Dimension(
+                    insets.left + insets.right + GRAPH_GRID_COLUMNS * GRAPH_CARD_MIN_WIDTH + GRAPH_CARD_GAP,
+                    insets.top + insets.bottom + gridHeight()
+            );
+        }
+
+        private int gridHeight() {
+            int rows = Math.max(1, (getComponentCount() + GRAPH_GRID_COLUMNS - 1) / GRAPH_GRID_COLUMNS);
+            int height = 0;
+            for (int row = 0; row < rows; row++) {
+                if (row > 0) {
+                    height += GRAPH_CARD_GAP;
+                }
+                height += rowHeight(row);
+            }
+            return height;
+        }
+
+        private int rowY(int row) {
+            int y = 0;
+            for (int currentRow = 0; currentRow < row; currentRow++) {
+                y += rowHeight(currentRow) + GRAPH_CARD_GAP;
+            }
+            return y;
+        }
+
+        private int rowHeight(int row) {
+            int firstIndex = row * GRAPH_GRID_COLUMNS;
+            int height = GRAPH_CARD_MIN_HEIGHT;
+            for (int index = firstIndex; index < Math.min(getComponentCount(), firstIndex + GRAPH_GRID_COLUMNS); index++) {
+                height = Math.max(height, getComponent(index).getPreferredSize().height);
+            }
+            return height;
         }
     }
     private DashboardDao.DashboardStats loadDashboardStats() {

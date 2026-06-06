@@ -1,5 +1,6 @@
 package com.kgm.ui.component;
 
+import com.kgm.ui.styling.ButtonStateHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 import com.toedter.calendar.JCalendar;
 
@@ -23,6 +24,13 @@ public class UniversalDatePicker extends JPanel {
     private static final Color DISABLED_BACKGROUND = new Color(248, 248, 248);
     private static final Color DISABLED_FOREGROUND = new Color(150, 150, 150);
     private static final Color ICON_COLOR = new Color(120, 120, 120);
+    private static final Color ACTION_PRIMARY = HomeViewHelper.PRIMARY;
+    private static final Color ACTION_PRIMARY_HOVER = new Color(8, 92, 177);
+    private static final Color ACTION_PRIMARY_PRESSED = HomeViewHelper.PRIMARY_DARK;
+    private static final Color ACTION_SECONDARY = new Color(239, 246, 255);
+    private static final Color ACTION_SECONDARY_HOVER = new Color(219, 234, 254);
+    private static final Color ACTION_SECONDARY_PRESSED = new Color(191, 219, 254);
+    private static final Color ACTION_SECONDARY_TEXT = HomeViewHelper.PRIMARY_DARK;
 
     private static final Font DISPLAY_FONT =
             new Font("Segoe UI", Font.PLAIN, 13);
@@ -397,18 +405,28 @@ public class UniversalDatePicker extends JPanel {
         JButton button = new JButton(text);
 
         button.setFont(
-                new Font("Segoe UI", Font.BOLD, 11)
+                new Font("Segoe UI Semibold", Font.PLAIN, 11)
         );
 
         button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        ButtonStateHelper.installRounded(button, 6);
 
         if (primary) {
 
             button.setBackground(
-                    HomeViewHelper.PRIMARY
+                    ACTION_PRIMARY
             );
 
             button.setForeground(Color.WHITE);
+            ButtonStateHelper.setHoverBackground(
+                    button,
+                    ACTION_PRIMARY_HOVER,
+                    ACTION_PRIMARY_PRESSED
+            );
 
             button.setBorder(
                     new EmptyBorder(4, 10, 4, 10)
@@ -417,20 +435,20 @@ public class UniversalDatePicker extends JPanel {
         } else {
 
             button.setBackground(
-                    new Color(245, 245, 245)
+                    ACTION_SECONDARY
             );
 
             button.setForeground(
-                    new Color(80, 80, 80)
+                    ACTION_SECONDARY_TEXT
+            );
+            ButtonStateHelper.setHoverBackground(
+                    button,
+                    ACTION_SECONDARY_HOVER,
+                    ACTION_SECONDARY_PRESSED
             );
 
             button.setBorder(
-                    new CompoundBorder(
-                            new LineBorder(
-                                    new Color(170, 170, 170)
-                            ),
-                            new EmptyBorder(4, 10, 4, 10)
-                    )
+                    new EmptyBorder(4, 10, 4, 10)
             );
         }
 

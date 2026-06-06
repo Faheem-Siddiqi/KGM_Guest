@@ -2,6 +2,7 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.AccommodationDao;
 import com.kgm.dao.AccommodationDao.AccommodationOccupancyFilter;
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 import com.kgm.ui.styling.DialogHelper;
@@ -122,6 +123,11 @@ public class AccommodationListViewPanel extends JPanel {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        setAccommodations(new ArrayList<>());
+                        return;
+                    }
                     DialogHelper.error(
                             AccommodationListViewPanel.this,
                             "Accommodations not loaded",

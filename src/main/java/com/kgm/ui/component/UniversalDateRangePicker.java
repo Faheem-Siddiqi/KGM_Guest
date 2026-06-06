@@ -1,5 +1,6 @@
 package com.kgm.ui.component;
 
+import com.kgm.ui.styling.ButtonStateHelper;
 import com.kgm.ui.styling.HomeViewHelper;
 import com.toedter.calendar.JCalendar;
 
@@ -26,6 +27,13 @@ public class UniversalDateRangePicker extends JPanel {
     private static final int FIELD_WIDTH_BUFFER = 4;
     private static final Color BORDER_COLOR = new Color(200, 200, 200);
     private static final Color ICON_COLOR = HomeViewHelper.TEXT_SECONDARY;
+    private static final Color ACTION_PRIMARY = HomeViewHelper.PRIMARY;
+    private static final Color ACTION_PRIMARY_HOVER = new Color(8, 92, 177);
+    private static final Color ACTION_PRIMARY_PRESSED = HomeViewHelper.PRIMARY_DARK;
+    private static final Color ACTION_SECONDARY = new Color(239, 246, 255);
+    private static final Color ACTION_SECONDARY_HOVER = new Color(219, 234, 254);
+    private static final Color ACTION_SECONDARY_PRESSED = new Color(191, 219, 254);
+    private static final Color ACTION_SECONDARY_TEXT = HomeViewHelper.PRIMARY_DARK;
 
     private final JLabel displayLabel = new JLabel();
     private final JLabel iconLabel = new CalendarIcon();
@@ -167,18 +175,21 @@ public class UniversalDateRangePicker extends JPanel {
         JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        ButtonStateHelper.installRounded(button, 6);
         if (primary) {
             button.setForeground(Color.WHITE);
-            button.setBackground(HomeViewHelper.PRIMARY);
+            button.setBackground(ACTION_PRIMARY);
+            ButtonStateHelper.setHoverBackground(button, ACTION_PRIMARY_HOVER, ACTION_PRIMARY_PRESSED);
             button.setBorder(new EmptyBorder(7, 16, 7, 16));
         } else {
-            button.setForeground(HomeViewHelper.PRIMARY);
-            button.setBackground(Color.WHITE);
-            button.setBorder(new CompoundBorder(
-                    new LineBorder(HomeViewHelper.BORDER),
-                    new EmptyBorder(6, 14, 6, 14)
-            ));
+            button.setForeground(ACTION_SECONDARY_TEXT);
+            button.setBackground(ACTION_SECONDARY);
+            ButtonStateHelper.setHoverBackground(button, ACTION_SECONDARY_HOVER, ACTION_SECONDARY_PRESSED);
+            button.setBorder(new EmptyBorder(7, 16, 7, 16));
         }
         return button;
     }

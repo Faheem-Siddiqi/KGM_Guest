@@ -2,6 +2,7 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
@@ -177,6 +178,9 @@ public class GuestDetailsPanel extends JPanel {
 
                 onUpdated.run();
             } catch (SQLException exception) {
+                if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                    return;
+                }
                 DialogHelper.error(this, "Guest not updated", exception.getMessage());
             }
         });
@@ -252,6 +256,7 @@ public class GuestDetailsPanel extends JPanel {
             Guest guest = guestDao.findById(guestId);
             return GuestRecordPanel.recordFromGuest(guest);
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return record;
         }
     }
@@ -526,6 +531,9 @@ public class GuestDetailsPanel extends JPanel {
                 updateStaySummary(arrivalDate, departureDate, tenureField, statusField);
 
             } catch (SQLException exception) {
+                if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                    return;
+                }
                 DialogHelper.error(this, "Reload failed", "Could not reload guest data: " + exception.getMessage());
             }
         });

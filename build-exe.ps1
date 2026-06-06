@@ -527,8 +527,8 @@ try {
     if ($CleanTarget) {
         Clear-TargetFolder -TargetPath ".\target" | Out-Null
     } else {
-        Write-Host "Skipping target cleanup by default to avoid terminating the VS Code PowerShell terminal."
-        Write-Host "Use -CleanTarget only when you specifically need to clean target\."
+        Write-Host "Maven will automatically clean Java build output before compiling."
+        Write-Host "Use -CleanTarget only when you specifically need to remove the whole target\ folder."
     }
 
     Write-Step -Message "Running Maven package" -Percent 38

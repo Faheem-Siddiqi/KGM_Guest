@@ -5,12 +5,15 @@ The full setup, dependency versions, first-run steps, business rules, Excel impo
 Use this file as the short source-directory guide while scanning code.
 
 
-1. Setup MYQ and MY SQL Configurator 
+1. Install MySQL and the required tools. If using the Maven zip, unzip it and add `C:\apache-maven-3.9.14-bin\apache-maven-3.9.14\bin` to PATH.
 2. Env
 3. mvn package
 4. java -jar target\my-java-app-1.0.0.jar
-5. Build .\build-exe.ps1 -OutputDir "D:\-Guest-App" or  powershell -ExecutionPolicy Bypass -File .\build-exe.ps1 -OutputDir "D:\KGM-Guest-App" in vs ( require admin access)
-6. Update build .\update-exe.ps1 -OutputDir "D:\KGM-Guest-App" -CleanTarget  or powershell -ExecutionPolicy Bypass -File .\update-exe.ps1 -OutputDir "D:\KGM-Guest-App" -CleanTarge
+5. Build .\build-exe.ps1 -OutputDir "D:\-Guest-App" or  powershell -ExecutionPolicy Bypass -File .\build-exe.ps1 -OutputDir "D:\KGM-Guest-App" in vs ( require admin access) or use .\build-exe.ps1 -OutputDir "D:\KGM-App" -CleanTarget
+
+6. Update build
+Before that use vs option SHow all command and clean java workspace than type:
+ .\update-exe.ps1 -OutputDir "D:\KGM-Guest-App" -CleanTarget  or powershell -ExecutionPolicy Bypass -File .\update-exe.ps1 -OutputDir "D:\KGM-Guest-App" -CleanTarget
 
 ## Main Flow
 

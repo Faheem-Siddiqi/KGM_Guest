@@ -269,6 +269,10 @@ public class HomeView extends JFrame {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
                     System.err.println("Dashboard data refresh failed: " 
                             + (cause == null ? exception.getMessage() : cause.getMessage()));
                 } finally {
@@ -414,6 +418,10 @@ public class HomeView extends JFrame {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
                     System.err.println("Dashboard KPI refresh failed: "
                             + (cause == null ? exception.getMessage() : cause.getMessage()));
                 } finally {
@@ -695,6 +703,9 @@ public class HomeView extends JFrame {
                         showHeaderImportError();
                         return;
                     }
+                    if (DatabaseSetupView.showIfConnectionFailure(cause == null ? exception : cause)) {
+                        return;
+                    }
                     DialogHelper.error(
                             HomeView.this,
                             "Excel import needs attention",
@@ -785,6 +796,9 @@ public class HomeView extends JFrame {
                     Throwable cause = exception.getCause();
                     if (cause instanceof IOException ioException) {
                         DialogHelper.error(HomeView.this, "Sample not saved", friendlySampleSaveFailure(target, ioException));
+                        return;
+                    }
+                    if (DatabaseSetupView.showIfConnectionFailure(cause == null ? exception : cause)) {
                         return;
                     }
                     String message = cause == null || cause.getMessage() == null || cause.getMessage().isBlank()
@@ -1066,6 +1080,9 @@ public class HomeView extends JFrame {
                     DialogHelper.error(HomeView.this, "Report generation stopped", "Report generation was interrupted.");
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
+                    if (DatabaseSetupView.showIfConnectionFailure(cause == null ? exception : cause)) {
+                        return;
+                    }
                     String message = reportFailureMessage(cause == null ? exception : cause);
                     DialogHelper.error(HomeView.this, "Report generation failed", message);
                 }
@@ -1391,6 +1408,7 @@ public class HomeView extends JFrame {
         try {
             return dashboardDao.loadStats();
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new DashboardDao.DashboardStats(0, 0, 0, 0, 0, 0, "-");
         }
     }
@@ -1398,6 +1416,7 @@ public class HomeView extends JFrame {
         try {
             return loadHouseCapacityOccupancyChart(category);
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new DashboardDao.OccupancyChartData(new String[0], new int[0], new int[0]);
         }
     }
@@ -1405,6 +1424,7 @@ public class HomeView extends JFrame {
         try {
             return visibleHouseCapacityCategories(dashboardDao.loadAccommodationCategories());
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new String[0];
         }
     }
@@ -1467,6 +1487,7 @@ public class HomeView extends JFrame {
         try {
             return dashboardDao.loadDepartmentChart();
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new DashboardDao.DepartmentChartData(new String[0], new int[0]);
         }
     }
@@ -1474,6 +1495,7 @@ public class HomeView extends JFrame {
         try {
             return dashboardDao.loadVisitTypeChart();
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new DashboardDao.BreakdownChartData(new String[0], new int[0]);
         }
     }
@@ -1481,6 +1503,7 @@ public class HomeView extends JFrame {
         try {
             return dashboardDao.loadTopCompanyChart();
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new DashboardDao.BreakdownChartData(new String[0], new int[0]);
         }
     }

@@ -2,6 +2,7 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.AccommodationDao;
 import com.kgm.database.DatabaseInitializer;
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 import com.kgm.ui.styling.DialogHelper;
@@ -161,6 +162,10 @@ public class AccommodationManagementPanel extends JPanel {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
                     DialogHelper.error(
                             AccommodationManagementPanel.this,
                             "Accommodations not loaded",
@@ -182,6 +187,9 @@ public class AccommodationManagementPanel extends JPanel {
             DialogHelper.success(this, "Accommodation saved successfully.");
             return true;
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return false;
+            }
             DialogHelper.error(this, "Accommodation not saved", exception.getMessage());
             return false;
         }
@@ -195,6 +203,9 @@ public class AccommodationManagementPanel extends JPanel {
             DialogHelper.success(this, "Accommodation updated successfully.");
             return true;
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return false;
+            }
             DialogHelper.error(this, "Accommodation not updated", exception.getMessage());
             return false;
         }

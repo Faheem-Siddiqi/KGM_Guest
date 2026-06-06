@@ -498,6 +498,9 @@ public class AddGuest extends JFrame {
                     remarks
             );
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return;
+            }
             DialogHelper.error(parent, "Guest not saved", exception.getMessage());
         }
     }
@@ -509,6 +512,7 @@ public class AddGuest extends JFrame {
                     new String[0]
             );
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new String[0];
         }
     }
@@ -531,6 +535,8 @@ public class AddGuest extends JFrame {
                     accommodationCombo.setEnabled(categories.length > 0);
                     updateRoomCombo(accommodationCombo, roomCombo);
                 } catch (Exception exception) {
+                    Throwable failure = exception.getCause() == null ? exception : exception.getCause();
+                    DatabaseSetupView.showIfConnectionFailure(failure);
                     setComboItems(accommodationCombo, new String[0]);
                     accommodationCombo.setEnabled(false);
                     setComboItems(roomCombo, new String[0]);
@@ -550,6 +556,7 @@ public class AddGuest extends JFrame {
                     new String[0]
             );
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return new String[0];
         }
     }
@@ -647,6 +654,7 @@ public class AddGuest extends JFrame {
         try {
             return !ACCOMMODATION_DAO.findActiveNamesByCategory(accommodationCategory).isEmpty();
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             return false;
         }
     }

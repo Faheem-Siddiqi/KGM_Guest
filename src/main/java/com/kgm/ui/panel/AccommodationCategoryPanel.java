@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.dao.AccommodationCategoryDao;
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 import com.kgm.ui.styling.DialogHelper;
 
@@ -110,6 +111,9 @@ public class AccommodationCategoryPanel extends JPanel {
             loadCategories();
             clearForm();
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return;
+            }
             DialogHelper.error(this, "Category not saved", exception.getMessage());
         }
     }
@@ -128,6 +132,9 @@ public class AccommodationCategoryPanel extends JPanel {
             loadCategories();
             clearForm();
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return;
+            }
             DialogHelper.error(this, "Category not updated", exception.getMessage());
         }
     }
@@ -142,6 +149,9 @@ public class AccommodationCategoryPanel extends JPanel {
             loadCategories();
             clearForm();
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return;
+            }
             DialogHelper.error(this, "Category not deleted", exception.getMessage());
         }
     }
@@ -158,6 +168,9 @@ public class AccommodationCategoryPanel extends JPanel {
             }
             notifyCategoriesChanged();
         } catch (SQLException exception) {
+            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
+                return;
+            }
             DialogHelper.error(this, "Categories not loaded", exception.getMessage());
         }
     }

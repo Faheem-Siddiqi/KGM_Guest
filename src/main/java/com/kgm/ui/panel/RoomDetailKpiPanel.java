@@ -1,6 +1,7 @@
 package com.kgm.ui.panel;
 
 import com.kgm.dao.DashboardDao;
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.DialogHelper;
 import com.kgm.ui.styling.HomeViewHelper;
@@ -45,6 +46,10 @@ public class RoomDetailKpiPanel extends JPanel {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException exception) {
                     Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
                     DialogHelper.error(
                             RoomDetailKpiPanel.this,
                             "Room details not loaded",

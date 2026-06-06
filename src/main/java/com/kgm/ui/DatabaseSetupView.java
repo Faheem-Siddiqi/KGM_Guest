@@ -2,6 +2,8 @@ package com.kgm.ui;
 
 import com.kgm.StartupController;
 import com.kgm.config.DatabaseConfig;
+import com.kgm.config.DatabaseConnection;
+import com.kgm.config.DatabaseConnectionFailure;
 import com.kgm.ui.styling.HomeViewHelper;
 
 import javax.swing.BorderFactory;
@@ -11,10 +13,14 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.border.AbstractBorder;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -26,6 +32,7 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Frame;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -39,6 +46,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.net.URI;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.sql.SQLException;
 
 public class DatabaseSetupView extends JFrame {
@@ -72,27 +81,291 @@ public class DatabaseSetupView extends JFrame {
     private static final Color PRIMARY = HomeViewHelper.PRIMARY;
     private static final Color PRIMARY_DARK = HomeViewHelper.PRIMARY_DARK;
     private static final Color TEAL = HomeViewHelper.TEAL;
-    private static final Color WARNING_BACKGROUND = new Color(255, 247, 237);
-    private static final Color WARNING_BORDER = new Color(253, 186, 116);
-    private static final Color WARNING_TEXT = new Color(154, 52, 18);
+    private static final Color WARNING_BACKGROUND = new Color(255, 248, 246);
+    private static final Color WARNING_BORDER = new Color(255, 205, 196);
+    private static final Color WARNING_TEXT = new Color(176, 43, 31);
+    private static final int AUTO_RETRY_INITIAL_DELAY_MS = 3500;
+    private static final int AUTO_RETRY_INTERVAL_MS = 10000;
+
+    private static DatabaseSetupView activeView;
 
     private final JLabel statusLabel = new JLabel("Waiting for database setup");
     private final JTextArea errorText = new JTextArea();
+    private final JTextArea technicalText = new JTextArea();
+    private final JScrollPane technicalScroll = new JScrollPane(technicalText);
+    private final JToggleButton technicalToggle = new JToggleButton("Show technical details");
+    private final JProgressBar retryProgress = new JProgressBar();
     private final JButton retryButton = new ActionButton("Retry connection", true);
+    private Runnable onConnected;
+    private SwingWorker<Boolean, Void> retryWorker;
+    private Timer autoRetryTimer;
 
     public DatabaseSetupView(RuntimeException startupFailure) {
-        setTitle("KGM Database Setup");
+        this(startupFailure, StartupController::showLoginWindow, true);
+    }
+
+    private DatabaseSetupView(RuntimeException startupFailure, Runnable onConnected, boolean exitOnClose) {
+        this.onConnected = onConnected;
+        activeView = this;
+        setTitle(DatabaseConnectionFailure.TITLE);
         setSize(1040, 720);
-        setMinimumSize(new Dimension(860, 620));
+        setMinimumSize(new Dimension(760, 560));
+        setResizable(true);
         setLocationRelativeTo(null);
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(exitOnClose ? EXIT_ON_CLOSE : DISPOSE_ON_CLOSE);
+        installFullScreenGuard();
         getContentPane().setBackground(BACKGROUND);
         setLayout(new BorderLayout());
 
-        add(createHeader(), BorderLayout.NORTH);
-        add(createBody(startupFailure), BorderLayout.CENTER);
-        add(createFooter(), BorderLayout.SOUTH);
+        add(createRecoveryContent(startupFailure), BorderLayout.CENTER);
         updateError(startupFailure);
+        startAutoRetry();
+    }
+
+    public static void showStartupFailure(RuntimeException failure) {
+        showConnectionFailure(failure, StartupController::showLoginWindow, true);
+    }
+
+    public static void showConnectionFailure(Throwable failure) {
+        showConnectionFailure(failure, null, false);
+    }
+
+    public static boolean showIfConnectionFailure(Throwable failure) {
+        if (!DatabaseConnection.isConnectionFailure(failure)) {
+            return false;
+        }
+        showConnectionFailure(failure);
+        return true;
+    }
+
+    private static void showConnectionFailure(Throwable failure, Runnable onConnected, boolean exitOnClose) {
+        Runnable show = () -> {
+            RuntimeException runtimeFailure = runtimeFailure(failure);
+            if (activeView != null && activeView.isDisplayable()) {
+                boolean wasVisible = activeView.isVisible();
+                activeView.setRecoveryAction(onConnected);
+                activeView.updateError(runtimeFailure);
+                activeView.setVisible(true);
+                activeView.keepFullScreen();
+                if (!wasVisible) {
+                    activeView.toFront();
+                    activeView.requestFocus();
+                }
+                return;
+            }
+
+            new DatabaseSetupView(runtimeFailure, onConnected, exitOnClose).setVisible(true);
+        };
+
+        if (SwingUtilities.isEventDispatchThread()) {
+            show.run();
+        } else {
+            SwingUtilities.invokeLater(show);
+        }
+    }
+
+    private static RuntimeException runtimeFailure(Throwable failure) {
+        if (failure instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        }
+        return new IllegalStateException(DatabaseConnectionFailure.TITLE, failure);
+    }
+
+    private void installFullScreenGuard() {
+        setExtendedState(Frame.MAXIMIZED_BOTH);
+        addWindowStateListener(event -> {
+            if ((event.getNewState() & Frame.ICONIFIED) == Frame.ICONIFIED) {
+                SwingUtilities.invokeLater(this::keepFullScreen);
+            }
+        });
+    }
+
+    private void keepFullScreen() {
+        setState(Frame.NORMAL);
+        setExtendedState(Frame.MAXIMIZED_BOTH);
+    }
+
+    private JScrollPane createRecoveryContent(RuntimeException startupFailure) {
+        JPanel page = new JPanel();
+        page.setOpaque(false);
+        page.setLayout(new BoxLayout(page, BoxLayout.Y_AXIS));
+        page.setBorder(new EmptyBorder(26, 34, 28, 34));
+
+        page.add(createRecoveryHeader());
+        page.add(Box.createVerticalStrut(18));
+        page.add(createStatusPanel(startupFailure));
+        page.add(Box.createVerticalStrut(14));
+        page.add(createQuietCheckPanel());
+        page.add(Box.createVerticalStrut(14));
+        page.add(createChecklistPanel());
+        page.add(Box.createVerticalStrut(14));
+        page.add(createInlineFooter());
+
+        JScrollPane scrollPane = new JScrollPane(page);
+        scrollPane.setBorder(null);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setBackground(BACKGROUND);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(18);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        return scrollPane;
+    }
+
+    private JPanel createRecoveryHeader() {
+        JPanel header = new JPanel(new GridBagLayout());
+        header.setOpaque(false);
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 128));
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setOpaque(false);
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+
+        JLabel eyebrow = new JLabel("KGM GUEST PORTAL");
+        eyebrow.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        eyebrow.setForeground(PRIMARY);
+        eyebrow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel title = new JLabel(DatabaseConnectionFailure.TITLE);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 30));
+        title.setForeground(TEXT_PRIMARY);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel subtitle = new JLabel("Server is unavailable. The app is checking quietly and will continue when it reconnects.");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        subtitle.setForeground(TEXT_SECONDARY);
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        titleBlock.add(eyebrow);
+        titleBlock.add(Box.createVerticalStrut(8));
+        titleBlock.add(title);
+        titleBlock.add(Box.createVerticalStrut(4));
+        titleBlock.add(subtitle);
+
+        GridBagConstraints titleConstraints = new GridBagConstraints();
+        titleConstraints.gridx = 0;
+        titleConstraints.gridy = 0;
+        titleConstraints.weightx = 1.0;
+        titleConstraints.fill = GridBagConstraints.HORIZONTAL;
+        titleConstraints.anchor = GridBagConstraints.WEST;
+        titleConstraints.insets = new Insets(0, 0, 0, 16);
+        header.add(titleBlock, titleConstraints);
+
+        GridBagConstraints pillConstraints = new GridBagConstraints();
+        pillConstraints.gridx = 1;
+        pillConstraints.gridy = 0;
+        pillConstraints.anchor = GridBagConstraints.NORTHEAST;
+        header.add(new StatusPill("Auto-checking"), pillConstraints);
+        return header;
+    }
+
+    private JPanel createQuietCheckPanel() {
+        JPanel panel = cardPanel();
+        panel.setLayout(new BorderLayout(14, 0));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 86));
+        panel.setBorder(new CompoundBorder(new RoundedBorder(8, new Color(191, 219, 254)), new EmptyBorder(16, 18, 16, 18)));
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("Automatic recovery is running");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        title.setForeground(TEXT_PRIMARY);
+
+        JLabel detail = new JLabel("No action is needed. The app checks the server in the background every few seconds.");
+        detail.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        detail.setForeground(TEXT_SECONDARY);
+
+        text.add(title);
+        text.add(Box.createVerticalStrut(4));
+        text.add(detail);
+
+        JProgressBar progress = new JProgressBar();
+        progress.setIndeterminate(true);
+        progress.setPreferredSize(new Dimension(180, 8));
+        progress.setBorder(BorderFactory.createEmptyBorder());
+        progress.setForeground(PRIMARY);
+        progress.setBackground(new Color(232, 244, 255));
+
+        panel.add(text, BorderLayout.CENTER);
+        panel.add(progress, BorderLayout.EAST);
+        return panel;
+    }
+
+    private JPanel createChecklistPanel() {
+        JPanel wrapper = new JPanel(new BorderLayout(0, 16));
+        wrapper.setOpaque(false);
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        JPanel heading = new JPanel();
+        heading.setOpaque(false);
+        heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("Connection checklist");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        title.setForeground(TEXT_PRIMARY);
+
+        JLabel detail = new JLabel("Use these actions only if the automatic check cannot reconnect.");
+        detail.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        detail.setForeground(TEXT_SECONDARY);
+
+        heading.add(title);
+        heading.add(Box.createVerticalStrut(4));
+        heading.add(detail);
+
+        JPanel steps = new JPanel();
+        steps.setOpaque(false);
+        steps.setLayout(new BoxLayout(steps, BoxLayout.Y_AXIS));
+        steps.add(stepCard(
+                "1",
+                "Confirm MySQL Server is running",
+                "Check Server PC 516, LAN connectivity, and MySQL service status on port " + DatabaseConfig.port() + ".",
+                DatabaseConfig.host() + ":" + DatabaseConfig.port(),
+                "Download MySQL",
+                MYSQL_DOWNLOAD_URL
+        ));
+        steps.add(Box.createVerticalStrut(12));
+        steps.add(stepCard(
+                "2",
+                "Verify database access",
+                "Run this SQL only if the database user is missing or the password changed.",
+                SQL_SETUP,
+                "Copy SQL",
+                SQL_SETUP
+        ));
+        steps.add(Box.createVerticalStrut(12));
+        steps.add(stepCard(
+                "3",
+                "Check the .env connection",
+                "Make sure this computer points to the correct server, database, user, and password.",
+                ENV_SETUP,
+                "Copy .env values",
+                ENV_SETUP
+        ));
+
+        wrapper.add(heading, BorderLayout.NORTH);
+        wrapper.add(steps, BorderLayout.CENTER);
+        return wrapper;
+    }
+
+    private JPanel createInlineFooter() {
+        JPanel footer = new JPanel(new BorderLayout(12, 0));
+        footer.setOpaque(false);
+        footer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+
+        JLabel note = new JLabel("You can keep working when the server reconnects. Manual retry is optional.");
+        note.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        note.setForeground(TEXT_SECONDARY);
+
+        JButton close = HomeViewHelper.textButton("Close");
+        close.addActionListener(event -> dispose());
+
+        footer.add(note, BorderLayout.WEST);
+        footer.add(close, BorderLayout.EAST);
+        return footer;
     }
 
     private JPanel createHeader() {
@@ -108,11 +381,11 @@ public class DatabaseSetupView extends JFrame {
         eyebrow.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
         eyebrow.setForeground(PRIMARY);
 
-        JLabel title = new JLabel("Database setup required");
+        JLabel title = new JLabel(DatabaseConnectionFailure.TITLE);
         title.setFont(new Font("Segoe UI", Font.BOLD, 30));
         title.setForeground(TEXT_PRIMARY);
 
-        JLabel subtitle = new JLabel("The app opened safely. Complete these steps, then retry the connection.");
+        JLabel subtitle = new JLabel("The app opened a safe recovery screen. Check the server connection, then retry.");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         subtitle.setForeground(TEXT_SECONDARY);
 
@@ -156,6 +429,8 @@ public class DatabaseSetupView extends JFrame {
     private JPanel createStatusPanel(RuntimeException startupFailure) {
         JPanel panel = cardPanel();
         panel.setLayout(new BorderLayout(0, 20));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         panel.setBorder(new CompoundBorder(new RoundedBorder(8, BORDER), new EmptyBorder(24, 24, 24, 24)));
 
         JPanel top = new JPanel();
@@ -166,9 +441,8 @@ public class DatabaseSetupView extends JFrame {
         label.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
         label.setForeground(TEXT_SECONDARY);
 
-        JLabel connection = new JLabel(connectionInfo());
-        connection.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        connection.setForeground(TEXT_PRIMARY);
+        JTextArea connection = plainText(connectionInfo(), new Font("Segoe UI", Font.BOLD, 18), TEXT_PRIMARY);
+        connection.setFocusable(false);
 
         statusLabel.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
         statusLabel.setForeground(WARNING_TEXT);
@@ -183,12 +457,13 @@ public class DatabaseSetupView extends JFrame {
         errorPanel.setBackground(WARNING_BACKGROUND);
         errorPanel.setBorder(new CompoundBorder(new RoundedBorder(8, WARNING_BORDER), new EmptyBorder(16, 16, 16, 16)));
 
-        JLabel errorTitle = new JLabel("What happened");
+        JLabel errorTitle = new JLabel(DatabaseConnectionFailure.TITLE);
         errorTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
         errorTitle.setForeground(WARNING_TEXT);
 
         errorText.setEditable(false);
         errorText.setOpaque(false);
+        errorText.setFocusable(false);
         errorText.setLineWrap(true);
         errorText.setWrapStyleWord(true);
         errorText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -198,6 +473,14 @@ public class DatabaseSetupView extends JFrame {
 
         errorPanel.add(errorTitle, BorderLayout.NORTH);
         errorPanel.add(errorText, BorderLayout.CENTER);
+
+        JPanel errorStack = new JPanel();
+        errorStack.setOpaque(false);
+        errorStack.setLayout(new BoxLayout(errorStack, BoxLayout.Y_AXIS));
+        errorPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        errorStack.add(errorPanel);
+        errorStack.add(Box.createVerticalStrut(12));
+        errorStack.add(createTechnicalDetailsPanel());
 
         JPanel actions = new JPanel(new GridBagLayout());
         actions.setOpaque(false);
@@ -209,16 +492,59 @@ public class DatabaseSetupView extends JFrame {
         gbc.insets = new Insets(0, 0, 10, 0);
         actions.add(retryButton, gbc);
 
-        JButton mysqlButton = new ActionButton("Open MySQL download", false);
-        mysqlButton.addActionListener(event -> openUrl(MYSQL_DOWNLOAD_URL));
+        retryProgress.setIndeterminate(true);
+        retryProgress.setVisible(false);
+        retryProgress.setPreferredSize(new Dimension(0, 6));
+        retryProgress.setBorder(BorderFactory.createEmptyBorder());
+        retryProgress.setBackground(new Color(232, 244, 255));
+        retryProgress.setForeground(PRIMARY);
         gbc.gridy = 1;
+        actions.add(retryProgress, gbc);
+
+        JButton mysqlButton = new ActionButton("Download MySQL", false);
+        mysqlButton.addActionListener(event -> openUrl(MYSQL_DOWNLOAD_URL));
+        gbc.gridy = 2;
         actions.add(mysqlButton, gbc);
 
-        retryButton.addActionListener(event -> retryConnection());
+        retryButton.addActionListener(event -> retryConnection(true));
 
         panel.add(top, BorderLayout.NORTH);
-        panel.add(errorPanel, BorderLayout.CENTER);
+        panel.add(errorStack, BorderLayout.CENTER);
         panel.add(actions, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel createTechnicalDetailsPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setOpaque(false);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        technicalToggle.setFocusPainted(false);
+        technicalToggle.setContentAreaFilled(false);
+        technicalToggle.setBorderPainted(false);
+        technicalToggle.setOpaque(false);
+        technicalToggle.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        technicalToggle.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 12));
+        technicalToggle.setForeground(PRIMARY_DARK);
+        technicalToggle.setHorizontalAlignment(SwingConstants.LEFT);
+        technicalToggle.setBorder(new EmptyBorder(2, 0, 2, 0));
+        technicalToggle.addActionListener(event -> toggleTechnicalDetails());
+
+        technicalText.setEditable(false);
+        technicalText.setFocusable(false);
+        technicalText.setLineWrap(true);
+        technicalText.setWrapStyleWord(true);
+        technicalText.setFont(new Font("Consolas", Font.PLAIN, 12));
+        technicalText.setForeground(new Color(49, 58, 70));
+        technicalText.setBackground(new Color(248, 250, 252));
+        technicalText.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        technicalScroll.setVisible(false);
+        technicalScroll.setPreferredSize(new Dimension(0, 150));
+        technicalScroll.setBorder(new RoundedBorder(8, new Color(226, 232, 240)));
+
+        panel.add(technicalToggle, BorderLayout.NORTH);
+        panel.add(technicalScroll, BorderLayout.CENTER);
         return panel;
     }
 
@@ -232,7 +558,7 @@ public class DatabaseSetupView extends JFrame {
                 "Install and start MySQL Server",
                 "Use MySQL Server 8.0 or newer. Keep the default port 3306 unless your PC uses a custom port.",
                 MYSQL_DOWNLOAD_URL,
-                "Open download",
+                "Download MySQL",
                 MYSQL_DOWNLOAD_URL
         ));
         steps.add(Box.createVerticalStrut(14));
@@ -355,6 +681,7 @@ public class DatabaseSetupView extends JFrame {
     private JTextArea codeBlock(String text) {
         JTextArea area = new JTextArea(text.trim());
         area.setEditable(false);
+        area.setFocusable(false);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
         area.setFont(new Font("Consolas", Font.PLAIN, 12));
@@ -376,18 +703,32 @@ public class DatabaseSetupView extends JFrame {
         return area;
     }
 
-    private void retryConnection() {
-        statusLabel.setText("Checking MySQL connection...");
-        retryButton.setEnabled(false);
-        retryButton.setText("Checking...");
+    private void startAutoRetry() {
+        autoRetryTimer = new Timer(AUTO_RETRY_INTERVAL_MS, event -> retryConnection(false));
+        autoRetryTimer.setInitialDelay(AUTO_RETRY_INITIAL_DELAY_MS);
+        autoRetryTimer.start();
+    }
 
-        new SwingWorker<Boolean, Void>() {
+    private void retryConnection(boolean userInitiated) {
+        if (retryWorker != null && !retryWorker.isDone()) {
+            return;
+        }
+
+        statusLabel.setText(userInitiated ? "Checking MySQL connection..." : "Checking server quietly...");
+        if (userInitiated) {
+            retryButton.setEnabled(false);
+            retryButton.setText("Checking...");
+            retryProgress.setVisible(true);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        }
+
+        retryWorker = new SwingWorker<>() {
             private RuntimeException failure;
 
             @Override
             protected Boolean doInBackground() {
                 try {
-                    StartupController.initializeDatabase();
+                    StartupController.reconnectDatabase();
                     return true;
                 } catch (RuntimeException exception) {
                     failure = exception;
@@ -397,16 +738,29 @@ public class DatabaseSetupView extends JFrame {
 
             @Override
             protected void done() {
-                retryButton.setEnabled(true);
-                retryButton.setText("Retry connection");
+                if (userInitiated) {
+                    retryButton.setEnabled(true);
+                    retryButton.setText("Retry connection");
+                    retryProgress.setVisible(false);
+                    setCursor(Cursor.getDefaultCursor());
+                }
                 if (Boolean.TRUE.equals(getResult())) {
                     statusLabel.setText("Database connected");
+                    if (autoRetryTimer != null) {
+                        autoRetryTimer.stop();
+                    }
+                    Runnable recovery = onConnected;
                     dispose();
-                    StartupController.showLoginWindow();
+                    if (recovery != null) {
+                        recovery.run();
+                    }
                 } else {
-                    statusLabel.setText("Still waiting for database setup");
-                    updateError(failure);
+                    statusLabel.setText("Server offline. Automatic checks continue.");
+                    if (userInitiated) {
+                        updateError(failure);
+                    }
                 }
+                retryWorker = null;
             }
 
             private Boolean getResult() {
@@ -416,23 +770,39 @@ public class DatabaseSetupView extends JFrame {
                     return false;
                 }
             }
-        }.execute();
+        };
+        retryWorker.execute();
     }
 
     private void updateError(RuntimeException failure) {
         errorText.setText(errorMessage(failure));
         errorText.setCaretPosition(0);
+        technicalText.setText(technicalDetails(failure));
+        technicalText.setCaretPosition(0);
     }
 
     private String errorMessage(Throwable failure) {
-        Throwable root = rootCause(failure);
-        String message = root == null ? "Database configuration is incomplete." : root.getMessage();
-        if (message == null || message.isBlank()) {
-            message = failure == null ? "Database configuration is incomplete." : failure.getMessage();
+        return DatabaseConnection.userFriendlyConnectionMessage() + "\n" + hintFor(rootCause(failure));
+    }
+
+    private String technicalDetails(Throwable failure) {
+        if (failure == null) {
+            return "No technical error details were provided.";
         }
 
-        String hint = hintFor(root);
-        return message + "\n\n" + hint;
+        StringWriter writer = new StringWriter();
+        PrintWriter printer = new PrintWriter(writer);
+        failure.printStackTrace(printer);
+        printer.flush();
+        return writer.toString();
+    }
+
+    private void toggleTechnicalDetails() {
+        boolean showing = technicalToggle.isSelected();
+        technicalToggle.setText(showing ? "Hide technical details" : "Show technical details");
+        technicalScroll.setVisible(showing);
+        revalidate();
+        repaint();
     }
 
     private String hintFor(Throwable failure) {
@@ -445,6 +815,23 @@ public class DatabaseSetupView extends JFrame {
             }
         }
         return "Follow the setup checklist on the right, then retry the connection.";
+    }
+
+    private void setRecoveryAction(Runnable recoveryAction) {
+        if (recoveryAction != null) {
+            this.onConnected = recoveryAction;
+        }
+    }
+
+    @Override
+    public void dispose() {
+        if (autoRetryTimer != null) {
+            autoRetryTimer.stop();
+        }
+        if (activeView == this) {
+            activeView = null;
+        }
+        super.dispose();
     }
 
     private Throwable rootCause(Throwable throwable) {

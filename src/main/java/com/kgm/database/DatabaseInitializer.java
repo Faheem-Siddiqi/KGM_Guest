@@ -46,6 +46,11 @@ public final class DatabaseInitializer {
         }
     }
 
+    public static synchronized void reconnect() {
+        initialized = false;
+        init();
+    }
+
     public static synchronized void ensureAccommodationNameCanRepeatAcrossCategories() throws SQLException {
         ensureAccommodationCategoryNameUniqueKey();
         ensureAccommodationRoomPrefixCheck();

@@ -356,8 +356,14 @@ public final class AddGuestHelper {
         button.setBackground(HomeViewHelper.PRIMARY);
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setFont(new Font("Segoe UI", Font.BOLD, 13));
         button.setBorder(new EmptyBorder(8, 16, 8, 16));
+        ButtonStateHelper.installRounded(button, 6);
+        ButtonStateHelper.setHoverBackground(button, new Color(8, 92, 177), HomeViewHelper.PRIMARY_DARK);
     }
 
     public static void styleReset(JButton button) {

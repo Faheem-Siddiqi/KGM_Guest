@@ -3,6 +3,7 @@ package com.kgm.ui.panel;
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
 import com.kgm.service.GuestValidationService;
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.component.UniversalDateRangePicker;
 import com.kgm.ui.dialog.DelayedProgressDialog;
 import com.kgm.ui.styling.DialogHelper;
@@ -134,6 +135,7 @@ public class GuestRecordPanel extends JPanel {
         try {
             setGuestRecords(loadGuestRecords());
         } catch (SQLException exception) {
+            DatabaseSetupView.showIfConnectionFailure(exception);
             allData.clear();
             setVisibleRecords(new ArrayList<>());
         }
@@ -252,6 +254,10 @@ public class GuestRecordPanel extends JPanel {
                     allData.clear();
                     setVisibleRecords(new ArrayList<>());
                     Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
                     String message = cause == null ? exception.getMessage() : cause.getMessage();
                     System.err.println("Guest records refresh failed: " + message);
                     DialogHelper.error(GuestRecordPanel.this, "Refresh failed", message);
@@ -628,6 +634,9 @@ public class GuestRecordPanel extends JPanel {
                     }
                 } catch (Exception e) {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    if (DatabaseSetupView.showIfConnectionFailure(cause)) {
+                        return;
+                    }
                     DialogHelper.error(GuestRecordPanel.this, "Cancellation Failed", cause.getMessage());
                 }
             }

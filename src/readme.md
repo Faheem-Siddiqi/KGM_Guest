@@ -4,6 +4,14 @@ The full setup, dependency versions, first-run steps, business rules, Excel impo
 
 Use this file as the short source-directory guide while scanning code.
 
+
+1. Setup MYQ and MY SQL Configurator 
+2. Env
+3. mvn package
+4. java -jar target\my-java-app-1.0.0.jar
+5. Build .\build-exe.ps1 -OutputDir "D:\-Guest-App" or  powershell -ExecutionPolicy Bypass -File .\build-exe.ps1 -OutputDir "D:\KGM-Guest-App" in vs ( require admin access)
+6. Update build .\update-exe.ps1 -OutputDir "D:\KGM-Guest-App" -CleanTarget  or powershell -ExecutionPolicy Bypass -File .\update-exe.ps1 -OutputDir "D:\KGM-Guest-App" -CleanTarge
+
 ## Main Flow
 
 - `main/java/com/kgm/Main.java` starts the app, initializes the database, and opens login.

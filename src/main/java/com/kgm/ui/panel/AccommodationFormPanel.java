@@ -1,6 +1,8 @@
 package com.kgm.ui.panel;
 
+import com.kgm.ui.DatabaseSetupView;
 import com.kgm.ui.styling.AccommodationManagementHelper;
+import com.kgm.ui.component.PendingButtonState;
 import com.kgm.ui.styling.DialogHelper;
 
 import javax.swing.*;
@@ -11,8 +13,12 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.MouseWheelEvent;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class AccommodationFormPanel extends JPanel {
     private static final String ROOM_PREFIX = "Room-";
@@ -36,12 +42,22 @@ public class AccommodationFormPanel extends JPanel {
 
     private final SaveHandler onSave;
     private final UpdateHandler onUpdate;
+    private final Consumer<AccommodationRecord> onSaved;
+    private final BiConsumer<Integer, AccommodationRecord> onUpdated;
     private String currentNamePrefix = ROOM_PREFIX;
     private int editingRow = -1;
+    private boolean actionInProgress;
 
-    public AccommodationFormPanel(SaveHandler onSave, UpdateHandler onUpdate) {
+    public AccommodationFormPanel(
+            SaveHandler onSave,
+            UpdateHandler onUpdate,
+            Consumer<AccommodationRecord> onSaved,
+            BiConsumer<Integer, AccommodationRecord> onUpdated
+    ) {
         this.onSave = onSave;
         this.onUpdate = onUpdate;
+        this.onSaved = onSaved;
+        this.onUpdated = onUpdated;
         setLayout(new GridBagLayout());
         setOpaque(false);
         nameField.addFocusListener(new java.awt.event.FocusAdapter() {
@@ -319,9 +335,13 @@ public class AccommodationFormPanel extends JPanel {
         if (accommodation == null) {
             return;
         }
-        if (onSave.save(accommodation)) {
-            clearForm();
-        }
+        runAccommodationAction(
+                saveButton,
+                "SAVING...",
+                "Accommodation not saved",
+                () -> onSave.save(accommodation),
+                saved -> onSaved.accept(saved)
+        );
     }
 
     private void updateAccommodation() {
@@ -333,9 +353,62 @@ public class AccommodationFormPanel extends JPanel {
         if (accommodation == null) {
             return;
         }
-        if (onUpdate.update(editingRow, accommodation)) {
-            clearForm();
+        int row = editingRow;
+        runAccommodationAction(
+                updateButton,
+                "UPDATING...",
+                "Accommodation not updated",
+                () -> onUpdate.update(row, accommodation),
+                updated -> onUpdated.accept(row, updated)
+        );
+    }
+
+    private void runAccommodationAction(
+            JButton sourceButton,
+            String pendingText,
+            String errorTitle,
+            AccommodationAction action,
+            Consumer<AccommodationRecord> onSuccess
+    ) {
+        if (actionInProgress) {
+            return;
         }
+        actionInProgress = true;
+        updateActionStates();
+        PendingButtonState pending = PendingButtonState.start(sourceButton, pendingText);
+        new SwingWorker<AccommodationRecord, Void>() {
+            @Override
+            protected AccommodationRecord doInBackground() throws Exception {
+                return action.run();
+            }
+
+            @Override
+            protected void done() {
+                boolean success = false;
+                try {
+                    AccommodationRecord result = get();
+                    success = true;
+                    onSuccess.accept(result);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
+                    DialogHelper.error(AccommodationFormPanel.this, errorTitle, failure.getMessage());
+                } finally {
+                    actionInProgress = false;
+                    pending.restore();
+                    if (success) {
+                        clearForm();
+                    } else {
+                        updateActionStates();
+                    }
+                }
+            }
+        }.execute();
     }
 
     private AccommodationRecord collectAccommodation() {
@@ -387,6 +460,12 @@ public class AccommodationFormPanel extends JPanel {
     }
 
     private void updateActionStates() {
+        if (actionInProgress) {
+            AccommodationManagementHelper.setTextButtonEnabled(saveButton, false);
+            AccommodationManagementHelper.setTextButtonEnabled(updateButton, false);
+            AccommodationManagementHelper.setTextButtonEnabled(cancelButton, false);
+            return;
+        }
         boolean editing = editingRow >= 0;
         boolean validName = isValidRoomName(nameField.getText());
         boolean validCategory = !selectedCategory().isEmpty();
@@ -498,11 +577,15 @@ public class AccommodationFormPanel extends JPanel {
     }
 
     public interface SaveHandler {
-        boolean save(AccommodationRecord accommodation);
+        AccommodationRecord save(AccommodationRecord accommodation) throws SQLException;
     }
 
     public interface UpdateHandler {
-        boolean update(int row, AccommodationRecord accommodation);
+        AccommodationRecord update(int row, AccommodationRecord accommodation) throws SQLException;
+    }
+
+    private interface AccommodationAction {
+        AccommodationRecord run() throws SQLException;
     }
 
     private static class AmenitiesListPanel extends JPanel implements Scrollable {

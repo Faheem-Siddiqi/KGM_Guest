@@ -3,6 +3,7 @@ package com.kgm.ui.panel;
 import com.kgm.dao.GuestDao;
 import com.kgm.model.Guest;
 import com.kgm.ui.DatabaseSetupView;
+import com.kgm.ui.component.PendingButtonState;
 import com.kgm.ui.component.UniversalDatePicker;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
@@ -17,6 +18,7 @@ import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.concurrent.ExecutionException;
 
 public class GuestDetailsPanel extends JPanel {
     private static final SimpleDateFormat DATE_TIME = new SimpleDateFormat("yyyy-MM-dd HH:mm");
@@ -143,46 +145,59 @@ public class GuestDetailsPanel extends JPanel {
                 return;
             }
 
-            try {
-                String nextRemarks;
+            String nextRemarks;
 
-                if (remarks.isEditable()) {
-                    nextRemarks = remarks.getText() == null ? "" : remarks.getText().trim();
+            if (remarks.isEditable()) {
+                nextRemarks = remarks.getText() == null ? "" : remarks.getText().trim();
 
-                    if (nextRemarks.isEmpty()) {
-                        nextRemarks = "N/A";
-                    }
-                } else {
-                    nextRemarks = originalRemarks;
-
-                    if (isEmptyRemark(nextRemarks)) {
-                        nextRemarks = "N/A";
-                    }
+                if (nextRemarks.isEmpty()) {
+                    nextRemarks = "N/A";
                 }
+            } else {
+                nextRemarks = originalRemarks;
 
-                Date nextDeparture = dbDeparted
-                        ? departureValue
-                        : departureDate.getDate();
-
-                guestDao.updateDepartureAndRemarks(
-                        recordId(record),
-                        nextDeparture,
-                        nextRemarks
-                );
-
-                // Show success dialog first
-                DialogHelper.success(this, "Guest Updated Successfully");
-
-                // Reload data from database and refresh UI
-                reloadFromDatabase(record, arrivalDate, departureDate, remarks, tenureField, statusField);
-
-                onUpdated.run();
-            } catch (SQLException exception) {
-                if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                    return;
+                if (isEmptyRemark(nextRemarks)) {
+                    nextRemarks = "N/A";
                 }
-                DialogHelper.error(this, "Guest not updated", exception.getMessage());
             }
+
+            Date nextDeparture = dbDeparted
+                    ? departureValue
+                    : departureDate.getDate();
+            final String remarksToSave = nextRemarks;
+            PendingButtonState pending = PendingButtonState.start(update, "Updating...");
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    guestDao.updateDepartureAndRemarks(
+                            recordId(record),
+                            nextDeparture,
+                            remarksToSave
+                    );
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                        DialogHelper.success(GuestDetailsPanel.this, "Guest Updated Successfully");
+                        reloadFromDatabase(record, arrivalDate, departureDate, remarks, tenureField, statusField);
+                        onUpdated.run();
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                    } catch (ExecutionException exception) {
+                        Throwable cause = exception.getCause();
+                        Throwable failure = cause == null ? exception : cause;
+                        if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                            return;
+                        }
+                        DialogHelper.error(GuestDetailsPanel.this, "Guest not updated", failure.getMessage());
+                    } finally {
+                        pending.restore();
+                    }
+                }
+            }.execute();
         });
 
         actions.add(back);

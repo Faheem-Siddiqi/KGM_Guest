@@ -2,6 +2,7 @@ package com.kgm.ui.panel;
 
 import com.kgm.dao.AccommodationCategoryDao;
 import com.kgm.ui.DatabaseSetupView;
+import com.kgm.ui.component.PendingButtonState;
 import com.kgm.ui.styling.AccommodationManagementHelper;
 import com.kgm.ui.styling.DialogHelper;
 
@@ -12,6 +13,7 @@ import java.awt.*;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 public class AccommodationCategoryPanel extends JPanel {
@@ -27,6 +29,7 @@ public class AccommodationCategoryPanel extends JPanel {
     private final JButton updateButton = AccommodationManagementHelper.textButton("UPDATE");
     private final JButton deleteButton = AccommodationManagementHelper.dangerTextButton("DELETE");
     private int editingRow = -1;
+    private boolean actionInProgress;
 
     public AccommodationCategoryPanel(Consumer<List<String>> onCategoriesChanged) {
         this.onCategoriesChanged = onCategoriesChanged;
@@ -106,16 +109,7 @@ public class AccommodationCategoryPanel extends JPanel {
         if (category.isEmpty()) {
             return;
         }
-        try {
-            categoryDao.save(category);
-            loadCategories();
-            clearForm();
-        } catch (SQLException exception) {
-            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                return;
-            }
-            DialogHelper.error(this, "Category not saved", exception.getMessage());
-        }
+        runCategoryAction(saveButton, "SAVING...", "Category not saved", () -> categoryDao.save(category));
     }
 
     private void updateCategory() {
@@ -127,16 +121,12 @@ public class AccommodationCategoryPanel extends JPanel {
             return;
         }
         String oldCategory = String.valueOf(categoryTable.getValueAt(editingRow, 0));
-        try {
-            categoryDao.updateName(oldCategory, category);
-            loadCategories();
-            clearForm();
-        } catch (SQLException exception) {
-            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                return;
-            }
-            DialogHelper.error(this, "Category not updated", exception.getMessage());
-        }
+        runCategoryAction(
+                updateButton,
+                "UPDATING...",
+                "Category not updated",
+                () -> categoryDao.updateName(oldCategory, category)
+        );
     }
 
     private void deleteCategory() {
@@ -144,16 +134,55 @@ public class AccommodationCategoryPanel extends JPanel {
             return;
         }
         String category = String.valueOf(categoryTable.getValueAt(editingRow, 0));
-        try {
-            categoryDao.deleteByName(category);
-            loadCategories();
-            clearForm();
-        } catch (SQLException exception) {
-            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                return;
-            }
-            DialogHelper.error(this, "Category not deleted", exception.getMessage());
+        runCategoryAction(deleteButton, "DELETING...", "Category not deleted", () -> categoryDao.deleteByName(category));
+    }
+
+    private void runCategoryAction(
+            JButton sourceButton,
+            String pendingText,
+            String errorTitle,
+            DatabaseAction action
+    ) {
+        if (actionInProgress) {
+            return;
         }
+        actionInProgress = true;
+        updateActionStates();
+        PendingButtonState pending = PendingButtonState.start(sourceButton, pendingText);
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                action.run();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                boolean success = false;
+                try {
+                    get();
+                    success = true;
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
+                    DialogHelper.error(AccommodationCategoryPanel.this, errorTitle, failure.getMessage());
+                } finally {
+                    actionInProgress = false;
+                    pending.restore();
+                    if (success) {
+                        loadCategories();
+                        clearForm();
+                    } else {
+                        updateActionStates();
+                    }
+                }
+            }
+        }.execute();
     }
 
     private void addCategory(String category) {
@@ -183,6 +212,13 @@ public class AccommodationCategoryPanel extends JPanel {
     }
 
     private void updateActionStates() {
+        if (actionInProgress) {
+            AccommodationManagementHelper.setTextButtonEnabled(saveButton, false);
+            AccommodationManagementHelper.setTextButtonEnabled(updateButton, false);
+            AccommodationManagementHelper.setTextButtonEnabled(cancelButton, false);
+            AccommodationManagementHelper.setDangerTextButtonEnabled(deleteButton, false);
+            return;
+        }
         boolean hasCategoryName = !categoryNameField.getText().trim().isEmpty();
         boolean editing = editingRow >= 0;
 
@@ -190,6 +226,10 @@ public class AccommodationCategoryPanel extends JPanel {
         AccommodationManagementHelper.setTextButtonEnabled(updateButton, hasCategoryName && editing);
         AccommodationManagementHelper.setTextButtonEnabled(cancelButton, hasCategoryName || editing);
         AccommodationManagementHelper.setDangerTextButtonEnabled(deleteButton, editing);
+    }
+
+    private interface DatabaseAction {
+        void run() throws SQLException;
     }
 
     private void notifyCategoriesChanged() {

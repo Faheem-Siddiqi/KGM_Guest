@@ -44,7 +44,15 @@ public class AccommodationManagementPanel extends JPanel {
         );
         accommodationFormPanel = new AccommodationFormPanel(
                 this::saveAccommodation,
-                this::updateAccommodation
+                this::updateAccommodation,
+                saved -> {
+                    accommodationTablePanel.addAccommodation(saved);
+                    DialogHelper.success(this, "Accommodation saved successfully.");
+                },
+                (row, updated) -> {
+                    accommodationTablePanel.updateAccommodation(row, updated);
+                    DialogHelper.success(this, "Accommodation updated successfully.");
+                }
         );
         categoryPanel = new AccommodationCategoryPanel(categories -> {
             accommodationFormPanel.setCategories(categories);
@@ -180,35 +188,13 @@ public class AccommodationManagementPanel extends JPanel {
         loadWorker.execute();
     }
 
-    private boolean saveAccommodation(AccommodationRecord accommodation) {
-        try {
-            AccommodationRecord saved = accommodationDao.save(accommodation);
-            accommodationTablePanel.addAccommodation(saved);
-            DialogHelper.success(this, "Accommodation saved successfully.");
-            return true;
-        } catch (SQLException exception) {
-            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                return false;
-            }
-            DialogHelper.error(this, "Accommodation not saved", exception.getMessage());
-            return false;
-        }
+    private AccommodationRecord saveAccommodation(AccommodationRecord accommodation) throws SQLException {
+        return accommodationDao.save(accommodation);
     }
 
-    private boolean updateAccommodation(int row, AccommodationRecord accommodation) {
-        try {
-            accommodation.setId(accommodationTablePanel.getAccommodation(row).getId());
-            AccommodationRecord updated = accommodationDao.update(accommodation);
-            accommodationTablePanel.updateAccommodation(row, updated);
-            DialogHelper.success(this, "Accommodation updated successfully.");
-            return true;
-        } catch (SQLException exception) {
-            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                return false;
-            }
-            DialogHelper.error(this, "Accommodation not updated", exception.getMessage());
-            return false;
-        }
+    private AccommodationRecord updateAccommodation(int row, AccommodationRecord accommodation) throws SQLException {
+        accommodation.setId(accommodationTablePanel.getAccommodation(row).getId());
+        return accommodationDao.update(accommodation);
     }
 
     private void scrollToSection(JComponent section) {

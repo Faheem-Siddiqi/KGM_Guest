@@ -10,6 +10,7 @@ import com.kgm.service.GuestValidationService;
 import com.kgm.ui.panel.FooterPanel;
 import com.kgm.ui.panel.HeaderPanel;
 import com.kgm.ui.component.UniversalDatePicker;
+import com.kgm.ui.component.PendingButtonState;
 import com.kgm.ui.styling.AddGuestHelper;
 import com.kgm.ui.styling.DialogHelper;
 
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class AddGuest extends JFrame {
     private static final String ALL_ROOMS_OCCUPIED = "All rooms occupied";
@@ -204,7 +206,8 @@ public class AddGuest extends JFrame {
                 roomCombo,
                 arrivalDate,
                 departureDate,
-                remarks
+                remarks,
+                submit
         ));
         actions.add(reset);
         actions.add(submit);
@@ -428,7 +431,8 @@ public class AddGuest extends JFrame {
             JComboBox<String> roomCombo,
             UniversalDatePicker arrivalDate,
             UniversalDatePicker departureDate,
-            JTextArea remarks
+            JTextArea remarks,
+            JButton submitButton
     ) {
         String guestName = guestNameField.getText().trim();
         String guestNationality = String.valueOf(guestNationalityCombo.getEditor().getItem()).trim();
@@ -463,46 +467,65 @@ public class AddGuest extends JFrame {
         guest.setRoomName(room);
         guest.setRemarks(remarksText.isEmpty() ? "N/A" : remarksText);
 
-        try {
-            GuestValidationService.ValidationResult validationResult =
-                    GUEST_VALIDATION_SERVICE.validateStandardGuest(guest);
-            List<String> validationSections = GuestValidationService.dialogSections(validationResult);
-            if (!validationSections.isEmpty()) {
-                DialogHelper.errorSections(
-                        parent,
-                        "Guest Details Need Attention",
-                        validationSections.toArray(new String[0])
-                );
-                return;
+        PendingButtonState pending = PendingButtonState.start(submitButton, "Adding...");
+        new SwingWorker<GuestValidationService.ValidationResult, Void>() {
+            @Override
+            protected GuestValidationService.ValidationResult doInBackground() throws Exception {
+                GuestValidationService.ValidationResult validationResult =
+                        GUEST_VALIDATION_SERVICE.validateStandardGuest(guest);
+                if (GuestValidationService.dialogSections(validationResult).isEmpty()) {
+                    GUEST_DAO.save(guest);
+                }
+                return validationResult;
             }
 
-            GUEST_DAO.save(guest);
-            DialogHelper.success(parent, "Guest added successfully. Record ID: " + guest.getId());
-            clearForm(
-                    guestNameField,
-                    guestCnicField,
-                    guestNationalityCombo,
-                    guestCategoryCombo,
-                    companyNameField,
-                    visitTypeCombo,
-                    guestAddressField,
-                    requestedByField,
-                    requestedDepartmentCombo,
-                    approvedByField,
-                    accommodatedByField,
-                    accommodationCombo,
-                    roomCombo,
-                    arrivalDate,
-                    departureDate,
-                    tenureField,
-                    remarks
-            );
-        } catch (SQLException exception) {
-            if (DatabaseSetupView.showIfConnectionFailure(exception)) {
-                return;
+            @Override
+            protected void done() {
+                try {
+                    GuestValidationService.ValidationResult validationResult = get();
+                    List<String> validationSections = GuestValidationService.dialogSections(validationResult);
+                    if (!validationSections.isEmpty()) {
+                        DialogHelper.errorSections(
+                                parent,
+                                "Guest Details Need Attention",
+                                validationSections.toArray(new String[0])
+                        );
+                        return;
+                    }
+                    DialogHelper.success(parent, "Guest added successfully. Record ID: " + guest.getId());
+                    clearForm(
+                            guestNameField,
+                            guestCnicField,
+                            guestNationalityCombo,
+                            guestCategoryCombo,
+                            companyNameField,
+                            visitTypeCombo,
+                            guestAddressField,
+                            requestedByField,
+                            requestedDepartmentCombo,
+                            approvedByField,
+                            accommodatedByField,
+                            accommodationCombo,
+                            roomCombo,
+                            arrivalDate,
+                            departureDate,
+                            tenureField,
+                            remarks
+                    );
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    Throwable failure = cause == null ? exception : cause;
+                    if (DatabaseSetupView.showIfConnectionFailure(failure)) {
+                        return;
+                    }
+                    DialogHelper.error(parent, "Guest not saved", failure.getMessage());
+                } finally {
+                    pending.restore();
+                }
             }
-            DialogHelper.error(parent, "Guest not saved", exception.getMessage());
-        }
+        }.execute();
     }
 
     private static String[] accommodationCategoryItems() {
